@@ -1,3 +1,9 @@
+// import React from 'react';
+// import TestCamera from './TestCamera';
+
+// export default function App() {
+//   return <TestCamera />;
+// }
 import React from 'react';
 import { 
   StyleSheet, 
