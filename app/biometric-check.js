@@ -11,11 +11,11 @@ export default function BiometricCheckScreen() {
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState(null);
   
-  // Get parameters from URL
+  // Get parameters from the URL
   const { mode } = useLocalSearchParams();
   const isCheckIn = mode === 'check-in';
 
-  // Запрашиваем местоположение сразу при загрузке компонента
+  // Request location as soon as the component mounts
   React.useEffect(() => {
     (async () => {
       try {
@@ -47,19 +47,44 @@ export default function BiometricCheckScreen() {
           locationString = `${location.coords.latitude},${location.coords.longitude}`;
         }
 
-        // Prepare API request
-        const endpoint = isCheckIn
-          ? API_ENDPOINTS.BIOMETRICS.CHECK_IN
-          : API_ENDPOINTS.BIOMETRICS.CHECK_OUT;
-
+        // Prepare API request data
         const requestData = {
           image: `data:image/jpeg;base64,${photo.base64}`,
           location: locationString
         };
+        
+        console.log('Would send data to server:', requestData);
+        
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Send to backend
+        // Simulated server response
+        const mockResponse = {
+          data: {
+            success: true
+          }
+        };
+
+        // Use mock instead of real API response
+        if (mockResponse.data.success) {
+          Alert.alert(
+            'Success',
+            isCheckIn
+              ? 'Check-in successful!'
+              : 'Check-out successful!',
+            [{ text: 'OK', onPress: () => router.push('/employees') }]
+          );
+        } else {
+          Alert.alert('Error', 'Face recognition failed');
+        }
+        
+        // Real API call, commented for future use
+        /*
+        const endpoint = isCheckIn
+          ? API_ENDPOINTS.BIOMETRICS.CHECK_IN
+          : API_ENDPOINTS.BIOMETRICS.CHECK_OUT;
         const response = await api.post(endpoint, requestData);
-
+        
         if (response.data.success) {
           Alert.alert(
             'Success',
@@ -71,11 +96,12 @@ export default function BiometricCheckScreen() {
         } else {
           Alert.alert('Error', response.data.error || 'Face recognition failed');
         }
+        */
       } catch (error) {
         console.error('Error during check process:', error);
         Alert.alert(
           'Error',
-          error.response?.data?.error || 'An error occurred. Please try again.'
+          'An error occurred. Please try again.'
         );
       } finally {
         setLoading(false);

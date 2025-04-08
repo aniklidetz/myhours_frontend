@@ -11,30 +11,32 @@ import {
   SafeAreaView
 } from 'react-native';
 import { router } from 'expo-router';
-
+import { useUser } from '../src/contexts/UserContext'; // Add this import
 
 export default function EmployeeListScreen() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+  const { user, hasAccess, logout } = useUser(); // Add this hook
+
   useEffect(() => {
     fetchEmployees();
   }, []);
-  
+
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      
-      // mock
+
+      // Mock data
       const mockEmployees = [
         { id: 1, first_name: 'John', last_name: 'Smith', email: 'john@example.com' },
         { id: 2, first_name: 'Emily', last_name: 'Johnson', email: 'emily@example.com' },
         { id: 3, first_name: 'Michael', last_name: 'Brown', email: 'michael@example.com' },
       ];
-      
+
+      // In a real app, fetch from API
       // const response = await api.get('/api/users/employees/');
       // const employees = response.data.results;
-      
+
       setEmployees(mockEmployees);
     } catch (error) {
       console.error('Error loading employees:', error);
@@ -43,7 +45,7 @@ export default function EmployeeListScreen() {
       setLoading(false);
     }
   };
-  
+
   const handleBiometricRegistration = (employee) => {
     router.push({
       pathname: '/biometric-registration',
@@ -53,7 +55,12 @@ export default function EmployeeListScreen() {
       }
     });
   };
-  
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/');
+  };
+
   const renderEmployeeItem = ({ item }) => (
     <View style={styles.employeeCard}>
       <View>
@@ -68,9 +75,23 @@ export default function EmployeeListScreen() {
       </TouchableOpacity>
     </View>
   );
-  
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Debug panel with user info */}
+      <View style={styles.userInfoPanel}>
+        <View>
+          <Text style={styles.userInfoText}>Logged in as: {user?.name} (Role: {user?.role})</Text>
+          <Text style={styles.userInfoText}>Has Admin Access: {hasAccess('admin') ? 'Yes' : 'No'}</Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.logoutButton}
+          onPress={handleLogout}
+        >
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
+
       {loading ? (
         <ActivityIndicator size="large" color="#2196F3" style={styles.loader} />
       ) : (
@@ -81,7 +102,7 @@ export default function EmployeeListScreen() {
           contentContainerStyle={styles.listContent}
         />
       )}
-      
+
       <View style={styles.buttonContainer}>
         <TouchableOpacity 
           style={[styles.button, styles.checkInButton]}
@@ -92,7 +113,7 @@ export default function EmployeeListScreen() {
         >
           <Text style={styles.buttonText}>Check-In</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity 
           style={[styles.button, styles.checkOutButton]}
           onPress={() => router.push({
@@ -111,6 +132,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  userInfoPanel: {
+    backgroundColor: '#e3f2fd',
+    padding: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#bbdefb',
+  },
+  userInfoText: {
+    fontSize: 12,
+    color: '#1976d2',
+  },
+  logoutButton: {
+    backgroundColor: '#f44336',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 4,
+  },
+  logoutText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
   loader: {
     flex: 1,

@@ -10,7 +10,7 @@ export default function BiometricRegistrationScreen() {
   const [loading, setLoading] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
 
-  // Get parameters from URL
+  // Get parameters from the URL
   const { employeeId, employeeName } = useLocalSearchParams();
 
   const takePhoto = async () => {
@@ -24,7 +24,7 @@ export default function BiometricRegistrationScreen() {
         console.log('Photo captured (registration):', photo);
         setCapturedImage(photo);
         
-        // Автоматически отправляем фото на сервер
+        // Automatically send photo to the server
         await registerFace(photo);
       } catch (error) {
         console.error('Error capturing photo (registration):', error);
@@ -44,10 +44,37 @@ export default function BiometricRegistrationScreen() {
     try {
       const imageData = `data:image/jpeg;base64,${photo.base64}`;
       
-      const response = await api.post(API_ENDPOINTS.BIOMETRICS.REGISTER, {
+      // Prepare data for the API (useful for future implementation)
+      const requestData = {
         employee_id: employeeId,
         image: imageData
-      });
+      };
+      
+      console.log('Would send registration data for employee:', employeeId);
+      
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Simulated server response
+      const mockResponse = {
+        data: {
+          success: true
+        }
+      };
+
+      if (mockResponse.data.success) {
+        Alert.alert(
+          'Success', 
+          `Face registered for ${employeeName || `employee #${employeeId}`}`,
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      } else {
+        Alert.alert('Error', 'Registration failed');
+      }
+      
+      // Real API call (commented for future use)
+      /*
+      const response = await api.post(API_ENDPOINTS.BIOMETRICS.REGISTER, requestData);
       
       if (response.data.success) {
         Alert.alert(
@@ -58,11 +85,12 @@ export default function BiometricRegistrationScreen() {
       } else {
         Alert.alert('Error', response.data.error || 'Registration failed');
       }
+      */
     } catch (error) {
       console.error('Registration error:', error);
       Alert.alert(
         'Error',
-        error.response?.data?.error || 'Failed to register. Please try again.'
+        'Failed to register. Please try again.'
       );
     }
   };
