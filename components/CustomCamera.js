@@ -52,10 +52,10 @@ export default function CustomCamera({ children, style, type, ...props }) {
 
 const styles = StyleSheet.create({
   loading: {
-    flex: 1,
-    backgroundColor: '#222',
-    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#222',
+    flex: 1,
+    justifyContent: 'center',
   },
   text: {
     color: 'white',

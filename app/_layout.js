@@ -1,57 +1,152 @@
 // app/_layout.js
 import React from 'react';
-import { Stack } from 'expo-router';
+import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { UserProvider } from '../src/contexts/UserContext';
-import { View, Text } from 'react-native';
+import { UserProvider, useUser, ROLES } from '../src/contexts/UserContext';
+import { OfficeProvider } from '../src/contexts/OfficeContext';
+import useColors from '../hooks/useColors';
 
-// Optional loading screen in case you want to add auth/loading logic later
-function LoadingScreen() {
+function TabsNavigator() {
+  const { user, hasAccess } = useUser();
+  const { palette, isDark } = useColors(); // Get color palette
+
+  // Determine which tabs to show based on user role
+  const showPayrollTab = hasAccess(ROLES.ACCOUNTANT); // Only for accountant and admin
+  const showAdminTab = hasAccess(ROLES.ADMIN); // Only for administrators
+
+  if (!user) {
+    // If the user is not authenticated, show only the login screen
+    return (
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: palette.primary,
+          tabBarInactiveTintColor: palette.text.secondary,
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+        }}
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Login',
+            tabBarStyle: { display: 'none' },
+            headerShown: false,
+            tabBarButton: () => null, // Hide from tab bar
+          }}
+        />
+      </Tabs>
+    );
+  }
+
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>Loading...</Text>
-    </View>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: palette.primary,
+        tabBarInactiveTintColor: palette.text.secondary,
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: palette.background.primary,
+        },
+        headerTintColor: palette.text.primary,
+        tabBarStyle: {
+          backgroundColor: palette.background.primary,
+          borderTopColor: palette.border,
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="employees"
+        options={{
+          title: 'Employees',
+          tabBarLabel: 'Employees',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="people" size={24} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="worktime"
+        options={{
+          title: 'Work Time',
+          tabBarLabel: 'Time',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="time" size={24} color={color} />
+          ),
+        }}
+      />
+
+      {showPayrollTab && (
+        <Tabs.Screen
+          name="payroll"
+          options={{
+            title: 'Payroll',
+            tabBarLabel: 'Payroll',
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="cash" size={24} color={color} />
+            ),
+          }}
+        />
+      )}
+
+      {showAdminTab && (
+        <Tabs.Screen
+          name="admin"
+          options={{
+            title: 'Administration',
+            tabBarLabel: 'Admin',
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="settings" size={24} color={color} />
+            ),
+          }}
+        />
+      )}
+
+      <Tabs.Screen
+        name="biometric-check"
+        options={{
+          title: 'Biometric Check',
+          tabBarButton: () => null, // Hide from tab bar
+        }}
+      />
+
+      <Tabs.Screen
+        name="biometric-registration"
+        options={{
+          title: 'Biometric Registration',
+          tabBarButton: () => null, // Hide from tab bar
+        }}
+      />
+
+      <Tabs.Screen
+        name="office-settings"
+        options={{
+          title: 'Office Settings',
+          tabBarButton: () => null, // Hide from tab bar
+        }}
+      />
+
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Login',
+          tabBarButton: () => null, // Hide from tab bar
+        }}
+      />
+    </Tabs>
   );
 }
 
-// Root layout of the app with UserProvider and screen configuration
+// Main layout component
 export default function Layout() {
   return (
     <UserProvider>
-      <SafeAreaProvider>
-        <Stack screenOptions={{ headerShown: true }}>
-          <Stack.Screen 
-            name="index" 
-            options={{ 
-              title: 'Login', 
-              headerShown: false 
-            }} 
-          />
-          <Stack.Screen 
-            name="employees" 
-            options={{ 
-              title: 'Employees' 
-            }} 
-          />
-          <Stack.Screen
-            name="biometric-registration"
-            options={{ 
-              title: 'Biometric Registration' 
-            }}
-          />
-          <Stack.Screen
-            name="biometric-check"
-            options={({ route }) => ({
-              title:
-                route.params?.mode === 'check-in'
-                  ? 'Check-in'
-                  : route.params?.mode === 'check-out'
-                    ? 'Check-out'
-                    : 'Biometric Check',
-            })}
-          />
-        </Stack>
-      </SafeAreaProvider>
+      <OfficeProvider>
+        <SafeAreaProvider>
+          <TabsNavigator />
+        </SafeAreaProvider>
+      </OfficeProvider>
     </UserProvider>
   );
 }

@@ -1,199 +1,148 @@
-import React, { useState, useRef } from 'react';
-import { View, Button, StyleSheet, Text, Alert, ActivityIndicator } from 'react-native';
-import CustomCamera from '../components/CustomCamera';
-import { useLocalSearchParams, router } from 'expo-router';
-import * as Location from 'expo-location';
-import api from '../src/api/client';
-import { API_ENDPOINTS } from '../src/config';
+// Camera check-in / check-out screen.
+// Adds location awareness: decides whether the user is inside the office
+// radius and passes an `inside` flag to the server.
 
-export default function BiometricCheckScreen() {
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  Button,
+  Alert,
+} from 'react-native';
+import { Camera } from 'expo-camera';
+// УДАЛЕН import * as MediaLibrary from 'expo-media-library';
+import useLocation from '../hooks/useLocation';
+import { useOffice } from '../src/contexts/OfficeContext';
+import useColors from '../hooks/useColors';
+// import api from '../src/api/client';            // uncomment for real backend
+
+export default function BiometricCheckScreen({ route }) {
+  // mode comes from navigation params: 'check-in' or 'check-out'
+  const isCheckIn = route?.params?.mode !== 'check-out';
+
   const cameraRef = useRef(null);
+  const [hasPermission, setHasPermission] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [location, setLocation] = useState(null);
-  
-  // Get parameters from the URL
-  const { mode } = useLocalSearchParams();
-  const isCheckIn = mode === 'check-in';
 
-  // Request location as soon as the component mounts
-  React.useEffect(() => {
+  // Colors & palette for light/dark theme
+  const { palette } = useColors();
+
+  // Current GPS coordinates
+  const { location, error: locationError } = useLocation({ watchPosition: false });
+
+  // Office settings context
+  const { isInsideOffice } = useOffice();
+  const inside = location ? isInsideOffice(location.coords) : false;
+
+  /* ─────────── Permissions ─────────── */
+  useEffect(() => {
     (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const currentLocation = await Location.getCurrentPositionAsync({});
-          setLocation(currentLocation);
-        }
-      } catch (error) {
-        console.error('Error getting location:', error);
-      }
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      // УДАЛЕН запрос разрешений MediaLibrary
+      setHasPermission(status === 'granted');
     })();
   }, []);
 
+  if (hasPermission === null) {
+    return (
+      <View style={styles(palette).centered}>
+        <ActivityIndicator size="large" color={palette.primary} />
+      </View>
+    );
+  }
+  if (hasPermission === false) {
+    return (
+      <View style={styles(palette).centered}>
+        <Text style={styles(palette).warningText}>
+          Camera permission denied
+        </Text>
+      </View>
+    );
+  }
+
+  /* ─────────── Photo capture & submit ─────────── */
   const takePhoto = async () => {
-    if (cameraRef.current) {
-      setLoading(true);
-      try {
-        // Take a picture
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.7,
-          base64: true,
-        });
-        console.log('Photo captured (check):', photo);
+    if (!cameraRef.current) return;
+    setLoading(true);
 
-        // Prepare location string if available
-        let locationString = '';
-        if (location) {
-          locationString = `${location.coords.latitude},${location.coords.longitude}`;
-        }
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ base64: true });
+      // УДАЛЕНО сохранение в галерею: await MediaLibrary.saveToLibraryAsync(photo.uri);
 
-        // Prepare API request data
-        const requestData = {
-          image: `data:image/jpeg;base64,${photo.base64}`,
-          location: locationString
-        };
-        
-        console.log('Would send data to server:', requestData);
-        
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      const coords = location?.coords || {};
+      const requestData = {
+        image: `data:image/jpeg;base64,${photo.base64}`,
+        latitude: coords.latitude ?? null,
+        longitude: coords.longitude ?? null,
+        inside,                                   // true = office, false = remote
+        mode: isCheckIn ? 'check-in' : 'check-out',
+        timestamp: new Date().toISOString(),
+      };
 
-        // Simulated server response
-        const mockResponse = {
-          data: {
-            success: true
-          }
-        };
-
-        // Use mock instead of real API response
-        if (mockResponse.data.success) {
-          Alert.alert(
-            'Success',
-            isCheckIn
-              ? 'Check-in successful!'
-              : 'Check-out successful!',
-            [{ text: 'OK', onPress: () => router.push('/employees') }]
-          );
-        } else {
-          Alert.alert('Error', 'Face recognition failed');
-        }
-        
-        // Real API call, commented for future use
-        /*
-        const endpoint = isCheckIn
-          ? API_ENDPOINTS.BIOMETRICS.CHECK_IN
-          : API_ENDPOINTS.BIOMETRICS.CHECK_OUT;
-        const response = await api.post(endpoint, requestData);
-        
-        if (response.data.success) {
-          Alert.alert(
-            'Success',
-            isCheckIn
-              ? 'Check-in successful!'
-              : 'Check-out successful!',
-            [{ text: 'OK', onPress: () => router.push('/employees') }]
-          );
-        } else {
-          Alert.alert('Error', response.data.error || 'Face recognition failed');
-        }
-        */
-      } catch (error) {
-        console.error('Error during check process:', error);
-        Alert.alert(
-          'Error',
-          'An error occurred. Please try again.'
-        );
-      } finally {
-        setLoading(false);
-      }
+      // await api.post('/checkin/', requestData);
+      console.log('Payload sent to server:', requestData);
+      Alert.alert('Success', inside ? 'Office check recorded' : 'Remote check recorded');
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to submit check');
+    } finally {
+      setLoading(false);
     }
   };
 
+  /* ─────────── UI ─────────── */
   return (
-    <View style={styles.container}>
-      <CustomCamera
-        style={styles.camera}
-        type="front"
-        innerRef={cameraRef}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.faceGuide} />
-        </View>
-      </CustomCamera>
-      
-      <View style={styles.controlPanel}>
-        <Text style={styles.title}>
-          {isCheckIn ? 'Check-In Process' : 'Check-Out Process'}
+    <View style={styles(palette).container}>
+      <Camera ref={cameraRef} style={styles(palette).camera} />
+
+      {locationError && (
+        <Text style={styles(palette).warningText}>
+          Location permission denied – your check will be marked as remote
         </Text>
-        
-        <Text style={styles.instructions}>
-          Position your face in the frame and press the button
+      )}
+
+      {location && !inside && (
+        <Text style={styles(palette).warningText}>
+          You are outside the office radius – this will be recorded as remote work
         </Text>
-        
-        {!location && (
-          <Text style={styles.warningText}>
-            Location services are disabled. Your location won't be recorded.
-          </Text>
-        )}
-        
-        <Button 
-          title={loading ? "Processing..." : isCheckIn ? "Check In" : "Check Out"} 
-          onPress={takePhoto}
-          disabled={loading}
-          color={isCheckIn ? "#4CAF50" : "#F44336"}
-        />
-        
-        {loading && <ActivityIndicator style={styles.loader} size="large" color="#fff" />}
-      </View>
+      )}
+
+      <Button
+        title={
+          loading
+            ? 'Processing...'
+            : isCheckIn
+            ? inside
+              ? 'Check In (office)'
+              : 'Check In (remote)'
+            : inside
+            ? 'Check Out (office)'
+            : 'Check Out (remote)'
+        }
+        onPress={takePhoto}
+        color={isCheckIn ? palette.success : palette.danger}
+        disabled={loading}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  camera: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  faceGuide: {
-    width: 250,
-    height: 250,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 125,
-  },
-  controlPanel: {
-    padding: 20,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  title: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  instructions: {
-    color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  warningText: {
-    color: '#ff9800',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  loader: {
-    marginTop: 10,
-  }
-});
+/* ─────────── Styles (color-agnostic) ─────────── */
+const styles = (p) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: p.background.primary },
+    camera: { flex: 1 },
+    centered: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: p.background.primary,
+    },
+    warningText: {
+      color: p.warning,
+      textAlign: 'center',
+      padding: 10,
+    },
+  });

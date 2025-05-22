@@ -1,5 +1,5 @@
 import type { PropsWithChildren, ReactElement } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, useColorScheme as reactNativeColorScheme } from 'react-native';
 import Animated, {
   interpolate,
   useAnimatedRef,
@@ -9,7 +9,9 @@ import Animated, {
 
 import { ThemedView } from '@/components/ThemedView';
 import { useBottomTabOverflow } from '@/components/ui/TabBarBackground';
-import { useColorScheme } from '@/hooks/useColorScheme';
+// Удаляем дублирующийся импорт useColorScheme из @/hooks
+// Вместо него используем наш хук useColors из ../hooks/useColors
+import useColors from '../hooks/useColors';
 
 const HEADER_HEIGHT = 250;
 
@@ -23,7 +25,13 @@ export default function ParallaxScrollView({
   headerImage,
   headerBackgroundColor,
 }: Props) {
-  const colorScheme = useColorScheme() ?? 'light';
+  // Используем встроенный хук React Native для определения схемы цветов
+  const colorScheme = reactNativeColorScheme() ?? 'light';
+  
+  // Альтернативно, можно использовать наш кастомный хук useColors:
+  // const { isDark } = useColors();
+  // const colorSchemeName = isDark ? 'dark' : 'light';
+  
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const scrollOffset = useScrollViewOffset(scrollRef);
   const bottom = useBottomTabOverflow();
