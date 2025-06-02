@@ -1,4 +1,3 @@
-// app/_layout.js
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,35 +8,11 @@ import useColors from '../hooks/useColors';
 
 function TabsNavigator() {
   const { user, hasAccess } = useUser();
-  const { palette, isDark } = useColors(); // Get color palette
+  const { palette } = useColors();
 
-  // Determine which tabs to show based on user role
-  const showPayrollTab = hasAccess(ROLES.ACCOUNTANT); // Only for accountant and admin
-  const showAdminTab = hasAccess(ROLES.ADMIN); // Only for administrators
-
-  if (!user) {
-    // If the user is not authenticated, show only the login screen
-    return (
-      <Tabs
-        screenOptions={{
-          tabBarActiveTintColor: palette.primary,
-          tabBarInactiveTintColor: palette.text.secondary,
-          headerShown: false,
-          tabBarStyle: { display: 'none' },
-        }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'Login',
-            tabBarStyle: { display: 'none' },
-            headerShown: false,
-            tabBarButton: () => null, // Hide from tab bar
-          }}
-        />
-      </Tabs>
-    );
-  }
+  const isEmployee = user?.role === ROLES.EMPLOYEE;
+  const canManagePayroll = hasAccess(ROLES.ACCOUNTANT);
+  const canAdministrate = hasAccess(ROLES.ADMIN);
 
   return (
     <Tabs
@@ -49,65 +24,84 @@ function TabsNavigator() {
           backgroundColor: palette.background.primary,
         },
         headerTintColor: palette.text.primary,
-        tabBarStyle: {
+        tabBarStyle: user ? {
           backgroundColor: palette.background.primary,
           borderTopColor: palette.border,
-        },
+        } : { display: 'none' },
       }}
     >
+      {/* Экран входа - показываем только если пользователь не авторизован */}
       <Tabs.Screen
-        name="employees"
+        name="index"
         options={{
-          title: 'Employees',
-          tabBarLabel: 'Employees',
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="people" size={24} color={color} />
-          ),
+          title: 'Login',
+          headerShown: false,
+          tabBarButton: () => null,
         }}
       />
 
+      {/* Главный экран - разный для разных ролей */}
+      <Tabs.Screen
+        name="employees"
+        options={{
+          title: isEmployee ? 'My Workday' : 'Employees',
+          tabBarLabel: isEmployee ? 'My Day' : 'Employees',
+          tabBarIcon: ({ color }) => (
+            <Ionicons 
+              name={isEmployee ? "person" : "people"} 
+              size={24} 
+              color={color} 
+            />
+          ),
+          tabBarButton: !user ? () => null : undefined,
+        }}
+      />
+
+      {/* Экран рабочего времени - для всех авторизованных */}
       <Tabs.Screen
         name="worktime"
         options={{
-          title: 'Work Time',
+          title: isEmployee ? 'My Work Time' : 'Work Time',
           tabBarLabel: 'Time',
           tabBarIcon: ({ color }) => (
             <Ionicons name="time" size={24} color={color} />
           ),
+          tabBarButton: !user ? () => null : undefined,
         }}
       />
 
-      {showPayrollTab && (
-        <Tabs.Screen
-          name="payroll"
-          options={{
-            title: 'Payroll',
-            tabBarLabel: 'Payroll',
-            tabBarIcon: ({ color }) => (
-              <Ionicons name="cash" size={24} color={color} />
-            ),
-          }}
-        />
-      )}
+      {/* Зарплата - только для бухгалтеров и админов */}
+      <Tabs.Screen
+        name="payroll"
+        options={{
+          title: 'Payroll',
+          tabBarLabel: 'Payroll',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="cash" size={24} color={color} />
+          ),
+          tabBarButton: (!user || !canManagePayroll) ? () => null : undefined,
+        }}
+      />
 
-      {showAdminTab && (
-        <Tabs.Screen
-          name="admin"
-          options={{
-            title: 'Administration',
-            tabBarLabel: 'Admin',
-            tabBarIcon: ({ color }) => (
-              <Ionicons name="settings" size={24} color={color} />
-            ),
-          }}
-        />
-      )}
+      {/* Администрирование - только для админов */}
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: 'Administration',
+          tabBarLabel: 'Admin',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="settings" size={24} color={color} />
+          ),
+          tabBarButton: (!user || !canAdministrate) ? () => null : undefined,
+        }}
+      />
 
+      {/* Скрытые экраны - не отображаются в таб-баре */}
       <Tabs.Screen
         name="biometric-check"
         options={{
           title: 'Biometric Check',
-          tabBarButton: () => null, // Hide from tab bar
+          tabBarButton: () => null,
         }}
       />
 
@@ -115,7 +109,7 @@ function TabsNavigator() {
         name="biometric-registration"
         options={{
           title: 'Biometric Registration',
-          tabBarButton: () => null, // Hide from tab bar
+          tabBarButton: () => null,
         }}
       />
 
@@ -123,22 +117,14 @@ function TabsNavigator() {
         name="office-settings"
         options={{
           title: 'Office Settings',
-          tabBarButton: () => null, // Hide from tab bar
-        }}
-      />
-
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Login',
-          tabBarButton: () => null, // Hide from tab bar
+          tabBarButton: () => null,
         }}
       />
     </Tabs>
   );
 }
 
-// Main layout component
+// Главный компонент Layout
 export default function Layout() {
   return (
     <UserProvider>

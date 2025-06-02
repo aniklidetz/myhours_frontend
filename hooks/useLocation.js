@@ -1,171 +1,184 @@
-import { useState, useEffect } from 'react';
+// hooks/useLocation.js
+import { useState, useEffect, useRef } from 'react';
 import * as Location from 'expo-location';
-import { Alert } from 'react-native';
+import { APP_CONFIG } from '../src/config';
 
-/**
- * Hook for working with geolocation
- * @param {Object} options - Options for location requests
- * @param {boolean} options.requestPermission - Automatically request permission
- * @param {boolean} options.watchPosition - Watch for position changes
- * @param {number} options.distanceInterval - Minimum distance (meters) to trigger updates (only if watchPosition=true)
- * @param {number} options.timeInterval - Minimum time interval (ms) for updates (only if watchPosition=true)
- * @returns {Object} - Location info and status
- */
-export default function useLocation({
-  requestPermission = true,
-  watchPosition = false,
-  distanceInterval = 10,
-  timeInterval = 5000,
-} = {}) {
+const useLocation = (options = {}) => {
+  const { watchPosition = false, highAccuracy = true } = options;
   const [location, setLocation] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
-  const [permissionStatus, setPermissionStatus] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [watchId, setWatchId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const watchRef = useRef(null);
 
   useEffect(() => {
-    let isActive = true;
+    let mounted = true;
 
-    const getPermissions = async () => {
+    const getLocationAsync = async () => {
       try {
-        setIsLoading(true);
-        // Request foreground location permission
+        console.log('🌍 Requesting location permissions...');
+        
+        // Request permissions
         const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setErrorMsg('Location permission denied');
+          setLoading(false);
+          return;
+        }
 
-        if (isActive) {
-          setPermissionStatus(status);
+        console.log('✅ Location permission granted');
 
-          if (status !== 'granted') {
-            setErrorMsg('Location permission not granted');
-            return;
-          }
+        // Get current position
+        const getCurrentLocation = async () => {
+          try {
+            const currentLocation = await Location.getCurrentPositionAsync({
+              accuracy: highAccuracy 
+                ? Location.Accuracy.BestForNavigation 
+                : Location.Accuracy.Balanced,
+              timeout: APP_CONFIG.LOCATION_TIMEOUT,
+            });
 
-          // Get current location
-          const currentLocation = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Highest,
-          });
-
-          if (isActive) {
-            setLocation(currentLocation);
-            setErrorMsg(null);
-
-            // If watchPosition is enabled, subscribe to updates
-            if (watchPosition) {
-              const id = await Location.watchPositionAsync(
-                {
-                  accuracy: Location.Accuracy.Highest,
-                  distanceInterval,
-                  timeInterval,
-                },
-                (newLocation) => {
-                  if (isActive) {
-                    setLocation(newLocation);
-                  }
-                }
-              );
-
-              if (isActive) {
-                setWatchId(id);
-              }
+            if (mounted) {
+              setLocation(currentLocation);
+              setErrorMsg(null);
+              console.log('📍 Location obtained:', {
+                lat: currentLocation.coords.latitude.toFixed(6),
+                lng: currentLocation.coords.longitude.toFixed(6),
+                accuracy: currentLocation.coords.accuracy?.toFixed(0) + 'm'
+              });
+            }
+          } catch (error) {
+            console.error('❌ Error getting current location:', error);
+            if (mounted) {
+              setErrorMsg('Failed to get current location');
             }
           }
+        };
+
+        // Get initial location
+        await getCurrentLocation();
+
+        // Set up location watching if requested
+        if (watchPosition && mounted) {
+          console.log('👀 Starting location watching...');
+          
+          watchRef.current = await Location.watchPositionAsync(
+            {
+              accuracy: highAccuracy 
+                ? Location.Accuracy.BestForNavigation 
+                : Location.Accuracy.Balanced,
+              timeInterval: 10000, // Update every 10 seconds
+              distanceInterval: 10, // Update when moved 10 meters
+            },
+            (newLocation) => {
+              if (mounted) {
+                setLocation(newLocation);
+                setErrorMsg(null);
+                console.log('📍 Location updated:', {
+                  lat: newLocation.coords.latitude.toFixed(6),
+                  lng: newLocation.coords.longitude.toFixed(6)
+                });
+              }
+            }
+          );
         }
       } catch (error) {
-        if (isActive) {
-          setErrorMsg(`Location error: ${error.message}`);
+        console.error('❌ Location setup error:', error);
+        if (mounted) {
+          setErrorMsg('Location service error');
         }
       } finally {
-        if (isActive) setIsLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-    if (requestPermission) getPermissions();
+    getLocationAsync();
 
+    // Cleanup function
     return () => {
-      isActive = false;
-      if (watchId) watchId.remove();
+      mounted = false;
+      if (watchRef.current) {
+        console.log('🛑 Stopping location watching...');
+        watchRef.current.remove();
+        watchRef.current = null;
+      }
     };
-  }, [requestPermission, watchPosition, distanceInterval, timeInterval]);
+  }, [watchPosition, highAccuracy]);
 
-  /**
-   * Checks if the user is within a specified radius of a target location
-   * @param {Object} targetLocation - { latitude, longitude }
-   * @param {number} radius - Radius in meters
-   * @returns {boolean}
-   */
-  const isUserInRadius = (targetLocation, radius = 100) => {
+  // Helper function to calculate distance between two points
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const R = 6371000; // Earth radius in meters
+
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    
+    return 2 * R * Math.asin(Math.sqrt(a));
+  };
+
+  // Helper function to check if user is within radius of a location
+  const isUserInRadius = (targetLocation, radius) => {
     if (!location || !targetLocation) return false;
-
+    
+    const { latitude, longitude } = location.coords;
     const distance = calculateDistance(
-      location.coords.latitude,
-      location.coords.longitude,
+      latitude,
+      longitude,
       targetLocation.latitude,
       targetLocation.longitude
     );
-
+    
     return distance <= radius;
   };
 
-  /**
-   * Calculates the distance between two geographic points (Haversine formula)
-   * @param {number} lat1
-   * @param {number} lon1
-   * @param {number} lat2
-   * @param {number} lon2
-   * @returns {number} Distance in meters
-   */
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371e3; // Earth radius in meters
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a =
-      Math.sin(Δφ / 2) ** 2 +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
+  // Helper function to get distance to a specific location
+  const getDistanceTo = (targetLocation) => {
+    if (!location || !targetLocation) return null;
+    
+    const { latitude, longitude } = location.coords;
+    return calculateDistance(
+      latitude,
+      longitude,
+      targetLocation.latitude,
+      targetLocation.longitude
+    );
   };
 
-  /**
-   * Requests the current location manually
-   * @returns {Promise<Object|null>}
-   */
-  const getCurrentLocation = async () => {
-    if (permissionStatus !== 'granted') {
-      Alert.alert(
-        'Permission required',
-        'Location permission is required to get your current location',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Location.requestForegroundPermissionsAsync() },
-        ]
-      );
-      return null;
-    }
+  // Helper function to get formatted location string
+  const getLocationString = () => {
+    if (!location) return 'Location unavailable';
+    
+    const { latitude, longitude, accuracy } = location.coords;
+    return `${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${Math.round(accuracy)}m)`;
+  };
 
-    try {
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Highest,
-      });
-      setLocation(currentLocation);
-      return currentLocation;
-    } catch (error) {
-      setErrorMsg(`Location error: ${error.message}`);
-      return null;
-    }
+  // Helper function to check if location is accurate enough
+  const isLocationAccurate = (maxAccuracy = 100) => {
+    if (!location) return false;
+    return location.coords.accuracy <= maxAccuracy;
   };
 
   return {
     location,
     errorMsg,
-    permissionStatus,
-    isLoading,
+    loading,
     isUserInRadius,
+    getDistanceTo,
+    getLocationString,
+    isLocationAccurate,
     calculateDistance,
-    getCurrentLocation,
+    
+    // Expose coordinates directly for convenience
+    coordinates: location?.coords ? {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      accuracy: location.coords.accuracy,
+    } : null,
   };
-}
+};
+
+export default useLocation;

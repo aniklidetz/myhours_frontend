@@ -1,3 +1,4 @@
+// app/index.js
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
@@ -7,49 +8,53 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ActivityIndicator,
-  Alert
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
-import { useUser, ROLES } from '../src/contexts/UserContext';
+import { useUser } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
+import apiService from '../src/api/apiService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, user, loading: userLoading } = useUser();
-  const { palette, isDark } = useColors(); // используем хук для получения текущей цветовой палитры
+  const { login, user, loading: userLoading, isOnline, checkConnection } = useUser();
+  const { palette } = useColors();
 
   useEffect(() => {
     if (user && !userLoading) {
       console.log('User already logged in, redirecting to employees screen');
-      router.replace('/employees');
+      router.replace('/employees'); 
     }
   }, [user, userLoading]);
 
-  if (userLoading) {
-    return (
-      <View style={styles(palette).loadingContainer}>
-        <ActivityIndicator size="large" color={palette.primary} />
-        <Text style={styles(palette).loadingText}>Loading...</Text>
-      </View>
-    );
-  }
-
-  const authenticateUser = async (email, password) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        if (email.includes('admin')) {
-          resolve({ success: true, user: { id: 1, name: 'Admin User', email, role: ROLES.ADMIN } });
-        } else if (email.includes('accountant')) {
-          resolve({ success: true, user: { id: 2, name: 'Accountant User', email, role: ROLES.ACCOUNTANT } });
-        } else if (email && password) {
-          resolve({ success: true, user: { id: 3, name: 'Employee User', email, role: ROLES.EMPLOYEE } });
-        } else {
-          resolve({ success: false, message: 'Invalid credentials' });
-        }
-      }, 1000);
-    });
+  // Test connection button handler
+  const handleTestConnection = async () => {
+    try {
+      setLoading(true);
+      console.log('Testing connection...');
+      const result = await apiService.testConnection();
+      console.log('Connection test result:', result);
+      Alert.alert(
+        'Success', 
+        `Connected to backend!\n${result.message}`,
+        [{ text: 'OK' }]
+      );
+      await checkConnection(); // Update online status
+    } catch (error) {
+      console.error('Connection test failed:', error);
+      Alert.alert(
+        'Connection Failed', 
+        `Unable to connect to backend.\n\nMake sure:\n1. Django server is running on port 8000\n2. Using command: python manage.py runserver 0.0.0.0:8000\n3. Your phone/simulator is on same network\n\nError: ${error.message}`,
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogin = async () => {
@@ -60,75 +65,136 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const response = await authenticateUser(email, password);
-      if (response.success) {
-        const success = await login(response.user);
-        if (success) {
-          router.replace('/employees');
-        }
-      } else {
-        Alert.alert('Error', response.message || 'Authentication failed');
-      }
+      await login(email, password);
+      // Navigation is handled by useEffect when user state changes
     } catch (error) {
       console.error('Login error:', error);
-      Alert.alert('Error', 'An error occurred during login');
+      
+      let errorMessage = 'An error occurred during login';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Login Failed', errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  if (userLoading) {
+    return (
+      <View style={styles(palette).loadingContainer}>
+        <ActivityIndicator size="large" color={palette.primary} />
+        <Text style={styles(palette).loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles(palette).container}>
-      <View style={styles(palette).content}>
-        <Text style={styles(palette).title}>MyHours</Text>
-        <Text style={styles(palette).subtitle}>Time Tracking System</Text>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles(palette).keyboardView}
+      >
+        <ScrollView 
+          contentContainerStyle={styles(palette).scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles(palette).content}>
+            <Text style={styles(palette).title}>MyHours</Text>
+            <Text style={styles(palette).subtitle}>Time Tracking System</Text>
+            
+            {/* Connection status indicator */}
+            <View style={styles(palette).statusContainer}>
+              <View style={[
+                styles(palette).statusDot,
+                isOnline ? styles(palette).statusDotOnline : styles(palette).statusDotOffline
+              ]} />
+              <Text style={styles(palette).statusText}>
+                {isOnline ? 'Connected to backend' : 'Offline mode'}
+              </Text>
+            </View>
 
-        <View style={styles(palette).form}>
-          <TextInput
-            style={styles(palette).input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor={palette.text.secondary}
-          />
+            <View style={styles(palette).form}>
+              <TextInput
+                style={styles(palette).input}
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholderTextColor={palette.text.secondary}
+              />
 
-          <TextInput
-            style={styles(palette).input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholderTextColor={palette.text.secondary}
-          />
+              <TextInput
+                style={styles(palette).input}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholderTextColor={palette.text.secondary}
+              />
 
-          <TouchableOpacity
-            style={styles(palette).loginButton}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={palette.text.light} />
-            ) : (
-              <Text style={styles(palette).loginButtonText}>Login</Text>
-            )}
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={styles(palette).loginButton}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={palette.text.light} />
+                ) : (
+                  <Text style={styles(palette).loginButtonText}>Login</Text>
+                )}
+              </TouchableOpacity>
 
-          <Text style={styles(palette).hint}>
-            Hint: Use email with 'admin' or 'accountant' to test different roles
-          </Text>
-        </View>
-      </View>
+              {/* Test connection button */}
+              <TouchableOpacity
+                style={styles(palette).testButton}
+                onPress={handleTestConnection}
+                disabled={loading}
+              >
+                <Text style={styles(palette).testButtonText}>
+                  Test Backend Connection
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles(palette).infoContainer}>
+                <Text style={styles(palette).infoTitle}>For Testing:</Text>
+                <Text style={styles(palette).infoText}>
+                  1. First, click "Test Backend Connection"
+                </Text>
+                <Text style={styles(palette).infoText}>
+                  2. Use your Django superuser credentials
+                </Text>
+                <Text style={styles(palette).infoText}>
+                  3. Or create a user in Django admin panel
+                </Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-// Преобразуем стили в функцию, которая принимает цветовую палитру
+// Styles function that accepts color palette
 const styles = (palette) => StyleSheet.create({
   container: {
     backgroundColor: palette.background.secondary,
     flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   content: {
     alignItems: 'center',
@@ -140,11 +206,29 @@ const styles = (palette) => StyleSheet.create({
     maxWidth: 400,
     width: '100%',
   },
-  hint: {
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    padding: 10,
+    backgroundColor: palette.background.primary,
+    borderRadius: 20,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  statusDotOnline: {
+    backgroundColor: palette.success,
+  },
+  statusDotOffline: {
+    backgroundColor: palette.danger,
+  },
+  statusText: {
     color: palette.text.secondary,
-    fontSize: 12,
-    marginTop: 20,
-    textAlign: 'center',
+    fontSize: 14,
   },
   input: {
     backgroundColor: palette.background.primary,
@@ -173,6 +257,7 @@ const styles = (palette) => StyleSheet.create({
     borderRadius: 5,
     height: 50,
     justifyContent: 'center',
+    marginBottom: 10,
     width: '100%',
   },
   loginButtonText: {
@@ -180,10 +265,43 @@ const styles = (palette) => StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  testButton: {
+    alignItems: 'center',
+    backgroundColor: palette.background.transparent,
+    borderColor: palette.primary,
+    borderWidth: 1,
+    borderRadius: 5,
+    height: 50,
+    justifyContent: 'center',
+    marginBottom: 20,
+    width: '100%',
+  },
+  testButtonText: {
+    color: palette.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  infoContainer: {
+    backgroundColor: palette.background.primary,
+    borderRadius: 10,
+    padding: 15,
+    marginTop: 10,
+  },
+  infoTitle: {
+    color: palette.text.primary,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  infoText: {
+    color: palette.text.secondary,
+    fontSize: 14,
+    marginBottom: 5,
+  },
   subtitle: {
     color: palette.text.secondary,
     fontSize: 18,
-    marginBottom: 40,
+    marginBottom: 20,
   },
   title: {
     color: palette.primary,

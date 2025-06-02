@@ -37,62 +37,167 @@ export function OfficeProvider({ children }) {
   const [officeSettings, setOfficeSettings] = useState(DEFAULT_OFFICE_SETTINGS);
   const [loading, setLoading] = useState(true);
 
-  // Load saved settings on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) setOfficeSettings(JSON.parse(stored));
-      } catch (e) {
-        console.error('Failed to load office settings', e);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  // Persist helper
-  const saveSettings = async (updates) => {
+  // ─── Load Settings Function ────────────────────────────────────────────
+  const loadSettings = async () => {
     try {
-      const updated = { ...officeSettings, ...updates };
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      setOfficeSettings(updated);
+      console.log('Loading office settings from storage...');
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsedSettings = JSON.parse(stored);
+        console.log('Loaded office settings:', parsedSettings);
+        setOfficeSettings(parsedSettings);
+      } else {
+        console.log('No office settings found, using defaults');
+        setOfficeSettings(DEFAULT_OFFICE_SETTINGS);
+      }
     } catch (e) {
-      console.error('Failed to save office settings', e);
+      console.error('Failed to load office settings', e);
+      setOfficeSettings(DEFAULT_OFFICE_SETTINGS);
+    } finally {
+      setLoading(false);
     }
   };
 
-  /* ─── Public updaters ─────────────────────────────────────────────── */
-  const updateOfficeLocation = (latitude, longitude) =>
-    saveSettings({ location: { latitude, longitude } });
+  // Load saved settings on mount
+  useEffect(() => {
+    loadSettings();
+  }, []);
 
-  const updateCheckRadius = (checkRadius) => saveSettings({ checkRadius });
+  // ─── Save Settings Helper ─────────────────────────────────────────────
+  const saveSettings = async (updates) => {
+    try {
+      const updated = { ...officeSettings, ...updates };
+      console.log('Saving office settings:', updated);
+      
+      // Save to AsyncStorage
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      
+      // Update local state
+      setOfficeSettings(updated);
+      
+      console.log('Office settings saved successfully');
+      return true;
+    } catch (e) {
+      console.error('Failed to save office settings', e);
+      return false;
+    }
+  };
 
-  const updateRemotePolicy = (remotePolicy) => saveSettings({ remotePolicy });
+  // ─── Public Updater Functions ─────────────────────────────────────────
+/**
+ * Update office GPS coordinates.
+ *
+ * Accepts two calling styles:
+ *   1) updateOfficeLocation({ latitude, longitude })    // ← preferred
+ *   2) updateOfficeLocation(lat, lon)                  // ← legacy
+ */
+const updateOfficeLocation = async (locationOrLat, maybeLon) => {
+  let latitude, longitude;
 
-  /* ─── Geofence check ──────────────────────────────────────────────── */
+  // Preferred: single object argument
+  if (typeof locationOrLat === 'object' && locationOrLat !== null) {
+    ({ latitude, longitude } = locationOrLat);
+  } else {
+    // Legacy: two numeric arguments
+    console.warn(
+      '⚠️  Deprecated: call updateOfficeLocation({ latitude, longitude }) instead.'
+    );
+    latitude  = locationOrLat;
+    longitude = maybeLon;
+  }
+
+  console.log(`Updating office location to: ${latitude}, ${longitude}`);
+  return await saveSettings({ location: { latitude, longitude } });
+};
+
+  const updateCheckRadius = async (checkRadius) => {
+    const radiusNum = typeof checkRadius === 'number' ? checkRadius : parseFloat(checkRadius);
+    console.log(`Updating check radius to: ${radiusNum} meters`);
+    return await saveSettings({ checkRadius: radiusNum });
+  };
+
+  const updateRemotePolicy = async (remotePolicy) => {
+    console.log(`Updating remote policy to: ${remotePolicy}`);
+    return await saveSettings({ remotePolicy });
+  };
+
+  // ⚠️ ВАЖНО: Эта функция должна быть объявлена ДО contextValue
+  const updateAllSettings = async (newSettings) => {
+    console.log('Updating all office settings:', newSettings);
+    return await saveSettings(newSettings);
+  };
+
+  const resetSettings = async () => {
+    console.log('Resetting office settings to defaults');
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      setOfficeSettings(DEFAULT_OFFICE_SETTINGS);
+      return true;
+    } catch (e) {
+      console.error('Failed to reset office settings', e);
+      return false;
+    }
+  };
+
+  // ─── Geofence Functions ────────────────────────────────────────────────
   const isInsideOffice = useCallback(
     ({ latitude, longitude }, customRadius) => {
       const { location, checkRadius } = officeSettings;
-      if (location.latitude == null || location.longitude == null) return false; // not configured
-      const radius = customRadius ?? checkRadius;
-      const d = distanceMeters(latitude, longitude, location.latitude, location.longitude);
+      if (location.latitude == null || location.longitude == null) {
+        console.log('Office location not configured, cannot check if inside office');
+        return false; // not configured
+      }
+      
+      // Ensure checkRadius is a number
+      const defaultRadius = typeof checkRadius === 'number' ? checkRadius : 100;
+      const radius = typeof customRadius === 'number' ? customRadius : defaultRadius;
+      
+      // Ensure coordinates are numbers
+      const lat = typeof latitude === 'number' ? latitude : parseFloat(latitude);
+      const lon = typeof longitude === 'number' ? longitude : parseFloat(longitude);
+      const officeLat = typeof location.latitude === 'number' ? location.latitude : parseFloat(location.latitude);
+      const officeLon = typeof location.longitude === 'number' ? location.longitude : parseFloat(location.longitude);
+      
+      const d = distanceMeters(lat, lon, officeLat, officeLon);
+      console.log(`Distance from office: ${d.toFixed(2)}m, radius: ${radius}m, inside: ${d <= radius}`);
       return d <= radius;
     },
     [officeSettings]
   );
 
+  const getDistanceFromOffice = useCallback(
+    ({ latitude, longitude }) => {
+      const { location } = officeSettings;
+      if (location.latitude == null || location.longitude == null) {
+        return null; // not configured
+      }
+      return distanceMeters(latitude, longitude, location.latitude, location.longitude);
+    },
+    [officeSettings]
+  );
+
+  const isOfficeConfigured = useCallback(() => {
+    return officeSettings.location.latitude != null && officeSettings.location.longitude != null;
+  }, [officeSettings]);
+
+  // ─── Context Value ─────────────────────────────────────────────────────
+  // ✅ ВСЕ ФУНКЦИИ УЖЕ ОБЪЯВЛЕНЫ ВЫШЕ - ТЕПЕРЬ МОЖНО ИХ ЭКСПОРТИРОВАТЬ
+  const contextValue = {
+    officeSettings,
+    loading,
+    updateOfficeLocation,
+    updateCheckRadius,
+    updateRemotePolicy,
+    updateAllSettings, // ✅ Функция уже существует
+    resetSettings,
+    isInsideOffice,
+    getDistanceFromOffice,
+    isOfficeConfigured,
+    reloadSettings: loadSettings,
+  };
+
   return (
-    <OfficeContext.Provider
-      value={{
-        officeSettings,
-        loading,
-        updateOfficeLocation,
-        updateCheckRadius,
-        updateRemotePolicy,
-        isInsideOffice, // <<< exposed helper
-      }}
-    >
+    <OfficeContext.Provider value={contextValue}>
       {children}
     </OfficeContext.Provider>
   );

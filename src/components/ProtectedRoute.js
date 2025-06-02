@@ -1,11 +1,19 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import PropTypes from 'prop-types';
 import { useUser } from '../contexts/UserContext';
 import { router } from 'expo-router';
 import Colors from '../constants/Colors';
 
 export default function ProtectedRoute({ requiredRole, children }) {
   const { user, hasAccess, loading } = useUser();
+
+  // useEffect must be called unconditionally
+  React.useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/');
+    }
+  }, [user, loading]);
 
   // Check if user data is still loading
   if (loading) {
@@ -16,27 +24,29 @@ export default function ProtectedRoute({ requiredRole, children }) {
     );
   }
 
-  // If the user is not authenticated, redirect to the login page
+  // If the user is not authenticated, show nothing while redirecting
   if (!user) {
-    React.useEffect(() => {
-      router.replace('/');
-    }, []);
     return null;
   }
 
-  // If the user doesn't have the required role, show an access denied message
+  // If the user doesn't have the required role, redirect instead of showing error
   if (!hasAccess(requiredRole)) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Access Denied</Text>
-        <Text>You don't have permission to access this page.</Text>
-      </View>
-    );
+    React.useEffect(() => {
+      router.replace('/');
+    }, []);
+    
+    // Show nothing while redirecting
+    return null;
   }
 
   // If everything is fine, render the children
   return children;
 }
+
+ProtectedRoute.propTypes = {
+  requiredRole: PropTypes.string.isRequired,
+  children: PropTypes.node.isRequired
+};
 
 const styles = StyleSheet.create({
   container: {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { router } from 'expo-router';
+import PropTypes from 'prop-types';
 import useColors from '../../hooks/useColors';
 
 /**
@@ -8,7 +9,7 @@ import useColors from '../../hooks/useColors';
  * Поддерживает темную тему
  */
 export default function BackButton({ destination, title = 'Back' }) {
-  const { palette, isDark } = useColors();
+  const { palette } = useColors();
 
   const handlePress = () => {
     if (destination) {
@@ -27,6 +28,16 @@ export default function BackButton({ destination, title = 'Back' }) {
     </TouchableOpacity>
   );
 }
+
+BackButton.propTypes = {
+  destination: PropTypes.string,
+  title: PropTypes.string
+};
+
+BackButton.defaultProps = {
+  destination: null,
+  title: 'Back'
+};
 
 // Стили с поддержкой темной темы
 const styles = (palette) => StyleSheet.create({
