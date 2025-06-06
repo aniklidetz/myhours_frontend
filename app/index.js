@@ -14,6 +14,7 @@ import {
   ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
 import apiService from '../src/api/apiService';
@@ -152,6 +153,30 @@ export default function LoginScreen() {
                 )}
               </TouchableOpacity>
 
+              {/* Clear Auth Data button (for debugging) */}
+              <TouchableOpacity
+                style={styles(palette).clearDataButton}
+                onPress={async () => {
+                  try {
+                    await AsyncStorage.multiRemove([
+                      '@MyHours:AuthToken',
+                      '@MyHours:UserData', 
+                      '@MyHours:WorkStatus',
+                      '@MyHours:EnhancedAuthData',
+                      '@MyHours:BiometricSession',
+                      '@MyHours:DeviceId'
+                    ]);
+                    Alert.alert('Success', 'Authentication data cleared! Please login again.');
+                  } catch (error) {
+                    Alert.alert('Error', 'Failed to clear data');
+                  }
+                }}
+              >
+                <Text style={styles(palette).clearDataButtonText}>
+                  🧹 Clear Auth Data
+                </Text>
+              </TouchableOpacity>
+
               {/* Test connection button */}
               <TouchableOpacity
                 style={styles(palette).testButton}
@@ -160,6 +185,17 @@ export default function LoginScreen() {
               >
                 <Text style={styles(palette).testButtonText}>
                   Test Backend Connection
+                </Text>
+              </TouchableOpacity>
+
+              {/* Biometric test button */}
+              <TouchableOpacity
+                style={styles(palette).biometricTestButton}
+                onPress={() => router.push('/test-biometric-flow')}
+                disabled={loading}
+              >
+                <Text style={styles(palette).biometricTestButtonText}>
+                  🧪 Test Biometric Flow
                 </Text>
               </TouchableOpacity>
 
@@ -175,6 +211,21 @@ export default function LoginScreen() {
                   3. Or create a user in Django admin panel
                 </Text>
               </View>
+
+              {/* Quick test login */}
+              <TouchableOpacity
+                style={styles(palette).quickLoginButton}
+                onPress={() => {
+                  setEmail('test@example.com');
+                  setPassword('test123');
+                  handleLogin();
+                }}
+                disabled={loading}
+              >
+                <Text style={styles(palette).quickLoginText}>
+                  🚀 Quick Test Login (Mock User)
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
@@ -281,6 +332,20 @@ const styles = (palette) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  biometricTestButton: {
+    alignItems: 'center',
+    backgroundColor: palette.success,
+    borderRadius: 5,
+    height: 50,
+    justifyContent: 'center',
+    marginBottom: 20,
+    width: '100%',
+  },
+  biometricTestButtonText: {
+    color: palette.text.light,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   infoContainer: {
     backgroundColor: palette.background.primary,
     borderRadius: 10,
@@ -308,5 +373,30 @@ const styles = (palette) => StyleSheet.create({
     fontSize: 42,
     fontWeight: 'bold',
     marginBottom: 10,
+  },
+  quickLoginButton: {
+    backgroundColor: palette.warning,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  quickLoginText: {
+    color: palette.text.dark,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  clearDataButton: {
+    backgroundColor: palette.warning || '#ff9500',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  clearDataButtonText: {
+    color: palette.text.light,
+    fontSize: 14,
+    fontWeight: 'bold',
   }
 });

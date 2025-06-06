@@ -16,6 +16,8 @@ import { useUser, ROLES } from '../src/contexts/UserContext';
 import { useOffice } from '../src/contexts/OfficeContext';
 import useColors from '../hooks/useColors';
 import useLocation from '../hooks/useLocation';
+import ApiService from '../src/api/apiService';
+import { APP_CONFIG } from '../src/config';
 
 const WORK_STATUS_KEY = '@MyHours:WorkStatus';
 
@@ -26,6 +28,8 @@ export default function EmployeesScreen() {
   const [todayHours, setTodayHours] = useState('0h 0m');
   const [shiftStartTime, setShiftStartTime] = useState(null);
   const [showEmployeeList, setShowEmployeeList] = useState(false);
+  const [requiresBiometric, setRequiresBiometric] = useState(false);
+  const [biometricSessionValid, setBiometricSessionValid] = useState(false);
   
   const { user, hasAccess, logout } = useUser();
   const { palette } = useColors();
@@ -38,6 +42,7 @@ export default function EmployeesScreen() {
   useEffect(() => {
     // Загружаем статус работы только если пользователь существует
     if (user && user.id) {
+      loadEnhancedAuthStatus();
       loadEmployeeWorkStatus();
       if (canManageEmployees) {
         fetchEmployees();
@@ -50,6 +55,38 @@ export default function EmployeesScreen() {
       setShiftStartTime(null);
     }
   }, [user, canManageEmployees, loadEmployeeWorkStatus]);
+
+  // Загрузка статуса enhanced authentication
+  const loadEnhancedAuthStatus = useCallback(async () => {
+    try {
+      const biometricRequired = await ApiService.auth.checkBiometricRequirement();
+      const biometricSession = await ApiService.auth.checkBiometricSession();
+      
+      setRequiresBiometric(biometricRequired);
+      setBiometricSessionValid(biometricSession.valid);
+      
+      console.log('🔐 Enhanced auth status:', {
+        biometricRequired,
+        sessionValid: biometricSession.valid,
+        sessionExpires: biometricSession.session?.expires_at
+      });
+      
+      // Проверяем expiration токена
+      const tokenStatus = await ApiService.auth.checkTokenExpiration();
+      if (tokenStatus.shouldRefresh && !tokenStatus.isExpired) {
+        console.log('🔄 Token should be refreshed soon');
+        try {
+          await ApiService.auth.refreshToken();
+          console.log('✅ Token refreshed successfully');
+        } catch (refreshError) {
+          console.warn('⚠️ Token refresh failed:', refreshError);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Error loading enhanced auth status:', error);
+    }
+  }, []);
 
   // Загрузка статуса работы пользователя
   const loadEmployeeWorkStatus = useCallback(async () => {
@@ -65,33 +102,84 @@ export default function EmployeesScreen() {
         return;
       }
       
-      // Загружаем сохраненный статус
-      const savedStatus = await AsyncStorage.getItem(`${WORK_STATUS_KEY}_${user.id}`);
-      if (savedStatus) {
-        const statusData = JSON.parse(savedStatus);
-        setWorkStatus(statusData.status);
-        setShiftStartTime(statusData.shiftStartTime);
+      console.log('🔍 Checking work status from backend...');
+      
+      try {
+        // Проверяем реальный статус с бэкенда
+        const backendStatus = await ApiService.biometrics.checkStatus();
         
-        // Вычисляем часы работы если на смене
-        if (statusData.status === 'on-shift' && statusData.shiftStartTime) {
-          const startTime = new Date(statusData.shiftStartTime);
-          const now = new Date();
-          const diffMs = now - startTime;
-          const hours = Math.floor(diffMs / (1000 * 60 * 60));
-          const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-          setTodayHours(`${hours}h ${minutes}m`);
+        if (backendStatus.success) {
+          const isCheckedIn = backendStatus.is_checked_in;
+          const session = backendStatus.current_session;
+          
+          console.log('✅ Backend status received:', {
+            isCheckedIn,
+            sessionId: session?.worklog_id,
+            employeeName: backendStatus.employee_info?.employee_name
+          });
+          
+          if (isCheckedIn && session) {
+            // Пользователь залогинен в системе
+            setWorkStatus('on-shift');
+            setShiftStartTime(session.check_in_time);
+            
+            // Вычисляем часы работы
+            const startTime = new Date(session.check_in_time);
+            const now = new Date();
+            const diffMs = now - startTime;
+            const hours = Math.floor(diffMs / (1000 * 60 * 60));
+            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            setTodayHours(`${hours}h ${minutes}m`);
+            
+            // Сохраняем статус
+            const statusData = {
+              status: 'on-shift',
+              shiftStartTime: session.check_in_time,
+              worklogId: session.worklog_id
+            };
+            await AsyncStorage.setItem(`${WORK_STATUS_KEY}_${user.id}`, JSON.stringify(statusData));
+            
+          } else {
+            // Пользователь не залогинен
+            setWorkStatus('off-shift');
+            setTodayHours('0h 0m');
+            setShiftStartTime(null);
+            
+            // Очищаем сохраненный статус
+            await AsyncStorage.removeItem(`${WORK_STATUS_KEY}_${user.id}`);
+          }
+          
+        } else {
+          throw new Error('Backend status check failed');
         }
-      } else {
-        // Мок данные для демонстрации
-        const mockStatus = {
-          status: 'off-shift',
-          todayHours: '0h 0m',
-          shiftStartTime: null
-        };
-        setWorkStatus(mockStatus.status);
-        setTodayHours(mockStatus.todayHours);
-        setShiftStartTime(mockStatus.shiftStartTime);
+        
+      } catch (backendError) {
+        console.log('⚠️ Backend status check failed, falling back to local storage:', backendError.message);
+        
+        // Fallback: загружаем сохраненный статус
+        const savedStatus = await AsyncStorage.getItem(`${WORK_STATUS_KEY}_${user.id}`);
+        if (savedStatus) {
+          const statusData = JSON.parse(savedStatus);
+          setWorkStatus(statusData.status);
+          setShiftStartTime(statusData.shiftStartTime);
+          
+          // Вычисляем часы работы если на смене
+          if (statusData.status === 'on-shift' && statusData.shiftStartTime) {
+            const startTime = new Date(statusData.shiftStartTime);
+            const now = new Date();
+            const diffMs = now - startTime;
+            const hours = Math.floor(diffMs / (1000 * 60 * 60));
+            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            setTodayHours(`${hours}h ${minutes}m`);
+          }
+        } else {
+          // Устанавливаем значения по умолчанию
+          setWorkStatus('off-shift');
+          setTodayHours('0h 0m');
+          setShiftStartTime(null);
+        }
       }
+      
     } catch (error) {
       console.error('Error loading work status:', error);
       // Устанавливаем безопасные значения по умолчанию
@@ -106,17 +194,39 @@ export default function EmployeesScreen() {
   // Для администраторов и бухгалтеров - загрузка списка сотрудников
   const fetchEmployees = async () => {
     try {
-      // В реальном приложении: await api.get('/api/employees/')
-      const mockEmployees = [
-        { id: 1, first_name: 'John', last_name: 'Smith', email: 'john@example.com', status: 'on-shift', todayHours: '6h 30m' },
-        { id: 2, first_name: 'Emily', last_name: 'Johnson', email: 'emily@example.com', status: 'off-shift', todayHours: '8h 15m' },
-        { id: 3, first_name: 'Michael', last_name: 'Brown', email: 'michael@example.com', status: 'on-shift', todayHours: '4h 45m' },
-        { id: 4, first_name: 'Sarah', last_name: 'Wilson', email: 'sarah@example.com', status: 'off-shift', todayHours: '7h 0m' },
-      ];
-      setEmployees(mockEmployees);
+      // Загружаем реальный список сотрудников из API
+      const response = await ApiService.employees.getAll();
+      
+      if (response && response.results) {
+        // Преобразуем данные для отображения
+        const employees = response.results.map(emp => ({
+          ...emp,
+          status: 'off-shift', // По умолчанию не на смене
+          todayHours: '0h 0m'  // Будет обновляться из WorkLog
+        }));
+        setEmployees(employees);
+      } else {
+        // Если API не вернул данные, используем mock
+        console.log('No employees from API, using mock data');
+        const mockEmployees = [
+          { id: 7, first_name: 'Admin', last_name: 'User', email: 'admin@example.com', status: 'off-shift', todayHours: '0h 0m' }
+        ];
+        setEmployees(mockEmployees);
+      }
     } catch (error) {
       console.error('Error loading employees:', error);
-      Alert.alert('Error', 'Failed to load employee list');
+      // При ошибке показываем хотя бы текущего пользователя
+      if (user) {
+        const currentUserEmployee = {
+          id: user.id,
+          first_name: user.first_name || 'Current',
+          last_name: user.last_name || 'User',
+          email: user.email,
+          status: 'off-shift',
+          todayHours: '0h 0m'
+        };
+        setEmployees([currentUserEmployee]);
+      }
     }
   };
 
@@ -136,7 +246,10 @@ export default function EmployeesScreen() {
       return;
     }
     
-    console.log('🔍 Starting CHECK-IN process'); // Для отладки
+    console.log('🔍 Starting CHECK-IN process');
+    
+    // Убрали дополнительную биометрическую верификацию для check-in
+    // Теперь сразу идем на биометрический экран как раньше
     
     // Сохраняем статус "на смене"
     const statusData = {
@@ -149,7 +262,7 @@ export default function EmployeesScreen() {
       setWorkStatus('on-shift');
       setShiftStartTime(new Date().toISOString());
       
-      // Используем простую навигацию без вложенных путей
+      // Используем биометрическую проверку для check-in
       router.push('/biometric-check?mode=check-in');
     } catch (error) {
       console.error('Error saving check-in status:', error);
@@ -163,7 +276,10 @@ export default function EmployeesScreen() {
       return;
     }
     
-    console.log('🔍 Starting CHECK-OUT process'); // Для отладки
+    console.log('🔍 Starting CHECK-OUT process');
+    
+    // Убрали дополнительную биометрическую верификацию для check-out
+    // Теперь сразу идем на биометрический экран как раньше
     
     // Сохраняем статус "не на смене"
     const statusData = {
@@ -176,7 +292,7 @@ export default function EmployeesScreen() {
       setWorkStatus('off-shift');
       setShiftStartTime(null);
       
-      // Используем простую навигацию без вложенных путей
+      // Используем биометрическую проверку для check-out
       router.push('/biometric-check?mode=check-out');
     } catch (error) {
       console.error('Error saving check-out status:', error);
@@ -278,7 +394,7 @@ export default function EmployeesScreen() {
             {canManageEmployees && showEmployeeList ? 'Employee Management' : 'My Workday'}
           </Text>
           <Text style={styles(palette).headerSubtitle}>
-            Welcome, {user.name} • {getRoleDisplayName(user.role)}
+            Welcome, {user.first_name || user.username || user.email} • {getRoleDisplayName(user.role)}
           </Text>
         </View>
       </View>
@@ -348,6 +464,15 @@ export default function EmployeesScreen() {
               <Text style={styles(palette).statLabel}>📍 Location</Text>
               <Text style={styles(palette).statValue}>{getLocationStatus()}</Text>
             </View>
+            <View style={styles(palette).statItem}>
+              <Text style={styles(palette).statLabel}>🔐 Security</Text>
+              <Text style={styles(palette).statValue}>
+                {requiresBiometric ? 
+                  (biometricSessionValid ? '✅ Verified' : '🔒 Needs Auth') : 
+                  '🔓 Standard'
+                }
+              </Text>
+            </View>
           </View>
 
           {/* Дополнительная информация для руководства */}
@@ -381,6 +506,17 @@ export default function EmployeesScreen() {
                 </Text>
               </TouchableOpacity>
             )}
+          </View>
+
+          {/* Тестирование биометрии */}
+          <View style={styles(palette).testingCard}>
+            <Text style={styles(palette).testingTitle}>🧪 Testing Tools</Text>
+            <TouchableOpacity 
+              style={styles(palette).testBiometricButton}
+              onPress={() => router.push('/test-biometric-flow')}
+            >
+              <Text style={styles(palette).testButtonText}>🧪 Test Biometric Flow</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Быстрые действия для руководства */}
@@ -576,6 +712,10 @@ const styles = (palette) => StyleSheet.create({
   checkOutButton: {
     backgroundColor: palette.danger,
   },
+  biometricButton: {
+    backgroundColor: palette.primary,
+    marginTop: 12,
+  },
   quickActions: {
     backgroundColor: palette.background.primary,
     padding: 20,
@@ -605,6 +745,33 @@ const styles = (palette) => StyleSheet.create({
     color: palette.text.light,
     fontWeight: 'bold',
     fontSize: 12,
+  },
+  
+  // Секция тестирования
+  testingCard: {
+    backgroundColor: palette.background.primary,
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: palette.success,
+  },
+  testingTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: palette.success,
+    marginBottom: 12,
+  },
+  testBiometricButton: {
+    backgroundColor: palette.success,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  testButtonText: {
+    color: palette.text.light,
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   
   // Список сотрудников

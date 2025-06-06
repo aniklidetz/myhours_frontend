@@ -99,11 +99,14 @@ export default function BiometricRegistrationScreen() {
       console.log('Camera ref exists:', !!cameraRef.current);
       console.log('Camera ready state:', cameraReady);
       
+      // Добавляем небольшую задержку перед съемкой
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const photo = await cameraRef.current.takePictureAsync({
-        quality: APP_CONFIG.CAMERA_QUALITY || 0.8,
+        quality: 0.5, // Уменьшаем качество для стабильности
         base64: true,
-        exif: false,
-        skipProcessing: true
+        exif: false
+        // Убираем skipProcessing - может вызывать проблемы
       });
 
       console.log('📸 Photo captured successfully:', {
@@ -185,8 +188,8 @@ export default function BiometricRegistrationScreen() {
           [{ 
             text: 'OK', 
             onPress: () => {
-              console.log('✅ Registration complete, navigating back to employees');
-              router.replace('/employees');
+              console.log('✅ Registration complete, navigating back');
+              router.back(); // Просто возвращаемся назад вместо замены на /employees
             }
           }]
         );
@@ -352,7 +355,7 @@ export default function BiometricRegistrationScreen() {
 
           <TouchableOpacity 
             style={styles(palette).cancelButton}
-            onPress={() => router.replace('/employees')}
+            onPress={() => router.back()}
             disabled={loading || !!countdown}
           >
             <Text style={styles(palette).cancelButtonText}>Cancel</Text>

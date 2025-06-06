@@ -29,13 +29,15 @@ export default function ProtectedRoute({ requiredRole, children }) {
     return null;
   }
 
-  // If the user doesn't have the required role, redirect instead of showing error
-  if (!hasAccess(requiredRole)) {
-    React.useEffect(() => {
+  // Check access and redirect if needed
+  React.useEffect(() => {
+    if (!loading && user && !hasAccess(requiredRole)) {
       router.replace('/');
-    }, []);
-    
-    // Show nothing while redirecting
+    }
+  }, [user, loading, hasAccess, requiredRole]);
+
+  // If the user doesn't have the required role, show nothing while redirecting
+  if (!hasAccess(requiredRole)) {
     return null;
   }
 

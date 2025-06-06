@@ -1,6 +1,9 @@
 // src/api/apiService.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { Platform } from 'react-native';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { API_URL, API_ENDPOINTS, APP_CONFIG } from '../config';
 
 // Create axios instance
@@ -39,13 +42,49 @@ const retryRequest = async (fn, retries = APP_CONFIG.RETRY_ATTEMPTS, signal = nu
   }
 };
 
+// Helper function to get device information
+const getDeviceInfo = async () => {
+  return {
+    platform: Platform.OS,
+    os_version: Platform.Version.toString(),
+    app_version: Constants.expoConfig?.version || '1.0.0',
+    device_model: Device.modelName || `${Platform.OS} Device`,
+    device_id: await getUniqueDeviceId()
+  };
+};
+
+// Helper function to get unique device ID
+const getUniqueDeviceId = async () => {
+  try {
+    let deviceId = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.DEVICE_ID);
+    if (!deviceId) {
+      // Generate a unique device ID if not exists
+      deviceId = `${Platform.OS}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await AsyncStorage.setItem(APP_CONFIG.STORAGE_KEYS.DEVICE_ID, deviceId);
+    }
+    return deviceId;
+  } catch (error) {
+    console.error('Error generating device ID:', error);
+    return `${Platform.OS}_fallback_${Date.now()}`;
+  }
+};
+
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   async (config) => {
     try {
       const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
       if (token) {
-        config.headers.Authorization = `Token ${token}`;
+        // Check if we have enhanced auth data
+        const enhancedAuthData = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA);
+        
+        if (enhancedAuthData) {
+          // Use DeviceToken for all API calls when we have enhanced auth
+          config.headers.Authorization = `DeviceToken ${token}`;
+        } else {
+          // Legacy token for backward compatibility
+          config.headers.Authorization = `Token ${token}`;
+        }
       }
       
       // Log request in development
@@ -53,8 +92,16 @@ apiClient.interceptors.request.use(
         console.log('📤 API Request:', {
           url: config.url,
           method: config.method,
-          headers: config.headers,
-          data: config.data
+          headers: { ...config.headers, Authorization: config.headers.Authorization ? '[REDACTED]' : undefined },
+          data: config.data ? { ...config.data, password: config.data.password ? '[REDACTED]' : config.data.password } : undefined
+        });
+        
+        // Debug token details
+        const enhancedAuthDataForDebug = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA);
+        console.log('🔍 Auth Debug:', {
+          hasToken: !!token,
+          hasEnhancedAuth: !!enhancedAuthDataForDebug,
+          authHeader: config.headers.Authorization ? config.headers.Authorization.substring(0, 20) + '...' : 'NONE'
         });
       }
     } catch (error) {
@@ -91,8 +138,12 @@ apiClient.interceptors.response.use(
 
     // Handle 401 Unauthorized - clear token and redirect to login
     if (error.response?.status === 401) {
-      await AsyncStorage.removeItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
-      await AsyncStorage.removeItem(APP_CONFIG.STORAGE_KEYS.USER_DATA);
+      await AsyncStorage.multiRemove([
+        APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
+        APP_CONFIG.STORAGE_KEYS.USER_DATA,
+        APP_CONFIG.STORAGE_KEYS.BIOMETRIC_SESSION,
+        APP_CONFIG.STORAGE_KEYS.WORK_STATUS
+      ]);
       // Note: Navigation to login should be handled by the app
     }
 
@@ -105,7 +156,12 @@ const apiService = {
   // Test connection
   testConnection: async () => {
     try {
-      const response = await apiClient.post('/api/users/test/');
+      const response = await apiClient.get('/api/health/', {
+        // Bypass authentication for health check
+        headers: {
+          'Authorization': undefined
+        }
+      });
       return response.data;
     } catch (error) {
       throw error;
@@ -114,7 +170,64 @@ const apiService = {
 
   // Authentication
   auth: {
-    login: async (email, password) => {
+    // Enhanced login with device tracking
+    login: async (email, password, location = null) => {
+      try {
+        const deviceInfo = await getDeviceInfo();
+        const deviceId = deviceInfo.device_id;
+        
+        console.log('🔐 Enhanced login attempt:', {
+          email,
+          deviceId: deviceId.substring(0, 8) + '...',
+          platform: deviceInfo.platform
+        });
+        
+        const response = await apiClient.post(API_ENDPOINTS.AUTH.ENHANCED_LOGIN, {
+          email,
+          password,
+          device_id: deviceId,
+          device_info: deviceInfo,
+          location
+        });
+        
+        // Save enhanced auth data
+        if (response.data.success && response.data.token) {
+          const authData = {
+            token: response.data.token,
+            expires_at: response.data.expires_at,
+            device_id: deviceId,
+            biometric_registered: response.data.biometric_registered,
+            requires_biometric_verification: response.data.security_info?.requires_biometric_verification
+          };
+          
+          await AsyncStorage.multiSet([
+            [APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN, response.data.token],
+            [APP_CONFIG.STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.user)],
+            [APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA, JSON.stringify(authData)]
+          ]);
+          
+          console.log('✅ Enhanced login successful:', {
+            userId: response.data.user.id,
+            userName: response.data.user.first_name + ' ' + response.data.user.last_name,
+            role: response.data.user.role,
+            biometricRegistered: response.data.biometric_registered,
+            requiresBiometric: response.data.security_info?.requires_biometric_verification
+          });
+        }
+        
+        return response.data;
+      } catch (error) {
+        console.error('❌ Enhanced login failed:', {
+          email,
+          errorMessage: error.message,
+          errorResponse: error.response?.data
+        });
+        throw error;
+      }
+    },
+
+    // Legacy login for backward compatibility
+    legacyLogin: async (email, password) => {
       try {
         const response = await apiClient.post(API_ENDPOINTS.AUTH.LOGIN, {
           email,
@@ -139,29 +252,201 @@ const apiService = {
       }
     },
 
+    // Biometric verification for 2FA
+    biometricVerification: async (imageBase64, operationType = 'general', location = null) => {
+      try {
+        console.log('🔒 Starting biometric verification:', {
+          operationType,
+          imageDataLength: imageBase64.length,
+          hasLocation: !!location
+        });
+        
+        const response = await apiClient.post(API_ENDPOINTS.AUTH.BIOMETRIC_VERIFICATION, {
+          image: imageBase64,
+          operation_type: operationType,
+          location
+        });
+        
+        // Save biometric session data
+        if (response.data.success && response.data.biometric_session_id) {
+          const sessionData = {
+            session_id: response.data.biometric_session_id,
+            expires_at: response.data.session_expires_at,
+            verification_level: response.data.verification_level,
+            access_granted: response.data.access_granted,
+            created_at: new Date().toISOString()
+          };
+          
+          await AsyncStorage.setItem(
+            APP_CONFIG.STORAGE_KEYS.BIOMETRIC_SESSION,
+            JSON.stringify(sessionData)
+          );
+          
+          console.log('✅ Biometric verification successful:', {
+            sessionId: response.data.biometric_session_id,
+            verificationLevel: response.data.verification_level,
+            confidenceScore: response.data.confidence_score
+          });
+        }
+        
+        return response.data;
+      } catch (error) {
+        console.error('❌ Biometric verification failed:', {
+          operationType,
+          errorMessage: error.message,
+          errorResponse: error.response?.data
+        });
+        throw error;
+      }
+    },
+
+    // Refresh token
+    refreshToken: async (ttlDays = 7) => {
+      try {
+        const response = await apiClient.post(API_ENDPOINTS.AUTH.REFRESH_TOKEN, {
+          ttl_days: ttlDays
+        });
+        
+        if (response.data.success && response.data.token) {
+          // Update stored token
+          await AsyncStorage.setItem(
+            APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
+            response.data.token
+          );
+          
+          // Update enhanced auth data
+          const enhancedAuthData = await AsyncStorage.getItem(
+            APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA
+          );
+          if (enhancedAuthData) {
+            const authData = JSON.parse(enhancedAuthData);
+            authData.token = response.data.token;
+            authData.expires_at = response.data.expires_at;
+            await AsyncStorage.setItem(
+              APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA,
+              JSON.stringify(authData)
+            );
+          }
+          
+          console.log('✅ Token refreshed successfully');
+        }
+        
+        return response.data;
+      } catch (error) {
+        console.error('❌ Token refresh failed:', error);
+        throw error;
+      }
+    },
+
     logout: async () => {
       try {
-        // Only call logout API if not in mock mode
-        if (!APP_CONFIG.ENABLE_MOCK_DATA) {
+        // Call enhanced logout API if using enhanced auth
+        const enhancedAuthData = await AsyncStorage.getItem(
+          APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA
+        );
+        
+        if (enhancedAuthData && !APP_CONFIG.ENABLE_MOCK_DATA) {
+          await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT_DEVICE);
+          console.log('✅ Enhanced logout successful');
+        } else if (!APP_CONFIG.ENABLE_MOCK_DATA) {
           await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+          console.log('✅ Legacy logout successful');
         } else {
           console.log('🔄 Mock logout - skipping API call');
         }
       } catch (error) {
-        console.error('Logout error:', error);
+        console.error('❌ Logout error:', error);
       } finally {
-        // Clear local storage regardless of API response
+        // Clear all local storage regardless of API response
         await AsyncStorage.multiRemove([
           APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
           APP_CONFIG.STORAGE_KEYS.USER_DATA,
           APP_CONFIG.STORAGE_KEYS.WORK_STATUS,
+          APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA,
+          APP_CONFIG.STORAGE_KEYS.BIOMETRIC_SESSION,
+          APP_CONFIG.STORAGE_KEYS.DEVICE_ID
         ]);
+        console.log('🧹 Local storage cleared');
       }
     },
 
     getCurrentUser: async () => {
       const userData = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.USER_DATA);
       return userData ? JSON.parse(userData) : null;
+    },
+
+    // Check if biometric verification is required
+    checkBiometricRequirement: async () => {
+      try {
+        const enhancedAuthData = await AsyncStorage.getItem(
+          APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA
+        );
+        
+        if (enhancedAuthData) {
+          const authData = JSON.parse(enhancedAuthData);
+          return authData.requires_biometric_verification;
+        }
+        
+        return false;
+      } catch (error) {
+        console.error('Error checking biometric requirement:', error);
+        return false;
+      }
+    },
+
+    // Check if biometric session is valid
+    checkBiometricSession: async () => {
+      try {
+        const sessionData = await AsyncStorage.getItem(
+          APP_CONFIG.STORAGE_KEYS.BIOMETRIC_SESSION
+        );
+        
+        if (sessionData) {
+          const session = JSON.parse(sessionData);
+          const expiresAt = new Date(session.expires_at);
+          const now = new Date();
+          
+          if (now < expiresAt) {
+            return {
+              valid: true,
+              session: session
+            };
+          }
+        }
+        
+        return { valid: false, session: null };
+      } catch (error) {
+        console.error('Error checking biometric session:', error);
+        return { valid: false, session: null };
+      }
+    },
+
+    // Check if token is expired
+    checkTokenExpiration: async () => {
+      try {
+        const enhancedAuthData = await AsyncStorage.getItem(
+          APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA
+        );
+        
+        if (enhancedAuthData) {
+          const authData = JSON.parse(enhancedAuthData);
+          const expiresAt = new Date(authData.expires_at);
+          const now = new Date();
+          const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+          
+          return {
+            isExpired: now >= expiresAt,
+            expiresAt: authData.expires_at,
+            timeUntilExpiryMs: timeUntilExpiry,
+            shouldRefresh: timeUntilExpiry < (24 * 60 * 60 * 1000) // Refresh if less than 1 day
+          };
+        }
+        
+        return { isExpired: true, shouldRefresh: true };
+      } catch (error) {
+        console.error('Error checking token expiration:', error);
+        return { isExpired: true, shouldRefresh: true };
+      }
     },
   },
 
@@ -207,6 +492,51 @@ const apiService = {
 
   // Biometrics
   biometrics: {
+    checkStatus: async () => {
+      try {
+        console.log('🔍 Checking current work status...');
+        
+        if (APP_CONFIG.ENABLE_MOCK_DATA) {
+          console.log('🔄 Using mock work status');
+          return {
+            success: true,
+            is_checked_in: false, // Mock as not checked in
+            current_session: null,
+            employee_info: {
+              employee_id: 1,
+              employee_name: 'Test User',
+              email: 'test@example.com'
+            }
+          };
+        }
+        
+        const response = await apiClient.get(API_ENDPOINTS.BIOMETRICS.STATUS);
+        
+        console.log('✅ Work status check successful:', {
+          isCheckedIn: response.data.is_checked_in,
+          employeeName: response.data.employee_info?.employee_name,
+          sessionId: response.data.current_session?.worklog_id
+        });
+        
+        return {
+          success: true,
+          ...response.data
+        };
+        
+      } catch (error) {
+        console.error('❌ Work status check failed:', {
+          errorMessage: error.message,
+          errorResponse: error.response?.data
+        });
+        
+        throw {
+          wasAborted: error.name === 'CanceledError',
+          errorMessage: error.message,
+          errorResponse: error.response?.data || null
+        };
+      }
+    },
+
     register: async (employeeId, imageBase64) => {
       try {
         // Validate inputs

@@ -118,27 +118,42 @@ export const UserProvider = ({ children }) => {
     try {
       console.log('🚪 Logging out...');
       
-      // Clear local state immediately to prevent UI flicker
-      setUser(null);
-      
-      // Clear storage
-      await AsyncStorage.multiRemove([
-        APP_CONFIG.STORAGE_KEYS.USER_DATA,
-        APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
-        APP_CONFIG.STORAGE_KEYS.WORK_STATUS,
-      ]);
-      
-      // Call logout API only if online AND not in mock mode
+      // Call logout API FIRST (while we still have the token)
       if (isOnline && !APP_CONFIG.ENABLE_MOCK_DATA) {
-        await apiService.auth.logout();
+        try {
+          await apiService.auth.logout();
+          console.log('✅ API logout successful');
+        } catch (logoutError) {
+          console.warn('⚠️ API logout failed, continuing with local cleanup:', logoutError.message);
+        }
       } else if (APP_CONFIG.ENABLE_MOCK_DATA) {
         console.log('🔄 Mock logout - skipping API call');
       }
       
+      // THEN clear local state
+      setUser(null);
+      
+      // Note: Storage cleanup is handled by apiService.auth.logout() above
+      
       console.log('✅ Logout successful');
     } catch (error) {
       console.error('❌ Logout error:', error);
-      // State already cleared above
+      
+      // Fallback: ensure state and storage are cleared even if API fails
+      setUser(null);
+      try {
+        await AsyncStorage.multiRemove([
+          APP_CONFIG.STORAGE_KEYS.USER_DATA,
+          APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
+          APP_CONFIG.STORAGE_KEYS.WORK_STATUS,
+          APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA,
+          APP_CONFIG.STORAGE_KEYS.BIOMETRIC_SESSION,
+          APP_CONFIG.STORAGE_KEYS.DEVICE_ID
+        ]);
+        console.log('🧹 Fallback storage cleanup completed');
+      } catch (storageError) {
+        console.error('❌ Storage cleanup failed:', storageError);
+      }
     }
   };
 

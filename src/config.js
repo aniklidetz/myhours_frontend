@@ -3,6 +3,12 @@ import { Platform } from 'react-native';
 
 // Определяем URL API в зависимости от платформы и окружения
 const getApiUrl = () => {
+  // Check for environment variable first
+  const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envApiUrl) {
+    return envApiUrl;
+  }
+  
   if (__DEV__) {
     // В режиме разработки
     if (Platform.OS === 'android') {
@@ -10,11 +16,13 @@ const getApiUrl = () => {
       return 'http://10.0.2.2:8000';
     } else {
       // Для iOS симулятора и физических устройств
-      return 'http://192.168.1.164:8000';
+      // ВАЖНО: Замените на ваш локальный IP адрес!
+      // Узнать IP: ifconfig | grep "inet " | grep -v 127.0.0.1
+      return 'http://192.168.1.164:8000';  // <-- ОБНОВИТЕ ЭТО НА ВАШ IP!
     }
   } else {
-    // В продакшене используйте ваш реальный API URL
-    return 'https://your-production-api.com';
+    // В продакшене используйте переменную окружения
+    return process.env.EXPO_PUBLIC_API_URL || 'https://api.myhours.com';
   }
 };
 
@@ -22,42 +30,52 @@ export const API_URL = getApiUrl();
 
 
 export const API_ENDPOINTS = {
+  // API versioned endpoints (v1)
+  API_ROOT: '/api/v1/',
+  
   // Authentication
   AUTH: {
-    LOGIN: '/api/users/auth/login/',
-    LOGOUT: '/api/users/auth/logout/',
-    REFRESH: '/api/auth/refresh/',
+    // Legacy authentication endpoints
+    LOGIN: '/api/v1/users/auth/login/',
+    LOGOUT: '/api/v1/users/auth/logout/',
+    
+    // Enhanced authentication endpoints
+    ENHANCED_LOGIN: '/api/v1/users/auth/enhanced-login/',
+    BIOMETRIC_VERIFICATION: '/api/v1/users/auth/biometric-verification/',
+    REFRESH_TOKEN: '/api/v1/users/auth/refresh-token/',
+    LOGOUT_DEVICE: '/api/v1/users/auth/logout-device/',
   },
   
   // Employee management
-  EMPLOYEES: '/api/users/employees/',
+  EMPLOYEES: '/api/v1/users/employees/',
   
   // Biometric endpoints
   BIOMETRICS: {
-    REGISTER: '/api/biometrics/register/',
-    CHECK_IN: '/api/biometrics/check-in/',
-    CHECK_OUT: '/api/biometrics/check-out/',
-    STATS: '/api/biometrics/management/stats/',
+    REGISTER: '/api/v1/biometrics/register/',
+    CHECK_IN: '/api/v1/biometrics/check-in/',
+    CHECK_OUT: '/api/v1/biometrics/check-out/',
+    STATUS: '/api/v1/biometrics/status/',
+    STATS: '/api/v1/biometrics/management/stats/',
   },
   
   // Work time tracking
   WORKTIME: {
-    LOGS: '/api/worktime/worklogs/',
-    CURRENT: '/api/worktime/worklogs/current_sessions/',
-    QUICK_CHECKOUT: '/api/worktime/worklogs/quick_checkout/',
+    LOGS: '/api/v1/worktime/worklogs/',
+    CURRENT: '/api/v1/worktime/worklogs/current_sessions/',
+    QUICK_CHECKOUT: '/api/v1/worktime/worklogs/quick_checkout/',
   },
   
   // Payroll
   PAYROLL: {
-    SALARIES: '/api/payroll/salaries/',
-    CALCULATE: (id) => `/api/payroll/salaries/${id}/calculate/`,
+    SALARIES: '/api/v1/payroll/salaries/',
+    CALCULATE: (id) => `/api/v1/payroll/salaries/${id}/calculate/`,
   },
   
   // Integrations
   INTEGRATIONS: {
-    HOLIDAYS: '/api/integrations/holidays/',
-    SYNC_HOLIDAYS: '/api/integrations/holidays/sync/',
-    SHABBAT_TIMES: '/api/integrations/holidays/shabbat_times/',
+    HOLIDAYS: '/api/v1/integrations/holidays/',
+    SYNC_HOLIDAYS: '/api/v1/integrations/holidays/sync/',
+    SHABBAT_TIMES: '/api/v1/integrations/holidays/shabbat_times/',
   }
 };
 
@@ -77,6 +95,11 @@ export const APP_CONFIG = {
     AUTH_TOKEN: '@MyHours:AuthToken',
     WORK_STATUS: '@MyHours:WorkStatus',
     OFFICE_SETTINGS: '@MyHours:OfficeSettings',
+    
+    // Enhanced authentication storage keys
+    ENHANCED_AUTH_DATA: '@MyHours:EnhancedAuthData',
+    BIOMETRIC_SESSION: '@MyHours:BiometricSession',
+    DEVICE_ID: '@MyHours:DeviceId',
   },
   
   // Default office settings
@@ -90,7 +113,7 @@ export const APP_CONFIG = {
   RETRY_ATTEMPTS: 3,
   
   // Development flags
-  ENABLE_MOCK_DATA: __DEV__, // Use mock data in development
+  ENABLE_MOCK_DATA: false, // Отключаем mock для работы с реальным backend
   ENABLE_DEBUG_LOGS: __DEV__,
 };
 

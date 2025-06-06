@@ -7,7 +7,6 @@ class OfflineQueue {
   constructor() {
     this.queue = [];
     this.isProcessing = false;
-    this.listeners = [];
     this.loadQueue();
     this.setupNetworkListener();
   }

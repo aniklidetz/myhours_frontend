@@ -132,11 +132,14 @@ export default function BiometricCheckScreen() {
     abortControllerRef.current = new AbortController();
 
     try {
+      // Добавляем небольшую задержку перед съемкой
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const photo = await cameraRef.current.takePictureAsync({ 
-        quality: APP_CONFIG.CAMERA_QUALITY || 0.8,
+        quality: 0.5, // Уменьшаем качество для стабильности
         base64: true,
-        exif: false,
-        skipProcessing: true
+        exif: false
+        // Убираем skipProcessing - может вызывать проблемы
       });
 
       console.log('📸 Photo captured successfully:', {
@@ -208,6 +211,8 @@ export default function BiometricCheckScreen() {
         errorMessage = 'Please wait for the current operation to complete.';
       } else if (error.message?.includes('permission')) {
         errorMessage = 'Camera permission issue. Please check settings.';
+      } else if (error.message?.includes('Image could not be captured')) {
+        errorMessage = 'Camera capture failed. Please try again or restart the app.';
       }
       // API errors
       else if (error.response?.status === 400) {
@@ -308,7 +313,15 @@ export default function BiometricCheckScreen() {
       message,
       [{ 
         text: 'OK', 
-        onPress: () => router.replace('/employees')
+        onPress: () => {
+          // Проверяем, авторизован ли пользователь
+          if (user) {
+            router.replace('/employees');
+          } else {
+            // Если нет пользователя, возвращаемся на главный экран
+            router.replace('/');
+          }
+        }
       }]
     );
   };
@@ -450,7 +463,14 @@ export default function BiometricCheckScreen() {
 
           <TouchableOpacity 
             style={styles(palette).cancelButton}
-            onPress={() => router.replace('/employees')}
+            onPress={() => {
+              // Возвращаемся назад или на главную
+              if (user) {
+                router.back();
+              } else {
+                router.replace('/');
+              }
+            }}
             disabled={loading || !!countdown}
           >
             <Text style={styles(palette).cancelButtonText}>Cancel</Text>
