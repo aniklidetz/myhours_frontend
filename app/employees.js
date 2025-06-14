@@ -240,6 +240,40 @@ export default function EmployeesScreen() {
     });
   };
 
+  const handleSendInvitation = async (employee) => {
+    Alert.alert(
+      'Send Invitation',
+      `Send invitation email to ${employee.email}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send',
+          onPress: async () => {
+            try {
+              console.log('Sending invitation to:', employee.id);
+              const result = await ApiService.employees.sendInvitation(employee.id);
+              console.log('Invitation sent:', result);
+              
+              Alert.alert(
+                'Success',
+                `Invitation sent to ${employee.email}. They will receive an email with instructions to set up their account.`
+              );
+              
+              // Refresh employee list to update invitation status
+              fetchEmployees();
+            } catch (error) {
+              console.error('Error sending invitation:', error);
+              Alert.alert(
+                'Error',
+                error.response?.data?.error || 'Failed to send invitation. Please try again.'
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleCheckIn = async () => {
     if (!user || !user.id) {
       Alert.alert('Error', 'User not found. Please log in again.');
@@ -343,31 +377,62 @@ export default function EmployeesScreen() {
   };
 
   // Рендер элемента сотрудника для управления
-  const renderEmployeeItem = ({ item }) => (
-    <View style={styles(palette).employeeCard}>
-      <View style={styles(palette).employeeInfo}>
-        <Text style={styles(palette).employeeName}>{item.first_name} {item.last_name}</Text>
-        <Text style={styles(palette).employeeEmail}>{item.email}</Text>
-        <View style={styles(palette).statusRow}>
-          <View style={[
-            styles(palette).statusBadge, 
-            item.status === 'on-shift' ? styles(palette).onShiftBadge : styles(palette).offShiftBadge
-          ]}>
-            <Text style={styles(palette).statusText}>
-              {item.status === 'on-shift' ? 'On Shift' : 'Off Shift'}
-            </Text>
+  const renderEmployeeItem = ({ item }) => {
+    const getEmployeeStatus = () => {
+      if (!item.is_registered) {
+        if (item.has_pending_invitation) {
+          return { text: '📧 Invited', color: palette.warning };
+        }
+        return { text: '⏳ Not Registered', color: palette.error };
+      }
+      if (!item.has_biometric) {
+        return { text: '🔐 No Biometric', color: palette.warning };
+      }
+      return { text: '✅ Active', color: palette.success };
+    };
+
+    const status = getEmployeeStatus();
+
+    return (
+      <View style={styles(palette).employeeCard}>
+        <View style={styles(palette).employeeInfo}>
+          <Text style={styles(palette).employeeName}>{item.first_name} {item.last_name}</Text>
+          <Text style={styles(palette).employeeEmail}>{item.email}</Text>
+          <View style={styles(palette).statusRow}>
+            <View style={[styles(palette).employeeStatusBadge, { backgroundColor: status.color + '20' }]}>
+              <Text style={[styles(palette).employeeStatusText, { color: status.color }]}>
+                {status.text}
+              </Text>
+            </View>
+            {item.is_registered && (
+              <Text style={styles(palette).hoursText}>Today: {item.todayHours}</Text>
+            )}
           </View>
-          <Text style={styles(palette).hoursText}>Today: {item.todayHours}</Text>
+        </View>
+        <View style={styles(palette).employeeActions}>
+          {!item.is_registered ? (
+            <TouchableOpacity 
+              style={styles(palette).inviteButton}
+              onPress={() => handleSendInvitation(item)}
+            >
+              <Text style={styles(palette).inviteButtonText}>
+                {item.has_pending_invitation ? 'Resend' : 'Invite'}
+              </Text>
+            </TouchableOpacity>
+          ) : !item.has_biometric ? (
+            <TouchableOpacity 
+              style={styles(palette).registerButton}
+              onPress={() => handleBiometricRegistration(item)}
+            >
+              <Text style={styles(palette).registerButtonText}>Register Face</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles(palette).completeText}>✓ Complete</Text>
+          )}
         </View>
       </View>
-      <TouchableOpacity 
-        style={styles(palette).registerButton}
-        onPress={() => handleBiometricRegistration(item)}
-      >
-        <Text style={styles(palette).registerButtonText}>Register</Text>
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
   if (!user) {
     return (
@@ -428,9 +493,20 @@ export default function EmployeesScreen() {
           keyExtractor={item => item.id.toString()}
           contentContainerStyle={styles(palette).listContent}
           ListHeaderComponent={() => (
-            <View style={styles(palette).listHeader}>
-              <Text style={styles(palette).listHeaderText}>
-                👥 Manage employee biometric registration
+            <View>
+              <View style={styles(palette).listHeader}>
+                <Text style={styles(palette).listHeaderText}>
+                  👥 Manage Employees
+                </Text>
+                <TouchableOpacity
+                  style={styles(palette).addButton}
+                  onPress={() => router.push('/add-employee')}
+                >
+                  <Text style={styles(palette).addButtonText}>+ Add Employee</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles(palette).listSubtext}>
+                Create employees and send invitations
               </Text>
             </View>
           )}
@@ -475,13 +551,52 @@ export default function EmployeesScreen() {
             </View>
           </View>
 
+          {/* Быстрые переходы к данным */}
+          <View style={styles(palette).quickAccessCard}>
+            <Text style={styles(palette).quickAccessTitle}>📊 My Data</Text>
+            <View style={styles(palette).quickAccessButtons}>
+              <TouchableOpacity 
+                style={styles(palette).quickAccessButton}
+                onPress={() => router.push('/worktime')}
+              >
+                <Text style={styles(palette).quickAccessButtonText}>🕐 Work Hours</Text>
+                <Text style={styles(palette).quickAccessSubtext}>View time tracking</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles(palette).quickAccessButton}
+                onPress={() => router.push('/payroll')}
+              >
+                <Text style={styles(palette).quickAccessButtonText}>💰 Salary</Text>
+                <Text style={styles(palette).quickAccessSubtext}>
+                  {canManageEmployees ? 'View all salaries' : 'View my salary'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Дополнительная информация для руководства */}
           {canManageEmployees && (
             <View style={styles(palette).managementCard}>
               <Text style={styles(palette).managementTitle}>👔 Management Tools</Text>
               <Text style={styles(palette).managementText}>
-                Use the toggle above to switch between your personal dashboard and employee management.
+                📌 Tip: Use the "👥 Employees" button above to manage your team, or stay here to view your personal data.
               </Text>
+              <View style={styles(palette).managementActions}>
+                <TouchableOpacity 
+                  style={styles(palette).switchToEmployeesButton}
+                  onPress={() => setShowEmployeeList(true)}
+                >
+                  <Text style={styles(palette).switchButtonText}>👥 Manage Employees</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles(palette).adminPanelButton}
+                  onPress={() => router.push('/admin')}
+                >
+                  <Text style={styles(palette).adminPanelButtonText}>⚙️ Admin Panel</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -782,13 +897,32 @@ const styles = (palette) => StyleSheet.create({
     backgroundColor: palette.primaryBackground,
     padding: 16,
     borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
   listHeaderText: {
     fontSize: 16,
     color: palette.primary,
     fontWeight: 'bold',
+  },
+  listSubtext: {
+    fontSize: 14,
+    color: palette.text.secondary,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  addButton: {
+    backgroundColor: palette.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  addButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   employeeCard: {
     backgroundColor: palette.background.primary,
@@ -852,5 +986,128 @@ const styles = (palette) => StyleSheet.create({
   registerButtonText: {
     color: palette.text.light,
     fontWeight: 'bold',
+  },
+  
+  // Employee status and actions
+  employeeActions: {
+    marginLeft: 12,
+  },
+  employeeStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  employeeStatusText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  inviteButton: {
+    backgroundColor: palette.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    minWidth: 70,
+  },
+  inviteButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  registerButton: {
+    backgroundColor: palette.success,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    minWidth: 70,
+  },
+  registerButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  completeText: {
+    color: palette.success,
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  // Quick access styles
+  quickAccessCard: {
+    backgroundColor: palette.background.primary,
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: palette.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  quickAccessTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: palette.text.primary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  quickAccessButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  quickAccessButton: {
+    flex: 1,
+    backgroundColor: palette.primary + '15',
+    borderColor: palette.primary,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  quickAccessButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: palette.primary,
+    marginBottom: 4,
+  },
+  quickAccessSubtext: {
+    fontSize: 12,
+    color: palette.text.secondary,
+    textAlign: 'center',
+  },
+  managementActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  switchToEmployeesButton: {
+    flex: 1,
+    backgroundColor: palette.primary,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  switchButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  adminPanelButton: {
+    flex: 1,
+    backgroundColor: palette.warning,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  adminPanelButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });

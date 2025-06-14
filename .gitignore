@@ -31,8 +31,63 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+.env.development
+.env.test
+.env.production
 
 # typescript
 *.tsbuildinfo
+
+# Android builds
+android/build/
+android/.gradle
+android/app/build/
+android/app/src/main/res/values/generated.xml
+
+# iOS builds
+ios/Pods/
+ios/build/
+ios/*.xcworkspace
+ios/myhoursapp.xcodeproj/project.xcworkspace/
+ios/myhoursapp.xcodeproj/xcuserdata/
+
+# IDE and editors
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# ESLint cache
+.eslintcache
+
+# Optional npm cache directory
+.npm
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Temporary folders
+tmp/
+temp/
+
+# Example files (keep .env.example for documentation)
+# .env.example is intentionally tracked
 
 app-example

@@ -10,6 +10,9 @@ import {
 import { useUser, ROLES } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
 import BackButton from '../src/components/BackButton';
+import ApiService from '../src/api/apiService';
+import { API_ENDPOINTS, API_URL, APP_CONFIG } from '../src/config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * Work time tracking screen
@@ -28,13 +31,57 @@ export default function WorktimeScreen() {
     const fetchWorktimeData = async () => {
         try {
             setLoading(true);
+            
+            // Fetch real data from API
+            const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+            const response = await fetch(`${API_URL}${API_ENDPOINTS.WORKTIME.LOGS}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `DeviceToken ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const responseData = await response.json();
+            const apiData = responseData.results || responseData;
+            
+            // Transform API data to match UI format
+            const transformedData = apiData.map(worklog => ({
+                id: worklog.id,
+                employee: {
+                    id: worklog.employee.id,
+                    name: `${worklog.employee.first_name} ${worklog.employee.last_name}`,
+                    email: worklog.employee.email
+                },
+                date: new Date(worklog.check_in_time).toLocaleDateString('en-US', {
+                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                }),
+                checkIn: new Date(worklog.check_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                checkOut: worklog.check_out_time ? new Date(worklog.check_out_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Still working',
+                totalHours: worklog.total_hours ? `${Math.floor(worklog.total_hours)}h ${Math.round((worklog.total_hours % 1) * 60)}m` : 'In progress',
+                workMode: worklog.work_mode || 'office'
+            }));
+            
+            // Filter data based on user role
+            const filtered = canViewAll
+                ? transformedData
+                : transformedData.filter(item => item.employee.id === user.id);
+                
+            setWorktimeData(filtered);
+            
+        } catch (error) {
+            console.error('Error fetching worktime data:', error);
+            // Fallback to mock data if API fails
             const mockData = generateMockData();
             const filtered = canViewAll
                 ? mockData
                 : mockData.filter(item => item.employee.id === user.id);
             setWorktimeData(filtered);
-        } catch (error) {
-            console.error('Error fetching worktime data:', error);
         } finally {
             setLoading(false);
         }

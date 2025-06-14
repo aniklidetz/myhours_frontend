@@ -488,6 +488,14 @@ const apiService = {
       );
       return response.data;
     },
+
+    sendInvitation: async (id, baseUrl = 'http://localhost:8100') => {
+      const response = await apiClient.post(
+        `${API_ENDPOINTS.EMPLOYEES}${id}/send_invitation/`,
+        { base_url: baseUrl }
+      );
+      return response.data;
+    },
   },
 
   // Biometrics

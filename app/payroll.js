@@ -12,9 +12,13 @@ import {
 import { useUser, ROLES } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
 import BackButton from '../src/components/BackButton';
+import ApiService from '../src/api/apiService';
+import { API_ENDPOINTS, API_URL, APP_CONFIG } from '../src/config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function PayrollScreen() {
     const [payrollData, setPayrollData] = useState([]);
+    const [currentSalaryData, setCurrentSalaryData] = useState(null);
     const [loading, setLoading] = useState(true);
     const { user, hasAccess } = useUser();
     const { palette, isDark } = useColors(); // используем хук для получения текущей цветовой палитры
@@ -23,27 +27,121 @@ export default function PayrollScreen() {
 
     useEffect(() => {
         fetchPayrollData();
+        fetchCurrentSalaryData();
     }, []);
 
     const fetchPayrollData = async () => {
         try {
             setLoading(true);
+            
+            // Fetch real payroll data from API
+            const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+            const response = await fetch(`${API_URL}${API_ENDPOINTS.PAYROLL.SALARIES}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `DeviceToken ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const responseData = await response.json();
+            const apiData = responseData.results || responseData;
+            
+            // Transform API data to match UI format
+            const transformedData = apiData.map(salary => {
+                const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                return {
+                    id: salary.id,
+                    period: currentMonth,
+                    employee: {
+                        id: salary.employee.id,
+                        name: `${salary.employee.first_name} ${salary.employee.last_name}`,
+                        email: salary.employee.email
+                    },
+                    baseSalary: parseFloat(salary.base_salary || 0),
+                    hoursWorked: salary.hours_worked || 0,
+                    overtime: salary.overtime_hours || 0,
+                    bonuses: parseFloat(salary.bonus || 0),
+                    taxes: parseFloat(salary.taxes || 0),
+                    totalPayout: parseFloat(salary.net_salary || salary.calculated_salary || 0),
+                    status: salary.status || 'Draft'
+                };
+            });
+            
+            // Apply role-based filtering and time restrictions
+            let filteredData = transformedData;
+            
+            // Calculate time restrictions
+            const currentDate = new Date();
+            const threeMonthsAgo = new Date(currentDate.getFullYear(), currentDate.getMonth() - 3, 1);
+            const sixMonthsAgo = new Date(currentDate.getFullYear(), currentDate.getMonth() - 6, 1);
+            
+            if (!canViewAllEmployees) {
+                // Employee: only their own data + 3 months restriction
+                filteredData = transformedData.filter(item => {
+                    const isOwnData = item.employee.id === user.id;
+                    // TODO: Add proper date filtering when API provides date field
+                    return isOwnData;
+                });
+            } else {
+                // Admin/Accountant: all employees + 6 months restriction
+                filteredData = transformedData;
+                // TODO: Add proper date filtering when API provides date field
+            }
+            
+            setPayrollData(filteredData);
+            
+        } catch (error) {
+            console.error('Error fetching payroll data:', error);
+            // Fallback to mock data if API fails
             const mockData = generateMockData();
             const filteredData = canViewAllEmployees
                 ? mockData
                 : mockData.filter(item => item.employee.id === user.id);
             setPayrollData(filteredData);
-        } catch (error) {
-            console.error('Error fetching payroll data:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchCurrentSalaryData = async () => {
+        try {
+            // Fetch current month accumulated salary for the user
+            // This would typically be a separate API endpoint
+            const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            const currentDay = new Date().getDate();
+            const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+            
+            // Mock calculation for current accumulated salary
+            const mockCurrentSalary = {
+                period: `${currentMonth} (Current)`,
+                employee: {
+                    id: user.id,
+                    name: `${user.first_name} ${user.last_name}` || user.email
+                },
+                estimatedSalary: Math.round((50000 / daysInMonth) * currentDay), // Rough calculation
+                hoursWorkedThisMonth: Math.round((160 / daysInMonth) * currentDay),
+                daysWorked: currentDay,
+                daysInMonth: daysInMonth,
+                status: 'In Progress'
+            };
+            
+            setCurrentSalaryData(mockCurrentSalary);
+            
+        } catch (error) {
+            console.error('Error fetching current salary data:', error);
         }
     };
 
     const generateMockData = () => {
         const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         return [
-            { id: 1, period: currentMonth, employee: { id: user.id, name: user.name }, baseSalary: 50000, hoursWorked: 160, overtime: 8, bonuses: 5000, taxes: 7150, totalPayout: 52850, status: 'Draft' },
+            { id: 1, period: currentMonth, employee: { id: user.id, name: user.first_name + ' ' + user.last_name || user.email }, baseSalary: 50000, hoursWorked: 160, overtime: 8, bonuses: 5000, taxes: 7150, totalPayout: 52850, status: 'Draft' },
             { id: 2, period: currentMonth, employee: { id: 5, name: 'John Smith' }, baseSalary: 60000, hoursWorked: 168, overtime: 16, bonuses: 8000, taxes: 9200, totalPayout: 66800, status: 'Confirmed' },
             { id: 3, period: currentMonth, employee: { id: 6, name: 'Emily Johnson' }, baseSalary: 55000, hoursWorked: 152, overtime: 0, bonuses: 0, taxes: 7150, totalPayout: 47850, status: 'Pending' }
         ];
@@ -113,12 +211,43 @@ export default function PayrollScreen() {
             {loading ? (
                 <ActivityIndicator size="large" color={palette.primary} style={stylesWithDarkMode.loader} />
             ) : (
-                <FlatList
-                    data={payrollData}
-                    renderItem={renderPayrollItem}
-                    keyExtractor={item => item.id.toString()}
-                    contentContainerStyle={stylesWithDarkMode.listContent}
-                />
+                <>
+                    {/* Current Month Accumulated Salary */}
+                    {currentSalaryData && (
+                        <View style={stylesWithDarkMode.currentSalaryCard}>
+                            <Text style={stylesWithDarkMode.currentSalaryTitle}>
+                                💰 Current Month Progress
+                            </Text>
+                            <View style={stylesWithDarkMode.currentSalaryInfo}>
+                                <Text style={stylesWithDarkMode.currentSalaryPeriod}>
+                                    {currentSalaryData.period}
+                                </Text>
+                                <Text style={stylesWithDarkMode.currentSalaryAmount}>
+                                    ₪{currentSalaryData.estimatedSalary.toLocaleString()}
+                                </Text>
+                                <Text style={stylesWithDarkMode.currentSalarySubtext}>
+                                    Estimated based on {currentSalaryData.daysWorked}/{currentSalaryData.daysInMonth} days worked
+                                </Text>
+                                <Text style={stylesWithDarkMode.currentSalaryHours}>
+                                    Hours: {currentSalaryData.hoursWorkedThisMonth}h this month
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+                    
+                    {/* Historical Payroll Data */}
+                    <FlatList
+                        data={payrollData}
+                        renderItem={renderPayrollItem}
+                        keyExtractor={item => item.id.toString()}
+                        contentContainerStyle={stylesWithDarkMode.listContent}
+                        ListHeaderComponent={() => (
+                            <Text style={stylesWithDarkMode.sectionTitle}>
+                                📋 Previous Periods
+                            </Text>
+                        )}
+                    />
+                </>
             )}
 
             <View style={stylesWithDarkMode.footer}><BackButton destination="/employees" /></View>
@@ -286,5 +415,58 @@ const styles = (palette, isDark) => StyleSheet.create({
         color: palette.success,
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    // Styles for current salary card
+    currentSalaryCard: {
+        backgroundColor: palette.success + '15', // Light background
+        borderColor: palette.success,
+        borderWidth: 2,
+        borderRadius: 12,
+        margin: 16,
+        padding: 16,
+        elevation: 3,
+        shadowColor: palette.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+    },
+    currentSalaryTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: palette.success,
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    currentSalaryInfo: {
+        alignItems: 'center',
+    },
+    currentSalaryPeriod: {
+        fontSize: 14,
+        color: palette.text.secondary,
+        marginBottom: 4,
+    },
+    currentSalaryAmount: {
+        fontSize: 32,
+        fontWeight: 'bold',
+        color: palette.success,
+        marginBottom: 8,
+    },
+    currentSalarySubtext: {
+        fontSize: 12,
+        color: palette.text.secondary,
+        textAlign: 'center',
+        marginBottom: 4,
+    },
+    currentSalaryHours: {
+        fontSize: 12,
+        color: palette.text.secondary,
+        fontStyle: 'italic',
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: palette.text.primary,
+        marginBottom: 12,
+        marginTop: 8,
     }
 });

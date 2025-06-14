@@ -34,6 +34,7 @@ export default function BiometricCheckScreen() {
   const [countdown, setCountdown] = useState(null);
   const [error, setError] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const { palette } = useColors();
   const { user } = useUser();
@@ -132,15 +133,22 @@ export default function BiometricCheckScreen() {
     abortControllerRef.current = new AbortController();
 
     try {
-      // Добавляем небольшую задержку перед съемкой
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Увеличиваем задержку для стабильности
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const photo = await cameraRef.current.takePictureAsync({ 
-        quality: 0.5, // Уменьшаем качество для стабильности
-        base64: true,
-        exif: false
-        // Убираем skipProcessing - может вызывать проблемы
+      // Добавляем таймаут для захвата фото
+      const photoTimeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Photo capture timeout')), 10000);
       });
+      
+      const photoPromise = cameraRef.current.takePictureAsync({ 
+        quality: 0.5,
+        base64: true,
+        exif: false,
+        skipProcessing: true
+      });
+      
+      const photo = await Promise.race([photoPromise, photoTimeoutPromise]);
 
       console.log('📸 Photo captured successfully:', {
         hasBase64: !!photo?.base64,
@@ -163,10 +171,16 @@ export default function BiometricCheckScreen() {
         hasLocation: !!location
       });
 
-      // Call the appropriate API endpoint with abort signal
-      const result = isCheckIn 
-        ? await ApiService.biometrics.checkIn(imageData, locationString, abortControllerRef.current.signal)
-        : await ApiService.biometrics.checkOut(imageData, locationString);
+      // Call the appropriate API endpoint with timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 30000);
+      });
+      
+      const apiPromise = isCheckIn 
+        ? ApiService.biometrics.checkIn(imageData, locationString)
+        : ApiService.biometrics.checkOut(imageData, locationString);
+      
+      const result = await Promise.race([apiPromise, timeoutPromise]);
 
       console.log('✅ Biometric check API response received:', {
         hasResult: !!result,
@@ -205,10 +219,44 @@ export default function BiometricCheckScreen() {
       let errorMessage = 'Failed to process biometric check. ';
       
       // Camera-specific errors
-      if (error.message?.includes('Camera is not ready')) {
+      if (error.message?.includes('Image could not be captured') || error.code === 'ERR_CAMERA_IMAGE_CAPTURE') {
+        errorMessage = 'Camera capture failed. Please try again or restart the app.';
+        setError(errorMessage);
+        Alert.alert(
+          'Camera Error',
+          'Unable to capture image. This might be an iOS camera issue. Try:\n\n1. Go back and try again\n2. Restart the app\n3. Check camera permissions',
+          [
+            { text: 'Try Again', onPress: () => {
+              setError(null);
+              setLoading(false);
+              setCameraReady(false);
+              setTimeout(() => setCameraReady(true), 1000);
+            }},
+            { text: 'Go Back', onPress: () => router.back() }
+          ]
+        );
+        setLoading(false);
+        return;
+      } else if (error.message?.includes('Camera is not ready')) {
         errorMessage = 'Camera is not ready. Please wait and try again.';
       } else if (error.message?.includes('Camera is already taking a picture')) {
         errorMessage = 'Please wait for the current operation to complete.';
+      } else if (error.message?.includes('Photo capture timeout')) {
+        errorMessage = 'Camera capture took too long. Please try again.';
+        setError(errorMessage);
+        Alert.alert(
+          'Camera Timeout',
+          'Photo capture timed out. This may be due to camera performance issues.',
+          [
+            { text: 'Try Again', onPress: () => {
+              setError(null);
+              setLoading(false);
+            }},
+            { text: 'Go Back', onPress: () => router.back() }
+          ]
+        );
+        setLoading(false);
+        return;
       } else if (error.message?.includes('permission')) {
         errorMessage = 'Camera permission issue. Please check settings.';
       } else if (error.message?.includes('Image could not be captured')) {
@@ -393,11 +441,23 @@ export default function BiometricCheckScreen() {
         onCameraReady={() => {
           console.log('✅ Camera is ready for biometric check');
           setCameraReady(true);
+          setRetryCount(0);
         }}
         onMountError={(error) => {
           console.error('❌ Camera mount error:', error);
-          setError(`Camera failed to initialize: ${error.message}`);
-          setCameraReady(false);
+          const newRetryCount = retryCount + 1;
+          setRetryCount(newRetryCount);
+          
+          if (newRetryCount < 3) {
+            setError(`Camera initialization failed (attempt ${newRetryCount}/3). Retrying...`);
+            setTimeout(() => {
+              setCameraReady(false);
+              setError(null);
+            }, 2000);
+          } else {
+            setError(`Camera failed to initialize after 3 attempts: ${error.message}`);
+            setCameraReady(false);
+          }
         }}
       />
 
