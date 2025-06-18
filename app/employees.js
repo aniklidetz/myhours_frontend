@@ -456,10 +456,13 @@ export default function EmployeesScreen() {
       <View style={styles(palette).header}>
         <View style={styles(palette).headerInfo}>
           <Text style={styles(palette).headerTitle}>
-            {canManageEmployees && showEmployeeList ? 'Employee Management' : 'My Workday'}
+            {canManageEmployees && showEmployeeList ? 'Team Management' : 'Dashboard'}
           </Text>
           <Text style={styles(palette).headerSubtitle}>
-            Welcome, {user.first_name || user.username || user.email} • {getRoleDisplayName(user.role)}
+            {canManageEmployees && showEmployeeList ? 
+              'Manage team members and invitations' : 
+              `Welcome, ${user.first_name || user.username || user.email} • ${getRoleDisplayName(user.role || 'employee')}`
+            }
           </Text>
         </View>
       </View>
@@ -472,7 +475,7 @@ export default function EmployeesScreen() {
             onPress={() => setShowEmployeeList(!showEmployeeList)}
           >
             <Text style={styles(palette).toggleButtonText}>
-              {showEmployeeList ? '👤 My Day' : '👥 Employees'}
+              {showEmployeeList ? '👤 My Dashboard' : '👥 Team'}
             </Text>
           </TouchableOpacity>
         )}
@@ -496,17 +499,19 @@ export default function EmployeesScreen() {
             <View>
               <View style={styles(palette).listHeader}>
                 <Text style={styles(palette).listHeaderText}>
-                  👥 Manage Employees
+                  👥 Team Members
                 </Text>
-                <TouchableOpacity
-                  style={styles(palette).addButton}
-                  onPress={() => router.push('/add-employee')}
-                >
-                  <Text style={styles(palette).addButtonText}>+ Add Employee</Text>
-                </TouchableOpacity>
+                {canManageEmployees && (
+                  <TouchableOpacity
+                    style={styles(palette).addButton}
+                    onPress={() => router.push('/add-employee')}
+                  >
+                    <Text style={styles(palette).addButtonText}>+ Add Member</Text>
+                  </TouchableOpacity>
+                )}
               </View>
               <Text style={styles(palette).listSubtext}>
-                Create employees and send invitations
+                Manage team members and send invitations
               </Text>
             </View>
           )}
@@ -623,16 +628,18 @@ export default function EmployeesScreen() {
             )}
           </View>
 
-          {/* Тестирование биометрии */}
-          <View style={styles(palette).testingCard}>
-            <Text style={styles(palette).testingTitle}>🧪 Testing Tools</Text>
-            <TouchableOpacity 
-              style={styles(palette).testBiometricButton}
-              onPress={() => router.push('/test-biometric-flow')}
-            >
-              <Text style={styles(palette).testButtonText}>🧪 Test Biometric Flow</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Тестирование биометрии - только в dev режиме */}
+          {__DEV__ && (
+            <View style={styles(palette).testingCard}>
+              <Text style={styles(palette).testingTitle}>🧪 Testing Tools</Text>
+              <TouchableOpacity 
+                style={styles(palette).testBiometricButton}
+                onPress={() => router.push('/test-biometric-flow')}
+              >
+                <Text style={styles(palette).testButtonText}>🧪 Test Biometric Flow</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Быстрые действия для руководства */}
           {canManageEmployees && (

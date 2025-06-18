@@ -22,7 +22,7 @@ export default function WorktimeScreen() {
     const [loading, setLoading] = useState(true);
     const { user, hasAccess } = useUser();
     const { palette } = useColors();
-    const canViewAll = hasAccess(ROLES.ACCOUNTANT);
+    const canViewAll = hasAccess(ROLES.ACCOUNTANT); // This includes ADMIN too
 
     useEffect(() => {
         fetchWorktimeData();
@@ -51,21 +51,31 @@ export default function WorktimeScreen() {
             const apiData = responseData.results || responseData;
             
             // Transform API data to match UI format
-            const transformedData = apiData.map(worklog => ({
-                id: worklog.id,
-                employee: {
-                    id: worklog.employee.id,
-                    name: `${worklog.employee.first_name} ${worklog.employee.last_name}`,
-                    email: worklog.employee.email
-                },
-                date: new Date(worklog.check_in_time).toLocaleDateString('en-US', {
-                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-                }),
-                checkIn: new Date(worklog.check_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                checkOut: worklog.check_out_time ? new Date(worklog.check_out_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Still working',
-                totalHours: worklog.total_hours ? `${Math.floor(worklog.total_hours)}h ${Math.round((worklog.total_hours % 1) * 60)}m` : 'In progress',
-                workMode: worklog.work_mode || 'office'
-            }));
+            const transformedData = apiData.map(worklog => {
+                // Safe date parsing with fallbacks
+                const checkInDate = worklog.check_in_time ? new Date(worklog.check_in_time) : null;
+                const checkOutDate = worklog.check_out_time ? new Date(worklog.check_out_time) : null;
+                
+                // Check for invalid dates
+                const isValidCheckIn = checkInDate && !isNaN(checkInDate.getTime());
+                const isValidCheckOut = checkOutDate && !isNaN(checkOutDate.getTime());
+                
+                return {
+                    id: worklog.id,
+                    employee: {
+                        id: worklog.employee.id,
+                        name: `${worklog.employee.first_name} ${worklog.employee.last_name}`,
+                        email: worklog.employee.email
+                    },
+                    date: isValidCheckIn ? checkInDate.toLocaleDateString('en-US', {
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                    }) : 'Date not available',
+                    checkIn: isValidCheckIn ? checkInDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Not recorded',
+                    checkOut: isValidCheckOut ? checkOutDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Still working',
+                    totalHours: worklog.total_hours ? `${Math.floor(worklog.total_hours)}h ${Math.round((worklog.total_hours % 1) * 60)}m` : 'In progress',
+                    workMode: worklog.work_mode || 'office'
+                };
+            });
             
             // Filter data based on user role
             const filtered = canViewAll
@@ -128,7 +138,7 @@ export default function WorktimeScreen() {
                 <View style={styles(palette).summaryItem}>
                     <Text style={styles(palette).summaryLabel}>Work Mode:</Text>
                     <Text style={styles(palette).summaryValue}>
-                        {item.isRemote ? 'Remote' : 'Office'}
+                        {item.workMode === 'remote' ? 'Remote' : 'Office'}
                     </Text>
                 </View>
             </View>
@@ -143,6 +153,14 @@ export default function WorktimeScreen() {
 
             {loading ? (
                 <ActivityIndicator size="large" color={palette.primary} style={styles(palette).loader} />
+            ) : worktimeData.length === 0 ? (
+                <View style={styles(palette).emptyState}>
+                    <Text style={styles(palette).emptyStateTitle}>📋 No Work Records</Text>
+                    <Text style={styles(palette).emptyStateText}>
+                        You haven't checked in yet today.{'\n'}
+                        Go to Dashboard and tap "Check In" to start tracking your time.
+                    </Text>
+                </View>
             ) : (
                 <FlatList
                     data={worktimeData}
@@ -254,5 +272,24 @@ const styles = palette => StyleSheet.create({
         borderTopColor: palette.border,
         borderTopWidth: 1,
         padding: 16,
+    },
+    emptyState: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 32,
+    },
+    emptyStateTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: palette.text.primary,
+        marginBottom: 16,
+        textAlign: 'center',
+    },
+    emptyStateText: {
+        fontSize: 16,
+        color: palette.text.secondary,
+        textAlign: 'center',
+        lineHeight: 24,
     },
 });

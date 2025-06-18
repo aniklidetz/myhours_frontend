@@ -20,12 +20,7 @@ import { useOffice } from '../src/contexts/OfficeContext';
 import useColors from '../hooks/useColors';
 
 export default function AdminScreen() {
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [modalVisible, setModalVisible] = useState(false);
-    const [currentUser, setCurrentUser] = useState(null);
-    const [isNewUser, setIsNewUser] = useState(false);
-    const [activeTab, setActiveTab] = useState('users'); // 'users' | 'office'
+    const [loading, setLoading] = useState(false);
     
     const { user, hasAccess } = useUser();
     const { palette } = useColors();
@@ -51,7 +46,6 @@ export default function AdminScreen() {
             router.replace('/employees');
             return;
         }
-        fetchUsers();
     }, [user, hasAccess]);
 
     // Load office settings
@@ -68,68 +62,6 @@ export default function AdminScreen() {
         }
     }, [officeLoading, officeSettings]);
 
-    const fetchUsers = async () => {
-        try {
-            setLoading(true);
-            const mockUsers = [
-                { id: 1, name: 'Admin User', email: 'admin@example.com', role: ROLES.ADMIN, active: true },
-                { id: 2, name: 'Accountant User', email: 'accountant@example.com', role: ROLES.ACCOUNTANT, active: true },
-                { id: 3, name: 'Employee User', email: 'employee@example.com', role: ROLES.EMPLOYEE, active: true },
-                { id: 4, name: 'John Smith', email: 'john@example.com', role: ROLES.EMPLOYEE, active: false }
-            ];
-            setUsers(mockUsers);
-        } catch (error) {
-            console.error('Error fetching users:', error);
-            Alert.alert('Error', 'Failed to load users list');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // User management functions
-    const handleAddUser = () => {
-        setCurrentUser({
-            id: Date.now(),
-            name: '',
-            email: '',
-            role: ROLES.EMPLOYEE,
-            active: true
-        });
-        setIsNewUser(true);
-        setModalVisible(true);
-    };
-
-    const handleEditUser = (user) => {
-        setCurrentUser({ ...user });
-        setIsNewUser(false);
-        setModalVisible(true);
-    };
-
-    const handleSaveUser = () => {
-        if (!currentUser.name.trim() || !currentUser.email.trim()) {
-            Alert.alert('Error', 'Name and Email are required');
-            return;
-        }
-
-        const emailRegex = /\S+@\S+\.\S+/;
-        if (!emailRegex.test(currentUser.email)) {
-            Alert.alert('Error', 'Please enter a valid email');
-            return;
-        }
-
-        if (isNewUser) {
-            setUsers([...users, currentUser]);
-            Alert.alert('Success', 'New user added');
-        } else {
-            setUsers(users.map(u => u.id === currentUser.id ? currentUser : u));
-            Alert.alert('Success', 'User data updated');
-        }
-        setModalVisible(false);
-    };
-
-    const handleRoleChange = (role) => {
-        setCurrentUser({ ...currentUser, role });
-    };
 
     // Office settings functions
     const handleGetLocation = async () => {
@@ -250,58 +182,6 @@ export default function AdminScreen() {
         }
     };
 
-    // Render functions
-    const renderUserItem = ({ item }) => (
-        <View style={[styles(palette).card, !item.active && styles(palette).inactiveCard]}>
-            <View style={styles(palette).cardContent}>
-                <View>
-                    <Text style={styles(palette).userName}>{item.name}</Text>
-                    <Text style={styles(palette).userEmail}>{item.email}</Text>
-                    <View style={[
-                        styles(palette).roleBadge,
-                        item.role === ROLES.ADMIN ? styles(palette).adminBadge :
-                            item.role === ROLES.ACCOUNTANT ? styles(palette).accountantBadge :
-                                styles(palette).employeeBadge
-                    ]}>
-                        <Text style={styles(palette).roleText}>
-                            {item.role === ROLES.ADMIN ? 'Admin' :
-                                item.role === ROLES.ACCOUNTANT ? 'Accountant' : 'Employee'}
-                        </Text>
-                    </View>
-                </View>
-                <View style={styles(palette).cardActions}>
-                    {!item.active && <Text style={styles(palette).inactiveLabel}>Inactive</Text>}
-                    <TouchableOpacity
-                        style={styles(palette).editButton}
-                        onPress={() => handleEditUser(item)}
-                    >
-                        <Text style={styles(palette).editButtonText}>Edit</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </View>
-    );
-
-    const renderUsersTab = () => (
-        <View style={styles(palette).tabContent}>
-            <View style={styles(palette).header}>
-                <Text style={styles(palette).title}>User Management</Text>
-                <TouchableOpacity style={styles(palette).addButton} onPress={handleAddUser}>
-                    <Text style={styles(palette).addButtonText}>+ Add User</Text>
-                </TouchableOpacity>
-            </View>
-            {loading ? (
-                <ActivityIndicator size="large" color={palette.primary} style={styles(palette).loader} />
-            ) : (
-                <FlatList
-                    data={users}
-                    renderItem={renderUserItem}
-                    keyExtractor={item => item.id.toString()}
-                    contentContainerStyle={styles(palette).listContent}
-                />
-            )}
-        </View>
-    );
 
     const renderOfficeTab = () => (
         <View style={styles(palette).tabContent}>
@@ -402,133 +282,14 @@ export default function AdminScreen() {
 
     return (
         <SafeAreaView style={styles(palette).container}>
-            {/* Tab Navigation */}
-            <View style={styles(palette).tabBar}>
-                <TouchableOpacity
-                    style={[styles(palette).tab, activeTab === 'users' && styles(palette).activeTab]}
-                    onPress={() => setActiveTab('users')}
-                >
-                    <Text style={[styles(palette).tabText, activeTab === 'users' && styles(palette).activeTabText]}>
-                        👥 Users
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles(palette).tab, activeTab === 'office' && styles(palette).activeTab]}
-                    onPress={() => setActiveTab('office')}
-                >
-                    <Text style={[styles(palette).tabText, activeTab === 'office' && styles(palette).activeTabText]}>
-                        🏢 Office
-                    </Text>
-                </TouchableOpacity>
+            {/* Header */}
+            <View style={styles(palette).header}>
+                <Text style={styles(palette).headerTitle}>🏢 Office Settings</Text>
+                <Text style={styles(palette).headerSubtitle}>Configure office location and work policies</Text>
             </View>
 
-            {/* Tab Content */}
-            {activeTab === 'users' ? renderUsersTab() : renderOfficeTab()}
-
-            {/* User Modal */}
-            <Modal
-                animationType="slide"
-                transparent={true}
-                visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
-            >
-                <View style={styles(palette).modalOverlay}>
-                    <View style={styles(palette).modalContent}>
-                        <Text style={styles(palette).modalTitle}>
-                            {isNewUser ? 'Add User' : 'Edit User'}
-                        </Text>
-
-                        <View style={styles(palette).inputGroup}>
-                            <Text style={styles(palette).inputLabel}>Name</Text>
-                            <TextInput
-                                style={styles(palette).textInput}
-                                value={currentUser?.name}
-                                onChangeText={(text) => setCurrentUser({ ...currentUser, name: text })}
-                                placeholder="Enter user's name"
-                                placeholderTextColor={palette.text.secondary}
-                            />
-                        </View>
-
-                        <View style={styles(palette).inputGroup}>
-                            <Text style={styles(palette).inputLabel}>Email</Text>
-                            <TextInput
-                                style={styles(palette).textInput}
-                                value={currentUser?.email}
-                                onChangeText={(text) => setCurrentUser({ ...currentUser, email: text })}
-                                keyboardType="email-address"
-                                placeholder="Enter email"
-                                autoCapitalize="none"
-                                placeholderTextColor={palette.text.secondary}
-                            />
-                        </View>
-
-                        <View style={styles(palette).inputGroup}>
-                            <Text style={styles(palette).inputLabel}>Role</Text>
-                            <View style={styles(palette).roleSelectors}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles(palette).roleSelector,
-                                        currentUser?.role === ROLES.EMPLOYEE && styles(palette).selectedRole
-                                    ]}
-                                    onPress={() => handleRoleChange(ROLES.EMPLOYEE)}
-                                >
-                                    <Text style={styles(palette).roleSelectorText}>Employee</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={[
-                                        styles(palette).roleSelector,
-                                        currentUser?.role === ROLES.ACCOUNTANT && styles(palette).selectedRole
-                                    ]}
-                                    onPress={() => handleRoleChange(ROLES.ACCOUNTANT)}
-                                >
-                                    <Text style={styles(palette).roleSelectorText}>Accountant</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={[
-                                        styles(palette).roleSelector,
-                                        currentUser?.role === ROLES.ADMIN && styles(palette).selectedRole
-                                    ]}
-                                    onPress={() => handleRoleChange(ROLES.ADMIN)}
-                                >
-                                    <Text style={styles(palette).roleSelectorText}>Admin</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-
-                        <View style={styles(palette).inputGroup}>
-                            <Text style={styles(palette).inputLabel}>Status</Text>
-                            <View style={styles(palette).statusToggle}>
-                                <Text style={styles(palette).statusText}>Inactive</Text>
-                                <Switch
-                                    value={currentUser?.active}
-                                    onValueChange={(value) => setCurrentUser({ ...currentUser, active: value })}
-                                    trackColor={{ false: palette.text.secondary, true: palette.primary }}
-                                    thumbColor={currentUser?.active ? palette.success : palette.border}
-                                />
-                                <Text style={styles(palette).statusText}>Active</Text>
-                            </View>
-                        </View>
-
-                        <View style={styles(palette).modalButtons}>
-                            <TouchableOpacity
-                                style={[styles(palette).modalButton, styles(palette).cancelButton]}
-                                onPress={() => setModalVisible(false)}
-                            >
-                                <Text style={styles(palette).cancelButtonText}>Cancel</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[styles(palette).modalButton, styles(palette).saveModalButton]}
-                                onPress={handleSaveUser}
-                            >
-                                <Text style={styles(palette).saveModalButtonText}>Save</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
+            {/* Office Settings Content */}
+            {renderOfficeTab()}
 
             {/* Policy Selection Modal */}
             <Modal
@@ -591,6 +352,22 @@ const styles = (palette) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: palette.background.secondary,
+    },
+    header: {
+        backgroundColor: palette.background.primary,
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: palette.border,
+    },
+    headerTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: palette.text.primary,
+        marginBottom: 4,
+    },
+    headerSubtitle: {
+        fontSize: 14,
+        color: palette.text.secondary,
     },
     tabBar: {
         flexDirection: 'row',

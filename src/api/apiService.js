@@ -339,6 +339,7 @@ const apiService = {
     },
 
     logout: async () => {
+      console.log('🚪 Logging out...');
       try {
         // Call enhanced logout API if using enhanced auth
         const enhancedAuthData = await AsyncStorage.getItem(
@@ -346,11 +347,28 @@ const apiService = {
         );
         
         if (enhancedAuthData && !APP_CONFIG.ENABLE_MOCK_DATA) {
-          await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT_DEVICE);
-          console.log('✅ Enhanced logout successful');
+          try {
+            await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT_DEVICE);
+            console.log('✅ API logout successful');
+          } catch (apiError) {
+            // Игнорируем ошибки 401 при logout - токен уже недействителен
+            if (apiError.response?.status === 401) {
+              console.log('🔄 Token already invalid - proceeding with local logout');
+            } else {
+              console.error('❌ API logout error:', apiError.message);
+            }
+          }
         } else if (!APP_CONFIG.ENABLE_MOCK_DATA) {
-          await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
-          console.log('✅ Legacy logout successful');
+          try {
+            await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+            console.log('✅ Legacy logout successful');
+          } catch (apiError) {
+            if (apiError.response?.status === 401) {
+              console.log('🔄 Token already invalid - proceeding with local logout');
+            } else {
+              console.error('❌ Legacy logout error:', apiError.message);
+            }
+          }
         } else {
           console.log('🔄 Mock logout - skipping API call');
         }
@@ -367,6 +385,7 @@ const apiService = {
           APP_CONFIG.STORAGE_KEYS.DEVICE_ID
         ]);
         console.log('🧹 Local storage cleared');
+        console.log('✅ Logout successful');
       }
     },
 

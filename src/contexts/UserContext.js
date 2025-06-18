@@ -51,6 +51,7 @@ export const UserProvider = ({ children }) => {
         const userData = JSON.parse(storedUser);
         setUser(userData);
         console.log('✅ User data loaded:', userData.email);
+        console.log('🔍 User role from storage:', userData.role);
       } else {
         console.log('❌ No user data found in storage');
       }
@@ -100,9 +101,10 @@ export const UserProvider = ({ children }) => {
       // Real API login
       const response = await apiService.auth.login(email, password);
       
-      if (response.user && response.token) {
+      if (response.success && response.user && response.token) {
         setUser(response.user);
         console.log('✅ Login successful:', response.user.email);
+        console.log('🔍 User role:', response.user.role);
         return true;
       } else {
         throw new Error('Invalid response from server');
@@ -159,20 +161,35 @@ export const UserProvider = ({ children }) => {
 
   // Check if user has access to specific role
   const hasAccess = (role) => {
-    if (!user) return false;
+    if (!user) {
+      console.log('🔒 hasAccess: No user found');
+      return false;
+    }
+    
+    console.log(`🔒 hasAccess check: user.role='${user.role}', required='${role}', is_superuser=${user.is_superuser}`);
     
     // Superuser has access to everything
-    if (user.is_superuser) return true;
+    if (user.is_superuser) {
+      console.log('✅ hasAccess: Superuser access granted');
+      return true;
+    }
     
     // Admin has access to everything
-    if (user.role === ROLES.ADMIN) return true;
+    if (user.role === ROLES.ADMIN) {
+      console.log('✅ hasAccess: Admin access granted');
+      return true;
+    }
     
     // Check specific role access
     if (role === ROLES.ACCOUNTANT) {
-      return user.role === ROLES.ACCOUNTANT || user.role === ROLES.ADMIN;
+      const hasAccess = user.role === ROLES.ACCOUNTANT || user.role === ROLES.ADMIN;
+      console.log(`✅ hasAccess: Accountant check result=${hasAccess}`);
+      return hasAccess;
     }
     
-    return user.role === role;
+    const hasAccess = user.role === role;
+    console.log(`✅ hasAccess: Direct role check result=${hasAccess}`);
+    return hasAccess;
   };
 
   // Check if user has specific role

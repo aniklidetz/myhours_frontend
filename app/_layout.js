@@ -44,11 +44,11 @@ function TabsNavigator() {
       <Tabs.Screen
         name="employees"
         options={{
-          title: isEmployee ? 'My Workday' : 'Employees',
-          tabBarLabel: isEmployee ? 'My Day' : 'Employees',
+          title: isEmployee ? 'My Workday' : 'Dashboard',
+          tabBarLabel: isEmployee ? 'My Day' : 'Dashboard',
           tabBarIcon: ({ color }) => (
             <Ionicons 
-              name={isEmployee ? "person" : "people"} 
+              name={isEmployee ? "person" : "home"} 
               size={24} 
               color={color} 
             />

@@ -52,9 +52,22 @@ export default function PayrollScreen() {
             const responseData = await response.json();
             const apiData = responseData.results || responseData;
             
-            // Transform API data to match UI format
+            // Transform API data to match UI format with safe number parsing
             const transformedData = apiData.map(salary => {
                 const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                
+                // Safe number parsing with fallbacks
+                const safeParse = (value, fallback = 0) => {
+                    const parsed = parseFloat(value);
+                    return isNaN(parsed) ? fallback : parsed;
+                };
+                
+                const baseSalary = safeParse(salary.base_salary);
+                const hoursWorked = safeParse(salary.hours_worked);
+                const overtime = safeParse(salary.overtime_hours);
+                const bonuses = safeParse(salary.bonus);
+                const totalPayout = safeParse(salary.net_salary || salary.calculated_salary);
+                
                 return {
                     id: salary.id,
                     period: currentMonth,
@@ -63,12 +76,11 @@ export default function PayrollScreen() {
                         name: `${salary.employee.first_name} ${salary.employee.last_name}`,
                         email: salary.employee.email
                     },
-                    baseSalary: parseFloat(salary.base_salary || 0),
-                    hoursWorked: salary.hours_worked || 0,
-                    overtime: salary.overtime_hours || 0,
-                    bonuses: parseFloat(salary.bonus || 0),
-                    taxes: parseFloat(salary.taxes || 0),
-                    totalPayout: parseFloat(salary.net_salary || salary.calculated_salary || 0),
+                    baseSalary,
+                    hoursWorked,
+                    overtime,
+                    bonuses,
+                    totalPayout,
                     status: salary.status || 'Draft'
                 };
             });
@@ -118,16 +130,22 @@ export default function PayrollScreen() {
             const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
             
             // Mock calculation for current accumulated salary
+            // Safe calculation for estimated salary
+            const baseMonthlySalary = 50000;
+            const baseMonthlyHours = 160;
+            const safeDaysInMonth = daysInMonth > 0 ? daysInMonth : 30;
+            const safeDaysWorked = currentDay > 0 ? currentDay : 1;
+            
             const mockCurrentSalary = {
                 period: `${currentMonth} (Current)`,
                 employee: {
                     id: user.id,
-                    name: `${user.first_name} ${user.last_name}` || user.email
+                    name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email
                 },
-                estimatedSalary: Math.round((50000 / daysInMonth) * currentDay), // Rough calculation
-                hoursWorkedThisMonth: Math.round((160 / daysInMonth) * currentDay),
-                daysWorked: currentDay,
-                daysInMonth: daysInMonth,
+                estimatedSalary: Math.round((baseMonthlySalary / safeDaysInMonth) * safeDaysWorked),
+                hoursWorkedThisMonth: Math.round((baseMonthlyHours / safeDaysInMonth) * safeDaysWorked),
+                daysWorked: safeDaysWorked,
+                daysInMonth: safeDaysInMonth,
                 status: 'In Progress'
             };
             
@@ -141,9 +159,9 @@ export default function PayrollScreen() {
     const generateMockData = () => {
         const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         return [
-            { id: 1, period: currentMonth, employee: { id: user.id, name: user.first_name + ' ' + user.last_name || user.email }, baseSalary: 50000, hoursWorked: 160, overtime: 8, bonuses: 5000, taxes: 7150, totalPayout: 52850, status: 'Draft' },
-            { id: 2, period: currentMonth, employee: { id: 5, name: 'John Smith' }, baseSalary: 60000, hoursWorked: 168, overtime: 16, bonuses: 8000, taxes: 9200, totalPayout: 66800, status: 'Confirmed' },
-            { id: 3, period: currentMonth, employee: { id: 6, name: 'Emily Johnson' }, baseSalary: 55000, hoursWorked: 152, overtime: 0, bonuses: 0, taxes: 7150, totalPayout: 47850, status: 'Pending' }
+            { id: 1, period: currentMonth, employee: { id: user.id, name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email }, baseSalary: 50000, hoursWorked: 160, overtime: 8, bonuses: 5000, totalPayout: 58000, status: 'Draft' },
+            { id: 2, period: currentMonth, employee: { id: 5, name: 'John Smith' }, baseSalary: 60000, hoursWorked: 168, overtime: 16, bonuses: 8000, totalPayout: 76000, status: 'Confirmed' },
+            { id: 3, period: currentMonth, employee: { id: 6, name: 'Emily Johnson' }, baseSalary: 55000, hoursWorked: 152, overtime: 0, bonuses: 0, totalPayout: 55000, status: 'Pending' }
         ];
     };
 
@@ -185,8 +203,7 @@ export default function PayrollScreen() {
             <View style={stylesWithDarkMode.divider} />
 
             <View style={stylesWithDarkMode.summaryRow}>
-                <View style={stylesWithDarkMode.summaryColumn}><Text style={stylesWithDarkMode.taxLabel}>Taxes:</Text><Text style={stylesWithDarkMode.taxValue}>-{item.taxes} ₪</Text></View>
-                <View style={stylesWithDarkMode.summaryColumn}><Text style={stylesWithDarkMode.totalLabel}>To be paid:</Text><Text style={stylesWithDarkMode.totalValue}>{item.totalPayout} ₪</Text></View>
+                <View style={stylesWithDarkMode.summaryColumn}><Text style={stylesWithDarkMode.totalLabel}>Total Salary:</Text><Text style={stylesWithDarkMode.totalValue}>{item.totalPayout} ₪</Text></View>
             </View>
 
             {canExportAndConfirm && item.status !== 'Confirmed' && (
@@ -223,7 +240,7 @@ export default function PayrollScreen() {
                                     {currentSalaryData.period}
                                 </Text>
                                 <Text style={stylesWithDarkMode.currentSalaryAmount}>
-                                    ₪{currentSalaryData.estimatedSalary.toLocaleString()}
+                                    ₪{(currentSalaryData.estimatedSalary || 0).toLocaleString()}
                                 </Text>
                                 <Text style={stylesWithDarkMode.currentSalarySubtext}>
                                     Estimated based on {currentSalaryData.daysWorked}/{currentSalaryData.daysInMonth} days worked

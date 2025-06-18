@@ -79,7 +79,7 @@ export default function AddEmployeeScreen() {
           {
             text: 'Not Now',
             style: 'cancel',
-            onPress: () => router.back(),
+            onPress: () => router.push('/employees'),
           },
           {
             text: 'Send Invitation',
@@ -92,14 +92,14 @@ export default function AddEmployeeScreen() {
                 Alert.alert(
                   'Success',
                   `Invitation sent to ${employee.email}. They will receive an email with instructions to set up their account.`,
-                  [{ text: 'OK', onPress: () => router.back() }]
+                  [{ text: 'OK', onPress: () => router.push('/employees') }]
                 );
               } catch (error) {
                 console.error('Error sending invitation:', error);
                 Alert.alert(
                   'Invitation Failed',
                   'Employee created but invitation could not be sent. You can resend it later from the employee list.',
-                  [{ text: 'OK', onPress: () => router.back() }]
+                  [{ text: 'OK', onPress: () => router.push('/employees') }]
                 );
               }
             },
@@ -203,9 +203,9 @@ export default function AddEmployeeScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <Text style={styles.title}>Add New Employee</Text>
+          <Text style={styles.title}>Add Team Member</Text>
           <Text style={styles.subtitle}>
-            Create employee account and send invitation
+            Create team member account and send invitation
           </Text>
         </View>
 
@@ -321,14 +321,14 @@ export default function AddEmployeeScreen() {
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (
-            <Text style={styles.buttonText}>Create Employee & Send Invitation</Text>
+            <Text style={styles.buttonText}>Create Team Member & Send Invitation</Text>
           )}
         </TouchableOpacity>
 
         {/* Cancel Button */}
         <TouchableOpacity
           style={[styles.button, styles.secondaryButton]}
-          onPress={() => router.back()}
+          onPress={() => router.push('/employees')}
           disabled={loading}
         >
           <Text style={[styles.buttonText, { color: palette.primary }]}>Cancel</Text>
