@@ -101,10 +101,19 @@ export const UserProvider = ({ children }) => {
       // Real API login
       const response = await apiService.auth.login(email, password);
       
+      console.log('🔍 API LOGIN RESPONSE:', {
+        success: response.success,
+        hasUser: !!response.user,
+        hasToken: !!response.token,
+        user: response.user
+      });
+      
       if (response.success && response.user && response.token) {
         setUser(response.user);
         console.log('✅ Login successful:', response.user.email);
-        console.log('🔍 User role:', response.user.role);
+        console.log('🔍 User role from API response:', response.user.role);
+        console.log('🔍 User is_superuser from API response:', response.user.is_superuser);
+        console.log('🔍 Full user object:', response.user);
         return true;
       } else {
         throw new Error('Invalid response from server');

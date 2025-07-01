@@ -336,10 +336,10 @@ export default function BiometricRegistrationScreen() {
             style={[
               styles(palette).actionButton,
               styles(palette).registerButton,
-              (loading || !!countdown) && styles(palette).disabledButton
+              (loading || !!countdown || isCapturing) && styles(palette).disabledButton
             ]}
             onPress={startCountdown}
-            disabled={loading || !!countdown}
+            disabled={loading || !!countdown || isCapturing}
           >
             {!!loading && (
               <ActivityIndicator 

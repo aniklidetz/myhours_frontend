@@ -12,10 +12,11 @@ import { CameraView, Camera } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
 import useLocation from '../hooks/useLocation';
 import { useOffice } from '../src/contexts/OfficeContext';
-import { useUser } from '../src/contexts/UserContext';
+import { useUser, ROLES } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
 import ApiService from '../src/api/apiService';
-import { APP_CONFIG } from '../src/config';
+import { APP_CONFIG, API_URL } from '../src/config';
+import { useWorkStatus } from '../src/contexts/WorkStatusContext';
 
 export default function BiometricCheckScreen() {
   // Get `mode` safely: string | undefined | string[]  →  string | undefined
@@ -29,15 +30,20 @@ export default function BiometricCheckScreen() {
   
   const cameraRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const countdownTimerRef = useRef(null);
   const [hasPermission, setHasPermission] = useState(null);
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(null);
   const [error, setError] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [cameraActive, setCameraActive] = useState(true);
+  const [successState, setSuccessState] = useState(false); // Track success state for UI cleanup
 
   const { palette } = useColors();
   const { user } = useUser();
+  const { handleCheckInSuccess, handleCheckOutSuccess } = useWorkStatus();
   const { location, errorMsg: locationError } = useLocation({ 
     watchPosition: false,
     highAccuracy: true 
@@ -46,14 +52,44 @@ export default function BiometricCheckScreen() {
   
   const inside = location && location.coords ? isInsideOffice(location.coords) : false;
 
+  const getRoleDisplayName = (role) => {
+    switch (role) {
+      case ROLES.ADMIN: return '👑 Administrator';
+      case ROLES.ACCOUNTANT: return '💼 Accountant';
+      case ROLES.EMPLOYEE: return '👤 Employee';
+      case ROLES.STAFF: return '👥 Staff';
+      default: return role ? `🔍 ${role}` : '';
+    }
+  };
+
   useEffect(() => {
+    console.log('🎥 BiometricCheckScreen mounting, initializing camera...');
+    // Reset all states on mount to ensure fresh start
+    setCameraActive(true);
+    setCameraReady(false);
+    setIsCapturing(false);
+    setLoading(false);
+    setCountdown(null);
+    setSuccessState(false);
+    setError(null);
+    
     requestCameraPermission();
     
-    // Cleanup function to abort any pending requests
+    // Cleanup function to abort any pending requests and timers
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+      }
+      // Reset camera state on unmount
+      setCameraActive(false);
+      setCameraReady(false);
+      setIsCapturing(false);
+      setLoading(false);
+      setCountdown(null);
+      console.log('🧹 BiometricCheckScreen cleanup: Camera completely stopped');
     };
   }, []);
 
@@ -81,11 +117,19 @@ export default function BiometricCheckScreen() {
   };
 
   const startCountdown = () => {
+    if (isCapturing) {
+      console.warn('⚠️ Photo capture already in progress');
+      return;
+    }
+    
     setCountdown(3);
-    const timer = setInterval(() => {
+    setIsCapturing(true);
+    
+    countdownTimerRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          clearInterval(timer);
+          clearInterval(countdownTimerRef.current);
+          countdownTimerRef.current = null;
           takePhoto();
           return null;
         }
@@ -120,6 +164,20 @@ export default function BiometricCheckScreen() {
       setError('Camera is still initializing. Please wait.');
       return;
     }
+
+    // Add user-specific debugging for Mishka's account
+    if (user?.email === 'mikhail.plotnik@gmail.com') {
+      console.log('🔍 Debug info for Mishka:', {
+        userId: user?.id,
+        userEmail: user?.email,
+        userName: `${user?.first_name} ${user?.last_name}`,
+        userRole: user?.role,
+        isCheckOut: !isCheckIn,
+        hasCamera: !!cameraRef.current,
+        cameraReady,
+        location: location ? 'available' : 'missing'
+      });
+    }
     
     setLoading(true);
     console.log(`📸 Starting photo capture for ${isCheckIn ? 'check-in' : 'check-out'}...`);
@@ -129,20 +187,29 @@ export default function BiometricCheckScreen() {
       hasPermission
     });
 
+    // Add a global timeout to prevent hanging
+    const globalTimeout = setTimeout(() => {
+      console.error('⏰ Global timeout: Photo capture took too long');
+      setLoading(false);
+      setIsCapturing(false);
+      setError('Operation timed out. Please try again.');
+    }, 45000); // 45 second timeout
+
     // Create new AbortController for this request
     abortControllerRef.current = new AbortController();
 
     try {
-      // Увеличиваем задержку для стабильности
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Увеличиваем задержку для стабильности (особенно важно для check-out)
+      const stabilityDelay = isCheckIn ? 1000 : 1500;
+      await new Promise(resolve => setTimeout(resolve, stabilityDelay));
       
       // Добавляем таймаут для захвата фото
       const photoTimeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Photo capture timeout')), 10000);
+        setTimeout(() => reject(new Error('Photo capture timeout')), 15000);
       });
       
       const photoPromise = cameraRef.current.takePictureAsync({ 
-        quality: 0.5,
+        quality: 0.3,  // Уменьшаем качество для более быстрой обработки
         base64: true,
         exif: false,
         skipProcessing: true
@@ -172,14 +239,18 @@ export default function BiometricCheckScreen() {
       });
 
       // Call the appropriate API endpoint with timeout
+      // Use shorter timeout for check-out operations, especially for Mishka's account
+      const timeoutDuration = (!isCheckIn && user?.email === 'mikhail.plotnik@gmail.com') ? 20000 : 30000;
+      
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), 30000);
+        setTimeout(() => reject(new Error('Request timeout')), timeoutDuration);
       });
       
       const apiPromise = isCheckIn 
         ? ApiService.biometrics.checkIn(imageData, locationString)
         : ApiService.biometrics.checkOut(imageData, locationString);
       
+      console.log(`⏱️ API call timeout set to ${timeoutDuration/1000}s for ${isCheckIn ? 'check-in' : 'check-out'}`);
       const result = await Promise.race([apiPromise, timeoutPromise]);
 
       console.log('✅ Biometric check API response received:', {
@@ -212,6 +283,7 @@ export default function BiometricCheckScreen() {
       // Don't show error for aborted requests
       if (error.name === 'CanceledError' || error.message === 'canceled') {
         console.log('🔄 Request was cancelled by user');
+        setIsCapturing(false);
         return;
       }
       
@@ -229,13 +301,20 @@ export default function BiometricCheckScreen() {
             { text: 'Try Again', onPress: () => {
               setError(null);
               setLoading(false);
+              setIsCapturing(false);
               setCameraReady(false);
-              setTimeout(() => setCameraReady(true), 1000);
+              // Force camera reinitialization
+              setCameraActive(false);
+              setTimeout(() => {
+                setCameraActive(true);
+                setCameraReady(false);
+              }, 500);
             }},
             { text: 'Go Back', onPress: () => router.back() }
           ]
         );
         setLoading(false);
+        setIsCapturing(false);
         return;
       } else if (error.message?.includes('Camera is not ready')) {
         errorMessage = 'Camera is not ready. Please wait and try again.';
@@ -251,11 +330,20 @@ export default function BiometricCheckScreen() {
             { text: 'Try Again', onPress: () => {
               setError(null);
               setLoading(false);
+              setIsCapturing(false);
+              setCameraReady(false);
+              // Restart camera for timeout recovery
+              setCameraActive(false);
+              setTimeout(() => {
+                setCameraActive(true);
+                setCameraReady(false);
+              }, 500);
             }},
             { text: 'Go Back', onPress: () => router.back() }
           ]
         );
         setLoading(false);
+        setIsCapturing(false);
         return;
       } else if (error.message?.includes('permission')) {
         errorMessage = 'Camera permission issue. Please check settings.';
@@ -283,9 +371,13 @@ export default function BiometricCheckScreen() {
           ? 'You are already checked in. Please check out first.'
           : 'You are not checked in. Please check in first.';
       } else if (error.response?.status === 500) {
-        errorMessage = 'Server error. Please contact administrator.';
-        if (error.response.data) {
-          console.error('Server error details:', error.response.data);
+        console.error('Server error details:', error.response.data);
+        
+        // Check if it's MongoDB connection issue
+        if (error.response.data?.error === 'Internal server error') {
+          errorMessage = '⚠️ Biometric system is temporarily unavailable.\n\nPlease contact your administrator to:\n1. Start MongoDB service\n2. Check biometric system connectivity\n\nYou may need to use manual time tracking for now.';
+        } else {
+          errorMessage = 'Server error. Please contact administrator.';
           // Try to extract any error message from the response
           if (typeof error.response.data === 'string') {
             errorMessage = `Server error: ${error.response.data}`;
@@ -295,14 +387,41 @@ export default function BiometricCheckScreen() {
             errorMessage = error.response.data.message;
           }
         }
+        
+        // Special handling for Mishka's account - suggest biometric re-registration
+        if (user?.email === 'mikhail.plotnik@gmail.com' && !isCheckIn) {
+          errorMessage += '\n\n🔧 For your account specifically, try:\n1. Complete biometric registration again\n2. Use manual check-out if biometric fails\n3. Contact admin about MongoDB connectivity';
+        }
       } else if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
       } else if (error.response?.data?.details) {
         errorMessage = Object.values(error.response.data.details).flat().join('\n');
-      } else if (error.message?.includes('Network')) {
-        errorMessage = 'Network error. Please check your internet connection.';
-      } else if (error.message?.includes('timeout')) {
+      } else if (error.message?.includes('Network') || error.code === 'ERR_NETWORK') {
+        errorMessage = 'Network error. Please check:\n1. Backend server is running\n2. Your device is on the same network\n3. API URL is correct (currently: ' + API_URL + ')';
+      } else if (error.message?.includes('timeout') || error.message?.includes('Request timeout')) {
         errorMessage = 'Request timed out. Please check your connection and try again.';
+        
+        // Special timeout handling for Mishka's check-out
+        if (user?.email === 'mikhail.plotnik@gmail.com' && !isCheckIn) {
+          errorMessage = '⏰ Check-out request timed out.\n\nThis might be due to:\n1. MongoDB biometric service not running\n2. Missing biometric registration\n3. Network connectivity issues\n\n💡 Try using manual check-out from the dashboard instead.';
+          
+          // Show special alert for Mishka with manual check-out option
+          Alert.alert(
+            'Check-out Timeout',
+            errorMessage,
+            [
+              { 
+                text: 'Try Manual Check-out', 
+                onPress: () => {
+                  console.log('🔄 Redirecting to manual check-out for Mishka');
+                  router.replace('/check-in-out?manual=true');
+                }
+              },
+              { text: 'Cancel', onPress: () => router.back() }
+            ]
+          );
+          return;
+        }
       } else if (error.message) {
         errorMessage += error.message;
       } else {
@@ -312,7 +431,18 @@ export default function BiometricCheckScreen() {
       setError(errorMessage);
       handleError(errorMessage);
     } finally {
+      // Clear the global timeout
+      clearTimeout(globalTimeout);
+      
+      // Ensure loading states are always cleared
       setLoading(false);
+      setIsCapturing(false);
+      // Clear countdown if still active
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+      setCountdown(null);
     }
   };
 
@@ -356,19 +486,55 @@ export default function BiometricCheckScreen() {
       message += `\nTotal hours worked: ${hours_worked}h`;
     }
     
+    // Update global work status
+    if (isCheckIn) {
+      handleCheckInSuccess(data);
+    } else {
+      handleCheckOutSuccess(data);
+    }
+    
+    // Cleanup camera and states immediately after successful operation
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+    }
+    
+    // Completely stop camera by unmounting the component
+    setCameraActive(false);
+    setCameraReady(false);
+    setIsCapturing(false);
+    setLoading(false);
+    setCountdown(null);
+    setError(null);
+    setSuccessState(true); // Set success state to hide UI elements
+    
+    // Forcefully stop camera by setting ref to null temporarily
+    if (cameraRef.current) {
+      try {
+        // This helps release camera resources on iOS
+        const currentCamera = cameraRef.current;
+        if (currentCamera && currentCamera.pausePreview) {
+          currentCamera.pausePreview();
+        }
+        cameraRef.current = null;
+      } catch (e) {
+        console.warn('Camera cleanup warning:', e.message);
+      }
+    }
+    
+    console.log('🧹 Camera completely stopped after successful biometric check');
+    
     Alert.alert(
       'Success', 
       message,
       [{ 
         text: 'OK', 
         onPress: () => {
-          // Проверяем, авторизован ли пользователь
-          if (user) {
-            router.replace('/employees');
-          } else {
-            // Если нет пользователя, возвращаемся на главный экран
-            router.replace('/');
-          }
+          // Navigate to check-in-out screen instead of back
+          console.log('✅ Navigating to check-in-out screen after success');
+          router.replace('/check-in-out');
         }
       }]
     );
@@ -398,8 +564,10 @@ export default function BiometricCheckScreen() {
   };
 
   const getButtonText = () => {
+    if (!cameraActive) return 'Camera stopped';
     if (loading) return 'Processing...';
     if (countdown !== null && countdown > 0) return `Taking photo in ${countdown}...`;
+    if (!cameraReady) return 'Initializing camera...';
     
     const action = isCheckIn ? 'Check In' : 'Check Out';
     const location = inside ? '(Office)' : '(Remote)';
@@ -432,110 +600,172 @@ export default function BiometricCheckScreen() {
     );
   }
 
+  console.log('🎬 BiometricCheckScreen render state:', {
+    cameraActive,
+    cameraReady,
+    hasPermission,
+    loading,
+    isCapturing,
+    successState,
+    mode: isCheckIn ? 'check-in' : 'check-out'
+  });
+
   return (
     <View style={styles(palette).container}>
-      <CameraView 
-        ref={cameraRef} 
-        style={styles(palette).camera}
-        facing="front"
-        onCameraReady={() => {
-          console.log('✅ Camera is ready for biometric check');
-          setCameraReady(true);
-          setRetryCount(0);
-        }}
-        onMountError={(error) => {
-          console.error('❌ Camera mount error:', error);
-          const newRetryCount = retryCount + 1;
-          setRetryCount(newRetryCount);
-          
-          if (newRetryCount < 3) {
-            setError(`Camera initialization failed (attempt ${newRetryCount}/3). Retrying...`);
-            setTimeout(() => {
+      {cameraActive && hasPermission ? (
+        <CameraView 
+          ref={cameraRef} 
+          style={styles(palette).camera}
+          facing="front"
+          onCameraReady={() => {
+            console.log('✅ Camera is ready for biometric check');
+            setCameraReady(true);
+            setRetryCount(0);
+            setError(null); // Clear any initialization errors
+          }}
+          onMountError={(error) => {
+            console.error('❌ Camera mount error:', error);
+            const newRetryCount = retryCount + 1;
+            setRetryCount(newRetryCount);
+            
+            if (newRetryCount < 3) {
+              setError(`Camera initialization failed (attempt ${newRetryCount}/3). Retrying...`);
+              setTimeout(() => {
+                setCameraReady(false);
+                setError(null);
+                // Force complete camera restart
+                setCameraActive(false);
+                setTimeout(() => {
+                  setCameraActive(true);
+                }, 500);
+              }, 2000);
+            } else {
+              setError(`Camera failed to initialize after 3 attempts: ${error.message}`);
               setCameraReady(false);
-              setError(null);
-            }, 2000);
-          } else {
-            setError(`Camera failed to initialize after 3 attempts: ${error.message}`);
-            setCameraReady(false);
-          }
-        }}
-      />
+            }
+          }}
+        />
+      ) : (
+        // Show initialization screen when camera is inactive
+        <View style={[styles(palette).camera, styles(palette).cameraInitializing]}>
+          <View style={styles(palette).initializingContainer}>
+            <ActivityIndicator size="large" color={palette.primary} />
+            {!hasPermission ? (
+              <Text style={styles(palette).initializingText}>
+                Requesting camera permission...
+              </Text>
+            ) : !cameraActive ? (
+              <Text style={styles(palette).initializingText}>
+                Initializing camera...
+              </Text>
+            ) : (
+              <Text style={styles(palette).initializingText}>
+                Starting camera...
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
 
       <View style={styles(palette).overlay}>
-        {/* Header info */}
-        <View style={styles(palette).topInfo}>
-          <Text style={styles(palette).modeText}>
-            {isCheckIn ? '🔐 Check-In' : '🔓 Check-Out'}
-          </Text>
-          <Text style={styles(palette).userText}>
-            {user?.name || 'Employee'}
-          </Text>
-          <Text style={styles(palette).statusText}>
-            {getStatusText()}
-          </Text>
-        </View>
+        {/* Header info - hide when success */}
+        {!successState && (
+          <View style={styles(palette).topInfo}>
+            <Text style={styles(palette).modeText}>
+              {isCheckIn ? '🔐 Check-In' : '🔓 Check-Out'}
+            </Text>
+            <Text style={styles(palette).userText}>
+              {user?.name || user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email || 'User'}
+              {user?.role && (
+                <Text style={styles(palette).roleText}>
+                  {' • '}
+                  {getRoleDisplayName(user.role)}
+                </Text>
+              )}
+            </Text>
+            <Text style={styles(palette).statusText}>
+              {getStatusText()}
+            </Text>
+          </View>
+        )}
 
         {/* Error display */}
-        {error && (
+        {error && !successState && (
           <View style={styles(palette).errorContainer}>
             <Text style={styles(palette).errorBanner}>⚠️ {error}</Text>
           </View>
         )}
 
-        {/* Face guide */}
-        <View style={styles(palette).faceGuide}>
-          <View style={[
-            styles(palette).faceFrame,
-            !!countdown && styles(palette).faceFrameActive
-          ]} />
-          {!!countdown && (
-            <View style={styles(palette).countdownContainer}>
-              <Text style={styles(palette).countdownText}>{countdown}</Text>
-            </View>
-          )}
-          <Text style={styles(palette).instructionText}>
-            Position your face within the frame
-          </Text>
-        </View>
-
-        {/* Controls */}
-        <View style={styles(palette).bottomControls}>
-          <TouchableOpacity
-            style={[
-              styles(palette).actionButton,
-              isCheckIn ? styles(palette).checkInButton : styles(palette).checkOutButton,
-              (loading || !!countdown) && styles(palette).disabledButton
-            ]}
-            onPress={startCountdown}
-            disabled={loading || !!countdown}
-          >
-            {!!loading && (
-              <ActivityIndicator 
-                size="small" 
-                color={palette.text.light} 
-                style={styles(palette).buttonLoader}
-              />
+        {/* Face guide - hide when success */}
+        {!successState && (
+          <View style={styles(palette).faceGuide}>
+            <View style={[
+              styles(palette).faceFrame,
+              !!countdown && styles(palette).faceFrameActive
+            ]} />
+            {!!countdown && (
+              <View style={styles(palette).countdownContainer}>
+                <Text style={styles(palette).countdownText}>{countdown}</Text>
+              </View>
             )}
-            <Text style={styles(palette).actionButtonText}>
-              {getButtonText()}
+            <Text style={styles(palette).instructionText}>
+              {countdown ? `Taking photo in ${countdown}...` : 'Position your face within the frame'}
             </Text>
-          </TouchableOpacity>
+          </View>
+        )}
 
-          <TouchableOpacity 
-            style={styles(palette).cancelButton}
-            onPress={() => {
-              // Возвращаемся назад или на главную
-              if (user) {
-                router.back();
-              } else {
-                router.replace('/');
-              }
-            }}
-            disabled={loading || !!countdown}
-          >
-            <Text style={styles(palette).cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Controls - hide when success */}
+        {!successState && (
+          <View style={styles(palette).bottomControls}>
+            <TouchableOpacity
+              style={[
+                styles(palette).actionButton,
+                isCheckIn ? styles(palette).checkInButton : styles(palette).checkOutButton,
+                (loading || !!countdown || isCapturing || !cameraReady || !cameraActive) && styles(palette).disabledButton
+              ]}
+              onPress={startCountdown}
+              disabled={loading || !!countdown || isCapturing || !cameraReady || !cameraActive}
+            >
+              {!!loading && (
+                <ActivityIndicator 
+                  size="small" 
+                  color={palette.text.light} 
+                  style={styles(palette).buttonLoader}
+                />
+              )}
+              <Text style={styles(palette).actionButtonText}>
+                {getButtonText()}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles(palette).cancelButton}
+              onPress={() => {
+                // Cancel any ongoing capture
+                if (abortControllerRef.current) {
+                  abortControllerRef.current.abort();
+                }
+                if (countdownTimerRef.current) {
+                  clearInterval(countdownTimerRef.current);
+                }
+                // Reset states
+                setIsCapturing(false);
+                setLoading(false);
+                setCountdown(null);
+                
+                // Navigate back
+                if (user) {
+                  router.back();
+                } else {
+                  router.replace('/');
+                }
+              }}
+              disabled={false}  // Allow cancel even during capture
+            >
+              <Text style={styles(palette).cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -566,7 +796,9 @@ const styles = (palette) => StyleSheet.create({
   // Top info
   topInfo: {
     alignItems: 'center',
-    marginTop: 50,
+    marginTop: 60,
+    paddingHorizontal: 20,
+    zIndex: 10, // Ensure it's above other elements
   },
   modeText: {
     fontSize: 24,
@@ -588,6 +820,11 @@ const styles = (palette) => StyleSheet.create({
     borderRadius: 15,
     marginBottom: 10,
   },
+  roleText: {
+    fontSize: 14,
+    color: palette.text.light,
+    fontWeight: '600',
+  },
   statusText: {
     fontSize: 14,
     color: palette.text.light,
@@ -595,6 +832,8 @@ const styles = (palette) => StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     padding: 10,
     borderRadius: 10,
+    marginBottom: 40, // Increased space before the circle to prevent overlap
+    marginHorizontal: 10, // Add horizontal margin for better positioning
   },
   
   // Face guide
@@ -602,11 +841,13 @@ const styles = (palette) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
+    paddingTop: 20, // Reduced padding
+    paddingBottom: 140, // More space for bottom controls
   },
   faceFrame: {
-    width: 250,
-    height: 250,
-    borderRadius: 125,
+    width: 250,  // Reduced size to prevent overlap
+    height: 250,  // Reduced size to prevent overlap
+    borderRadius: 125,  // Adjusted for new size
     borderWidth: 3,
     borderColor: palette.primary,
     backgroundColor: 'transparent',
@@ -633,17 +874,29 @@ const styles = (palette) => StyleSheet.create({
   instructionText: {
     color: palette.text.light,
     textAlign: 'center',
-    marginTop: 20,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 8,
-    borderRadius: 8,
+    marginTop: 30, // Reduced margin to fit better
+    backgroundColor: 'rgba(0,0,0,0.8)', // Darker background
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
     fontSize: 16,
+    fontWeight: '600',
+    marginHorizontal: 20,
+    maxWidth: 300, // Limit width to prevent overflow
+    alignSelf: 'center',
   },
   
   // Controls
   bottomControls: {
-    marginBottom: 50,
-    gap: 15,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingBottom: 60, // Increased bottom padding for SafeArea
+    backgroundColor: 'rgba(0,0,0,0.3)', // Semi-transparent background
+    paddingTop: 20, // Add top padding
+    zIndex: 10, // Ensure controls are above other elements
   },
   actionButton: {
     flexDirection: 'row',
@@ -679,6 +932,7 @@ const styles = (palette) => StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: 15, // Increased space above cancel button
   },
   cancelButtonText: {
     color: palette.text.light,
@@ -721,5 +975,28 @@ const styles = (palette) => StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     fontWeight: '600',
+  },
+  
+  // Camera initialization styles
+  cameraInitializing: {
+    backgroundColor: palette.background.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  initializingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    borderRadius: 20,
+    marginHorizontal: 20,
+  },
+  initializingText: {
+    color: palette.text.light,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 15,
+    lineHeight: 22,
   },
 });

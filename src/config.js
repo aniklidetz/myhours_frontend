@@ -1,7 +1,7 @@
 // src/config.js
 import { Platform } from 'react-native';
 
-// Определяем URL API в зависимости от платформы и окружения
+// Determine API URL based on platform and environment
 const getApiUrl = () => {
   // Check for environment variable first
   const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -10,19 +10,21 @@ const getApiUrl = () => {
   }
   
   if (__DEV__) {
-    // В режиме разработки
+    // In development mode
     if (Platform.OS === 'android') {
-      // Для Android эмулятора используем 10.0.2.2
-      return 'http://192.168.1.164:8000';
+      // For Android emulator use 10.0.2.2, for physical device use your local IP
+      return 'http://10.0.2.2:8000';
+    } else if (Platform.OS === 'web') {
+      // For web development
+      return 'http://localhost:8000';
     } else {
-      // Для iOS симулятора и физических устройств
-      // ВАЖНО: Замените на ваш локальный IP адрес!
-      // Узнать IP: ifconfig | grep "inet " | grep -v 127.0.0.1
-      return 'http://192.168.1.164:8000';  // <-- ОБНОВИТЕ ЭТО НА ВАШ IP!
+      // For iOS simulator and physical devices
+      // Use local IP address for physical device testing
+      return 'http://192.168.1.164:8000';
     }
   } else {
-    // В продакшене используйте переменную окружения
-    return process.env.EXPO_PUBLIC_API_URL || 'https://api.myhours.com';
+    // In production use environment variable
+    return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
   }
 };
 
@@ -69,6 +71,10 @@ export const API_ENDPOINTS = {
   PAYROLL: {
     SALARIES: '/api/v1/payroll/salaries/',
     CALCULATE: (id) => `/api/v1/payroll/salaries/${id}/calculate/`,
+    EARNINGS: '/api/v1/payroll/earnings/',
+    EARNINGS_ENHANCED: '/api/v1/payroll/earnings/enhanced/',
+    EARNINGS_DEMO: '/api/v1/payroll/earnings/demo/',
+    COMPENSATORY_DAYS: '/api/v1/payroll/compensatory-days/',
   },
   
   // Integrations
@@ -100,7 +106,14 @@ export const APP_CONFIG = {
     ENHANCED_AUTH_DATA: '@MyHours:EnhancedAuthData',
     BIOMETRIC_SESSION: '@MyHours:BiometricSession',
     DEVICE_ID: '@MyHours:DeviceId',
+    
+    // Cache keys
+    EMPLOYEES_CACHE: '@MyHours:EmployeesCache',
+    CACHE_TIMESTAMP: '@MyHours:CacheTimestamp',
   },
+  
+  // Cache settings
+  CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
   
   // Default office settings
   DEFAULT_OFFICE: {
@@ -109,12 +122,14 @@ export const APP_CONFIG = {
   },
   
   // API configuration
-  API_TIMEOUT: 10000, // 10 seconds
+  API_TIMEOUT: 10000, // 10 seconds - default for simple requests
+  API_TIMEOUT_HEAVY: 30000, // 30 seconds - for heavy requests like employees/worklogs
+  API_TIMEOUT_LIGHT: 5000, // 5 seconds - for status checks
   RETRY_ATTEMPTS: 3,
   
   // Development flags
-  ENABLE_MOCK_DATA: false, // Отключаем mock для работы с реальным backend
-  ENABLE_DEBUG_LOGS: __DEV__,
+  ENABLE_MOCK_DATA: false, // Disabled mock for working with real backend
+  ENABLE_DEBUG_LOGS: __DEV__ && false, // Auto-disabled in production builds, manually disabled for demo
 };
 
 // Helper function to check if we're in development

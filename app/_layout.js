@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { UserProvider, useUser, ROLES } from '../src/contexts/UserContext';
 import { OfficeProvider } from '../src/contexts/OfficeContext';
+import { WorkStatusProvider } from '../src/contexts/WorkStatusContext';
 import useColors from '../hooks/useColors';
 
 function TabsNavigator() {
@@ -30,7 +31,7 @@ function TabsNavigator() {
         } : { display: 'none' },
       }}
     >
-      {/* Экран входа - показываем только если пользователь не авторизован */}
+      {/* Login screen - show only if user is not authenticated */}
       <Tabs.Screen
         name="index"
         options={{
@@ -40,7 +41,20 @@ function TabsNavigator() {
         }}
       />
 
-      {/* Главный экран - разный для разных ролей */}
+      {/* Check In/Out screen - FIRST TAB for authenticated users */}
+      <Tabs.Screen
+        name="check-in-out"
+        options={{
+          title: 'Check In/Out',
+          tabBarLabel: 'Check In',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="finger-print" size={24} color={color} />
+          ),
+          tabBarButton: !user ? () => null : undefined,
+        }}
+      />
+
+      {/* Dashboard - second screen */}
       <Tabs.Screen
         name="employees"
         options={{
@@ -57,7 +71,7 @@ function TabsNavigator() {
         }}
       />
 
-      {/* Экран рабочего времени - для всех авторизованных */}
+      {/* Work time screen - for all authenticated users */}
       <Tabs.Screen
         name="worktime"
         options={{
@@ -70,7 +84,7 @@ function TabsNavigator() {
         }}
       />
 
-      {/* Зарплата - только для бухгалтеров и админов */}
+      {/* Payroll - only for accountants and admins */}
       <Tabs.Screen
         name="payroll"
         options={{
@@ -83,7 +97,7 @@ function TabsNavigator() {
         }}
       />
 
-      {/* Администрирование - только для админов */}
+      {/* Administration - only for admins */}
       <Tabs.Screen
         name="admin"
         options={{
@@ -96,7 +110,7 @@ function TabsNavigator() {
         }}
       />
 
-      {/* Скрытые экраны - не отображаются в таб-баре */}
+      {/* Hidden screens - not displayed in tab bar */}
       <Tabs.Screen
         name="biometric-check"
         options={{
@@ -120,18 +134,45 @@ function TabsNavigator() {
           tabBarButton: () => null,
         }}
       />
+
+      {/* Dev/Admin routes - completely hidden from tab bar */}
+      <Tabs.Screen
+        name="test-employees"
+        options={{
+          title: 'Test Employees',
+          href: null, // Completely hide from routing
+        }}
+      />
+      
+      <Tabs.Screen
+        name="add-employee"
+        options={{
+          title: 'Add Employee',
+          href: null, // Completely hide from routing
+        }}
+      />
+      
+      <Tabs.Screen
+        name="biometric-verification"
+        options={{
+          title: 'Biometric Verification',
+          href: null, // Completely hide from routing
+        }}
+      />
     </Tabs>
   );
 }
 
-// Главный компонент Layout
+// Main Layout component with WorkStatusProvider
 export default function Layout() {
   return (
     <UserProvider>
       <OfficeProvider>
-        <SafeAreaProvider>
-          <TabsNavigator />
-        </SafeAreaProvider>
+        <WorkStatusProvider>
+          <SafeAreaProvider>
+            <TabsNavigator />
+          </SafeAreaProvider>
+        </WorkStatusProvider>
       </OfficeProvider>
     </UserProvider>
   );

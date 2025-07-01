@@ -21,7 +21,7 @@ import useColors from '../hooks/useColors';
 import apiService from '../src/api/apiService';
 
 // Dev mode flag - set to false for production
-const __DEV_MODE__ = __DEV__ || false;
+const __DEV_MODE__ = false; // Always false for production
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -34,8 +34,8 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (user && !userLoading) {
-      console.log('User already logged in, redirecting to employees screen');
-      router.replace('/employees'); 
+      console.log('User already logged in, redirecting to check-in-out screen');
+      router.replace('/check-in-out'); 
     }
   }, [user, userLoading]);
 
@@ -56,7 +56,7 @@ export default function LoginScreen() {
       console.error('Connection test failed:', error);
       Alert.alert(
         'Connection Failed', 
-        `Unable to connect to backend.\n\nMake sure:\n1. Django server is running on port 8000\n2. Using command: python manage.py runserver 0.0.0.0:8000\n3. Your phone/simulator is on same network\n\nError: ${error.message}`,
+        `Unable to connect to backend server.\n\nPlease check your network connection and try again.\n\nError: ${error.message}`,
         [{ text: 'OK' }]
       );
     } finally {
@@ -268,23 +268,7 @@ export default function LoginScreen() {
                 </View>
               )}
 
-              {/* Quick test login - only in dev mode */}
-              {__DEV_MODE__ && (
-                <TouchableOpacity
-                  style={styles(palette).quickLoginButton}
-                  onPress={() => {
-                    setEmail('admin@example.com');
-                    setPassword('admin123');
-                    // Auto-trigger login after setting credentials
-                    setTimeout(() => handleLogin(), 100);
-                  }}
-                  disabled={loading}
-                >
-                  <Text style={styles(palette).quickLoginText}>
-                    🚀 Quick Test Login (Admin User)
-                  </Text>
-                </TouchableOpacity>
-              )}
+              {/* Quick test login removed for demo security */}
             </View>
           </View>
         </ScrollView>

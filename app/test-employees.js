@@ -17,10 +17,10 @@ export default function TestEmployeesScreen() {
 
   const autoLogin = async () => {
     try {
-      // Автоматический вход с тестовыми данными
+      // Automatic login with test data
       console.log('🔐 Auto-login for testing...');
       
-      // Создаем тестового пользователя
+      // Create test user
       const mockUser = {
         id: 1,
         email: 'test@example.com',

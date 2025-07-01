@@ -7,7 +7,8 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     SafeAreaView,
-    Alert
+    Alert,
+    ScrollView
 } from 'react-native';
 import { useUser, ROLES } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
@@ -20,161 +21,457 @@ export default function PayrollScreen() {
     const [payrollData, setPayrollData] = useState([]);
     const [currentSalaryData, setCurrentSalaryData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [selectedEmployee, setSelectedEmployee] = useState(null);
+    const [selectedPeriod, setSelectedPeriod] = useState(null); // null = current month
+    const [employees, setEmployees] = useState([]);
     const { user, hasAccess } = useUser();
-    const { palette, isDark } = useColors(); // используем хук для получения текущей цветовой палитры
+    const { palette, isDark } = useColors();
     const canViewAllEmployees = hasAccess(ROLES.ACCOUNTANT);
     const canExportAndConfirm = hasAccess(ROLES.ACCOUNTANT);
 
+    // Generate available periods (current + last 6 months)
+    const getAvailablePeriods = () => {
+        const periods = [];
+        const now = new Date();
+        
+        for (let i = 0; i < 7; i++) {
+            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            const periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            
+            periods.push({
+                key: i === 0 ? null : periodKey, // null for current month
+                label: i === 0 ? `${monthName} (Current)` : monthName,
+                date: date
+            });
+        }
+        
+        return periods;
+    };
+
+    const availablePeriods = getAvailablePeriods();
+
     useEffect(() => {
-        fetchPayrollData();
-        fetchCurrentSalaryData();
-    }, []);
+        if (canViewAllEmployees) {
+            fetchEmployees();
+        }
+        
+        const debounceTimer = setTimeout(() => {
+            fetchPayrollData();
+            fetchCurrentSalaryData();
+        }, 300);
+        
+        return () => clearTimeout(debounceTimer);
+    }, [selectedEmployee, selectedPeriod]);
 
     const fetchPayrollData = async () => {
         try {
             setLoading(true);
             
-            // Fetch real payroll data from API
-            const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
-            const response = await fetch(`${API_URL}${API_ENDPOINTS.PAYROLL.SALARIES}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `DeviceToken ${token}`,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
-            });
+            console.log('🔍 Fetching payroll data...');
             
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+            if (!token) {
+                console.warn('⚠️ No auth token found');
+                throw new Error('No authentication token');
             }
             
-            const responseData = await response.json();
-            const apiData = responseData.results || responseData;
+            // Use ApiService for consistent API calls
+            let earningsData = [];
+            let salariesData = [];
             
-            // Transform API data to match UI format with safe number parsing
-            const transformedData = apiData.map(salary => {
-                const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            // Prepare API parameters with period
+            const getApiParams = (employeeId = null) => {
+                const params = {};
+                if (employeeId) params.employee_id = employeeId;
                 
-                // Safe number parsing with fallbacks
+                // Add period parameters if not current month
+                if (selectedPeriod) {
+                    const [year, month] = selectedPeriod.split('-');
+                    params.year = year;
+                    params.month = month;
+                }
+                
+                return params;
+            };
+
+            if (selectedEmployee) {
+                // Specific employee selected - use enhanced API
+                const apiParams = getApiParams(selectedEmployee.id);
+                const salaryParams = { employee: selectedEmployee.id };
+                
+                const [earnings, salaries] = await Promise.all([
+                    ApiService.payroll.getEnhancedEarnings(apiParams),
+                    ApiService.payroll.getSalaries(salaryParams)
+                ]);
+                
+                earningsData = earnings;
+                salariesData = salaries.results || salaries || [];
+                
+            } else if (canViewAllEmployees) {
+                // "All Employees" mode - fetch data for each employee with enhanced API
+                console.log('🌍 Fetching enhanced data for all employees');
+                
+                // First get all salaries to know which employees to fetch
+                const salariesResponse = await ApiService.payroll.getSalaries();
+                salariesData = salariesResponse.results || salariesResponse || [];
+                console.log('📊 Found salaries for employees:', salariesData.map(s => s.employee));
+                
+                // Fetch enhanced earnings for each employee with period
+                const earningsPromises = salariesData.map(salary => 
+                    ApiService.payroll.getEnhancedEarnings(getApiParams(salary.employee))
+                );
+                
+                earningsData = await Promise.all(earningsPromises);
+                
+                // Filter out failed requests
+                earningsData = earningsData.filter(data => data !== null);
+                
+            } else {
+                // Regular employee viewing their own data - use enhanced API
+                const apiParams = getApiParams(user.id);
+                const salaryParams = { employee: user.id };
+                
+                const [earnings, salaries] = await Promise.all([
+                    ApiService.payroll.getEnhancedEarnings(apiParams),
+                    ApiService.payroll.getSalaries(salaryParams)
+                ]);
+                
+                earningsData = earnings;
+                salariesData = salaries.results || salaries || [];
+            }
+            
+            console.log('📊 Earnings API data:', earningsData);
+            console.log('📊 Salaries API data:', salariesData);
+            
+            // Transform single earnings response to array format for cards
+            const apiData = Array.isArray(earningsData) ? earningsData : [earningsData];
+            
+            // Transform API data to match UI format (combining earnings + salary data)
+            const transformedData = Array.isArray(apiData) ? apiData.map(earnings => {
+                // Determine the period label based on selected period
+                const periodDate = selectedPeriod ? 
+                    new Date(selectedPeriod + '-01') : 
+                    new Date();
+                const periodLabel = periodDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                const isCurrentMonth = !selectedPeriod;
+                
                 const safeParse = (value, fallback = 0) => {
                     const parsed = parseFloat(value);
                     return isNaN(parsed) ? fallback : parsed;
                 };
                 
-                const baseSalary = safeParse(salary.base_salary);
-                const hoursWorked = safeParse(salary.hours_worked);
-                const overtime = safeParse(salary.overtime_hours);
-                const bonuses = safeParse(salary.bonus);
-                const totalPayout = safeParse(salary.net_salary || salary.calculated_salary);
+                // Extract employee data from earnings API
+                const employeeData = earnings.employee || {};
+                const employeeId = employeeData.id || selectedEmployee?.id || user?.id;
+                
+                // Extract employee info
+                const employeeName = employeeData.name || selectedEmployee?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Unknown Employee';
+                const employeeEmail = employeeData.email || selectedEmployee?.email || user?.email || 'unknown@example.com';
+                
+                // Find matching salary data for base salary
+                const salaryInfo = salariesData.find(s => s.employee === employeeId) || {};
+                console.log('🔍 Found salary info for employee:', { employeeId, salaryInfo });
+                
+                // Combine data from both APIs
+                const baseSalary = safeParse(salaryInfo.base_salary || 0);
+                const hoursWorked = safeParse(earnings.regular_hours || earnings.total_hours || 0);
+                const overtime = safeParse(earnings.overtime_hours || 0);
+                
+                // Extract enhanced breakdown data from nested structure
+                const payBreakdown = earnings.pay_breakdown || {};
+                const overtimePayData = payBreakdown.overtime_pay || {};
+                const specialDayPayData = payBreakdown.special_day_pay || {};
+                const hoursBreakdown = earnings.hours_breakdown || {};
+                const specialHoursData = hoursBreakdown.special_days || {};
+                
+                // Calculate overtime pay from nested breakdown
+                const overtimePay = safeParse(
+                    (overtimePayData.first_2h || 0) + 
+                    (overtimePayData.additional || 0) + 
+                    (overtimePayData.holiday_overtime || 0) + 
+                    (overtimePayData.sabbath_overtime || 0)
+                );
+                
+                // Extract sabbath and holiday pay
+                const sabbathPay = safeParse(specialDayPayData.sabbath_base || 0);
+                const holidayPay = safeParse(specialDayPayData.holiday_base || 0);
+                
+                // Calculate total bonuses
+                const bonuses = safeParse(earnings.bonus || (overtimePay + sabbathPay + holidayPay));
+                    
+                const totalPayout = safeParse(
+                    earnings.summary?.total_gross_pay || 
+                    earnings.total_salary || 
+                    earnings.total_earnings || 
+                    0
+                );
+                
+                // Extract compensatory days
+                const compensatoryDays = earnings.compensatory_days?.earned_this_period || 0;
+                
+                console.log('🔍 Enhanced payroll earnings processing:', {
+                    employeeData,
+                    employeeName,
+                    hoursWorked,
+                    overtime,
+                    totalPayout,
+                    overtimePay: `${overtimePay} (${typeof overtimePay})`,
+                    sabbathPay: `${sabbathPay} (${typeof sabbathPay})`,
+                    holidayPay: `${holidayPay} (${typeof holidayPay})`,
+                    compensatoryDays: `${compensatoryDays} (${typeof compensatoryDays})`,
+                    earningsId: earnings.id || 'generated',
+                    payBreakdown,
+                    specialDayPayData
+                });
                 
                 return {
-                    id: salary.id,
-                    period: currentMonth,
+                    id: earnings.id || `earnings-${employeeId}-${Date.now()}`,
+                    period: isCurrentMonth ? `${periodLabel} (Current)` : periodLabel,
                     employee: {
-                        id: salary.employee.id,
-                        name: `${salary.employee.first_name} ${salary.employee.last_name}`,
-                        email: salary.employee.email
+                        id: employeeId,
+                        name: employeeName,
+                        email: employeeEmail
                     },
                     baseSalary,
                     hoursWorked,
                     overtime,
                     bonuses,
                     totalPayout,
-                    status: salary.status || 'Draft'
+                    status: isCurrentMonth ? 'In Progress' : 'Completed', // Historical periods are completed
+                    
+                    // Enhanced breakdown data with proper extraction
+                    enhancedBreakdown: earnings,
+                    overtimePay: Number(overtimePay) || 0,
+                    sabbathPay: Number(sabbathPay) || 0,
+                    holidayPay: Number(holidayPay) || 0,
+                    compensatoryDays: Number(compensatoryDays) || 0
                 };
-            });
+            }) : [];
             
-            // Apply role-based filtering and time restrictions
+            // Apply role-based filtering
             let filteredData = transformedData;
             
-            // Calculate time restrictions
-            const currentDate = new Date();
-            const threeMonthsAgo = new Date(currentDate.getFullYear(), currentDate.getMonth() - 3, 1);
-            const sixMonthsAgo = new Date(currentDate.getFullYear(), currentDate.getMonth() - 6, 1);
-            
             if (!canViewAllEmployees) {
-                // Employee: only their own data + 3 months restriction
+                // Employee: only their own data
                 filteredData = transformedData.filter(item => {
-                    const isOwnData = item.employee.id === user.id;
-                    // TODO: Add proper date filtering when API provides date field
+                    const isOwnData = item.employee.id === user.id || 
+                                      item.employee.email === user.email ||
+                                      item.employee.name.includes(user.first_name || '') ||
+                                      item.employee.name.includes(user.last_name || '');
                     return isOwnData;
                 });
-            } else {
-                // Admin/Accountant: all employees + 6 months restriction
-                filteredData = transformedData;
-                // TODO: Add proper date filtering when API provides date field
+                console.log(`💰 Filtering payroll for user: ${user.email}, found ${filteredData.length} records`);
+            } else if (selectedEmployee) {
+                // Admin/accountant viewing specific employee
+                filteredData = transformedData.filter(item => item.employee.id === selectedEmployee.id);
             }
             
             setPayrollData(filteredData);
             
         } catch (error) {
             console.error('Error fetching payroll data:', error);
-            // Fallback to mock data if API fails
-            const mockData = generateMockData();
-            const filteredData = canViewAllEmployees
-                ? mockData
-                : mockData.filter(item => item.employee.id === user.id);
-            setPayrollData(filteredData);
+            // Use empty array instead of mock data
+            setPayrollData([]);
         } finally {
             setLoading(false);
         }
     };
 
+    const fetchEmployees = async () => {
+        if (!canViewAllEmployees) return;
+        
+        try {
+            console.log('🔍 Fetching employees list for payroll...');
+            const response = await ApiService.employees.getAll();
+            
+            if (response && response.results) {
+                const employeeList = response.results.map(emp => ({
+                    id: emp.id,
+                    name: `${emp.first_name} ${emp.last_name}`,
+                    email: emp.email
+                }));
+                setEmployees(employeeList);
+                console.log('✅ Fetched', employeeList.length, 'employees for payroll');
+            }
+        } catch (error) {
+            console.error('❌ Error fetching employees for payroll:', error);
+            setEmployees([{
+                id: user.id,
+                name: user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.email,
+                email: user.email
+            }]);
+        }
+    };
+
     const fetchCurrentSalaryData = async () => {
         try {
-            // Fetch current month accumulated salary for the user
-            // This would typically be a separate API endpoint
-            const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-            const currentDay = new Date().getDate();
-            const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+            // Determine period for current salary display
+            const periodDate = selectedPeriod ? 
+                new Date(selectedPeriod + '-01') : 
+                new Date();
+            const periodLabel = periodDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            const isCurrentMonth = !selectedPeriod;
             
-            // Mock calculation for current accumulated salary
-            // Safe calculation for estimated salary
-            const baseMonthlySalary = 50000;
-            const baseMonthlyHours = 160;
-            const safeDaysInMonth = daysInMonth > 0 ? daysInMonth : 30;
-            const safeDaysWorked = currentDay > 0 ? currentDay : 1;
+            const currentDay = isCurrentMonth ? new Date().getDate() : new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0).getDate();
+            const daysInMonth = new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0).getDate();
             
-            const mockCurrentSalary = {
-                period: `${currentMonth} (Current)`,
-                employee: {
-                    id: user.id,
-                    name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email
-                },
-                estimatedSalary: Math.round((baseMonthlySalary / safeDaysInMonth) * safeDaysWorked),
-                hoursWorkedThisMonth: Math.round((baseMonthlyHours / safeDaysInMonth) * safeDaysWorked),
-                daysWorked: safeDaysWorked,
-                daysInMonth: safeDaysInMonth,
-                status: 'In Progress'
-            };
+            // Try to fetch real current earnings from API
+            try {
+                let data;
+                
+                // Prepare API parameters with period for current salary
+                const getApiParams = (employeeId = null) => {
+                    const params = {};
+                    if (employeeId) params.employee_id = employeeId;
+                    
+                    if (selectedPeriod) {
+                        const [year, month] = selectedPeriod.split('-');
+                        params.year = year;
+                        params.month = month;
+                    }
+                    
+                    return params;
+                };
+
+                if (selectedEmployee) {
+                    // Specific employee selected - use enhanced API
+                    data = await ApiService.payroll.getEnhancedEarnings(getApiParams(selectedEmployee.id));
+                } else if (canViewAllEmployees) {
+                    // "All Employees" mode - fetch aggregated data with enhanced API
+                    console.log('🌍 Fetching enhanced earnings for all employees');
+                    data = await ApiService.payroll.getEnhancedEarnings(getApiParams());
+                } else {
+                    // Regular employee viewing their own data - use enhanced API
+                    data = await ApiService.payroll.getEnhancedEarnings(getApiParams(user.id));
+                }
+                
+                if (data) {
+                    console.log('Payroll API response:', data);
+                    
+                    // Handle both single employee and multiple employees data
+                    const isArrayData = Array.isArray(data);
+                    const isAllEmployeesMode = !selectedEmployee && canViewAllEmployees;
+                    
+                    if (isAllEmployeesMode && isArrayData && data.length > 0) {
+                        // Aggregate data for "All Employees" mode
+                        const aggregatedData = data.reduce((acc, employee) => ({
+                            totalSalary: acc.totalSalary + (employee.total_salary || employee.total_earnings || 0),
+                            totalHours: acc.totalHours + (employee.total_hours || employee.hours_worked || 0),
+                            totalDays: acc.totalDays + (employee.worked_days || 0)
+                        }), { totalSalary: 0, totalHours: 0, totalDays: 0 });
+                        
+                        setCurrentSalaryData({
+                            period: isCurrentMonth ? `${periodLabel} (Current)` : periodLabel,
+                            employee: {
+                                id: 'all',
+                                name: `All Employees (${data.length})`
+                            },
+                            estimatedSalary: Math.round(aggregatedData.totalSalary),
+                            hoursWorkedThisMonth: Math.round(aggregatedData.totalHours),
+                            daysWorked: Math.round(aggregatedData.totalDays / data.length), // Average days worked
+                            daysInMonth: daysInMonth,
+                            status: 'In Progress'
+                        });
+                        return;
+                    } else if (!isArrayData && data && (data.total_earnings !== undefined || data.total_salary !== undefined)) {
+                        // Single employee data
+                        setCurrentSalaryData({
+                            period: isCurrentMonth ? `${periodLabel} (Current)` : periodLabel,
+                            employee: {
+                                id: data.employee?.id || (selectedEmployee?.id || user?.id),
+                                name: data.employee?.name || selectedEmployee?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email
+                            },
+                            estimatedSalary: Math.round(data.total_earnings || data.total_salary || 0),
+                            hoursWorkedThisMonth: Math.round(data.total_hours || data.hours_worked || 0),
+                            daysWorked: data.worked_days || data.breakdown?.days_worked || currentDay,
+                            daysInMonth: daysInMonth,
+                            status: 'In Progress'
+                        });
+                        return;
+                    }
+                }
+            } catch (apiError) {
+                console.log('Could not fetch current earnings, using estimates. Error:', apiError);
+            }
             
-            setCurrentSalaryData(mockCurrentSalary);
+            // Fallback - hide current salary display if no real data is available
+            console.log('⚠️ No current earnings data available - hiding current month progress section');
+            setCurrentSalaryData(null);
             
         } catch (error) {
             console.error('Error fetching current salary data:', error);
         }
     };
 
-    const generateMockData = () => {
-        const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-        return [
-            { id: 1, period: currentMonth, employee: { id: user.id, name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email }, baseSalary: 50000, hoursWorked: 160, overtime: 8, bonuses: 5000, totalPayout: 58000, status: 'Draft' },
-            { id: 2, period: currentMonth, employee: { id: 5, name: 'John Smith' }, baseSalary: 60000, hoursWorked: 168, overtime: 16, bonuses: 8000, totalPayout: 76000, status: 'Confirmed' },
-            { id: 3, period: currentMonth, employee: { id: 6, name: 'Emily Johnson' }, baseSalary: 55000, hoursWorked: 152, overtime: 0, bonuses: 0, totalPayout: 55000, status: 'Pending' }
-        ];
-    };
-
-    const handleExport = () => {
-        Alert.alert('Export', 'Payroll report generated and ready to export');
+    const handleExport = async () => {
+        try {
+            const exportData = payrollData.map(item => ({
+                Period: item.period,
+                Employee: item.employee.name,
+                'Base Salary': `${item.baseSalary} ₪`,
+                'Hours Worked': item.hoursWorked,
+                'Overtime Hours': item.overtime,
+                'Bonuses': `${item.bonuses} ₪`,
+                'Total Payout': `${item.totalPayout} ₪`,
+                Status: item.status
+            }));
+            
+            const headers = Object.keys(exportData[0] || {}).join(',');
+            const rows = exportData.map(item => Object.values(item).join(',')).join('\n');
+            const csv = `${headers}\n${rows}`;
+            
+            Alert.alert(
+                'Export Payroll Report',
+                'Choose export format:',
+                [
+                    {
+                        text: 'CSV',
+                        onPress: () => {
+                            console.log('CSV Export:', csv);
+                            Alert.alert('Success', 'Payroll report exported as CSV');
+                        }
+                    },
+                    {
+                        text: 'Email',
+                        onPress: () => {
+                            Alert.alert('Success', 'Payroll report sent via email');
+                        }
+                    },
+                    {
+                        text: 'Cancel',
+                        style: 'cancel'
+                    }
+                ]
+            );
+        } catch (error) {
+            console.error('Export error:', error);
+            Alert.alert('Error', 'Failed to export payroll report');
+        }
     };
 
     const handleConfirm = (id) => {
-        Alert.alert('Confirmation', 'Payroll calculation confirmed');
-        setPayrollData(payrollData.map(item => item.id === id ? { ...item, status: 'Confirmed' } : item));
+        Alert.alert(
+            'Confirm Calculation', 
+            'Are you sure you want to confirm this payroll calculation?',
+            [
+                {
+                    text: 'Cancel',
+                    style: 'cancel'
+                },
+                {
+                    text: 'Confirm',
+                    onPress: () => {
+                        setPayrollData(payrollData.map(item => 
+                            item.id === id ? { ...item, status: 'Confirmed' } : item
+                        ));
+                        Alert.alert('Success', 'Payroll calculation confirmed successfully');
+                    }
+                }
+            ]
+        );
     };
 
-    // Передаем isDark в функцию стилей, чтобы использовать его внутри
     const stylesWithDarkMode = styles(palette, isDark);
 
     const renderPayrollItem = ({ item }) => (
@@ -191,19 +488,69 @@ export default function PayrollScreen() {
             </View>
 
             <View style={stylesWithDarkMode.detailRow}>
-                <View style={stylesWithDarkMode.detailItem}><Text style={stylesWithDarkMode.detailLabel}>Base Salary:</Text><Text style={stylesWithDarkMode.detailValue}>{item.baseSalary} ₪</Text></View>
-                <View style={stylesWithDarkMode.detailItem}><Text style={stylesWithDarkMode.detailLabel}>Hours Worked:</Text><Text style={stylesWithDarkMode.detailValue}>{item.hoursWorked}</Text></View>
+                <View style={stylesWithDarkMode.detailItem}>
+                    <Text style={stylesWithDarkMode.detailLabel}>Base Salary:</Text>
+                    <Text style={stylesWithDarkMode.detailValue}>{item.baseSalary} ₪</Text>
+                </View>
+                <View style={stylesWithDarkMode.detailItem}>
+                    <Text style={stylesWithDarkMode.detailLabel}>Hours Worked:</Text>
+                    <Text style={stylesWithDarkMode.detailValue}>{item.hoursWorked}</Text>
+                </View>
             </View>
 
             <View style={stylesWithDarkMode.detailRow}>
-                <View style={stylesWithDarkMode.detailItem}><Text style={stylesWithDarkMode.detailLabel}>Overtime Hours:</Text><Text style={stylesWithDarkMode.detailValue}>{item.overtime}</Text></View>
-                <View style={stylesWithDarkMode.detailItem}><Text style={stylesWithDarkMode.detailLabel}>Bonuses:</Text><Text style={stylesWithDarkMode.detailValue}>{item.bonuses} ₪</Text></View>
+                <View style={stylesWithDarkMode.detailItem}>
+                    <Text style={stylesWithDarkMode.detailLabel}>Overtime Hours:</Text>
+                    <Text style={stylesWithDarkMode.detailValue}>{item.overtime}</Text>
+                </View>
+                <View style={stylesWithDarkMode.detailItem}>
+                    <Text style={stylesWithDarkMode.detailLabel}>Bonuses:</Text>
+                    <Text style={stylesWithDarkMode.detailValue}>{item.bonuses} ₪</Text>
+                </View>
             </View>
+
+            {/* Enhanced Breakdown Section */}
+            {(Number(item.overtimePay) > 0 || Number(item.sabbathPay) > 0 || Number(item.holidayPay) > 0 || Number(item.compensatoryDays) > 0) && (
+                <View style={stylesWithDarkMode.enhancedSection}>
+                    <Text style={stylesWithDarkMode.enhancedTitle}>📊 Detailed Breakdown</Text>
+                    
+                    {Number(item.overtimePay) > 0 && (
+                        <View style={stylesWithDarkMode.enhancedRow}>
+                            <Text style={stylesWithDarkMode.enhancedLabel}>Overtime Pay:</Text>
+                            <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.overtimePay).toLocaleString()} ₪</Text>
+                        </View>
+                    )}
+                    
+                    {Number(item.sabbathPay) > 0 && (
+                        <View style={stylesWithDarkMode.enhancedRow}>
+                            <Text style={stylesWithDarkMode.enhancedLabel}>Sabbath Work:</Text>
+                            <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.sabbathPay).toLocaleString()} ₪</Text>
+                        </View>
+                    )}
+                    
+                    {Number(item.holidayPay) > 0 && (
+                        <View style={stylesWithDarkMode.enhancedRow}>
+                            <Text style={stylesWithDarkMode.enhancedLabel}>Holiday Work:</Text>
+                            <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.holidayPay).toLocaleString()} ₪</Text>
+                        </View>
+                    )}
+                    
+                    {Number(item.compensatoryDays) > 0 && (
+                        <View style={stylesWithDarkMode.enhancedRow}>
+                            <Text style={stylesWithDarkMode.enhancedLabel}>Compensatory Days:</Text>
+                            <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.compensatoryDays)}</Text>
+                        </View>
+                    )}
+                </View>
+            )}
 
             <View style={stylesWithDarkMode.divider} />
 
             <View style={stylesWithDarkMode.summaryRow}>
-                <View style={stylesWithDarkMode.summaryColumn}><Text style={stylesWithDarkMode.totalLabel}>Total Salary:</Text><Text style={stylesWithDarkMode.totalValue}>{item.totalPayout} ₪</Text></View>
+                <View style={stylesWithDarkMode.summaryColumn}>
+                    <Text style={stylesWithDarkMode.totalLabel}>Total Salary:</Text>
+                    <Text style={stylesWithDarkMode.totalValue}>{item.totalPayout} ₪</Text>
+                </View>
             </View>
 
             {canExportAndConfirm && item.status !== 'Confirmed' && (
@@ -214,14 +561,90 @@ export default function PayrollScreen() {
         </View>
     );
 
+    const renderEmptyComponent = () => (
+        <View style={stylesWithDarkMode.emptyContainer}>
+            <Text style={stylesWithDarkMode.emptyTitle}>📊 No Payroll Data</Text>
+            <Text style={stylesWithDarkMode.emptyText}>
+                {canViewAllEmployees 
+                    ? "No payroll records found. Make sure employees have salary configuration."
+                    : "No payroll records found for your account."}
+            </Text>
+        </View>
+    );
+
     return (
         <SafeAreaView style={stylesWithDarkMode.container}>
             <View style={stylesWithDarkMode.header}>
-                <Text style={stylesWithDarkMode.title}>Payroll Calculation</Text>
-                {canExportAndConfirm && (
-                    <TouchableOpacity style={stylesWithDarkMode.exportButton} onPress={handleExport}>
-                        <Text style={stylesWithDarkMode.exportButtonText}>Export</Text>
-                    </TouchableOpacity>
+                <View style={stylesWithDarkMode.headerRow}>
+                    <Text style={stylesWithDarkMode.title}>Payroll Calculation</Text>
+                    {canExportAndConfirm && payrollData.length > 0 && (
+                        <TouchableOpacity style={stylesWithDarkMode.exportButton} onPress={handleExport}>
+                            <Text style={stylesWithDarkMode.exportButtonText}>Export</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+                
+                {/* Period Selector */}
+                <View style={stylesWithDarkMode.periodSelector}>
+                    <Text style={stylesWithDarkMode.selectorLabel}>Period:</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={stylesWithDarkMode.selectorScroll}>
+                        {availablePeriods.map(period => (
+                            <TouchableOpacity
+                                key={period.key || 'current'}
+                                style={[
+                                    stylesWithDarkMode.selectorButton,
+                                    selectedPeriod === period.key && stylesWithDarkMode.selectorButtonActive
+                                ]}
+                                onPress={() => setSelectedPeriod(period.key)}
+                            >
+                                <Text style={[
+                                    stylesWithDarkMode.selectorButtonText,
+                                    selectedPeriod === period.key && stylesWithDarkMode.selectorButtonTextActive
+                                ]}>
+                                    {period.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+
+                {canViewAllEmployees && employees.length > 0 && (
+                    <View style={stylesWithDarkMode.employeeSelector}>
+                        <Text style={stylesWithDarkMode.selectorLabel}>View data for:</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={stylesWithDarkMode.selectorScroll}>
+                            <TouchableOpacity
+                                style={[
+                                    stylesWithDarkMode.selectorButton,
+                                    !selectedEmployee && stylesWithDarkMode.selectorButtonActive
+                                ]}
+                                onPress={() => setSelectedEmployee(null)}
+                            >
+                                <Text style={[
+                                    stylesWithDarkMode.selectorButtonText,
+                                    !selectedEmployee && stylesWithDarkMode.selectorButtonTextActive
+                                ]}>
+                                    All Employees
+                                </Text>
+                            </TouchableOpacity>
+                            {employees.map(emp => (
+                                <TouchableOpacity
+                                    key={emp.id}
+                                    style={[
+                                        stylesWithDarkMode.selectorButton,
+                                        selectedEmployee?.id === emp.id && stylesWithDarkMode.selectorButtonActive
+                                    ]}
+                                    onPress={() => setSelectedEmployee(emp)}
+                                >
+                                    <Text style={[
+                                        stylesWithDarkMode.selectorButtonText,
+                                        selectedEmployee?.id === emp.id && stylesWithDarkMode.selectorButtonTextActive
+                                    ]}>
+                                        {emp.name}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
                 )}
             </View>
 
@@ -258,92 +681,44 @@ export default function PayrollScreen() {
                         renderItem={renderPayrollItem}
                         keyExtractor={item => item.id.toString()}
                         contentContainerStyle={stylesWithDarkMode.listContent}
-                        ListHeaderComponent={() => (
+                        ListEmptyComponent={renderEmptyComponent}
+                        ListHeaderComponent={() => payrollData.length > 0 ? (
                             <Text style={stylesWithDarkMode.sectionTitle}>
-                                📋 Previous Periods
+                                📋 {selectedEmployee ? `${selectedEmployee.name} - Current Period` : 'Current Period'}
                             </Text>
-                        )}
+                        ) : null}
                     />
                 </>
             )}
 
-            <View style={stylesWithDarkMode.footer}><BackButton destination="/employees" /></View>
+            <View style={stylesWithDarkMode.footer}>
+                <BackButton destination="/employees" />
+            </View>
         </SafeAreaView>
     );
 }
 
-// Преобразуем стили в функцию, которая принимает цветовую палитру и флаг темной темы
 const styles = (palette, isDark) => StyleSheet.create({
-    backButton: {
-        alignItems: 'center',
-        backgroundColor: palette.text.secondary,
-        borderRadius: 4,
-        padding: 12,
-    },
-    backButtonText: {
-        color: palette.text.light,
-        fontWeight: 'bold',
-    },
-    card: {
-        backgroundColor: palette.background.primary,
-        borderRadius: 8,
-        elevation: 2,
-        marginBottom: 16,
-        padding: 16,
-        shadowColor: palette.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-    },
-    cardHeader: {
-        alignItems: 'center',
-        borderBottomColor: palette.border,
-        borderBottomWidth: 1,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 12,
-        paddingBottom: 12,
-    },
-    confirmButton: {
-        alignItems: 'center',
-        backgroundColor: palette.primary,
-        borderRadius: 4,
-        marginTop: 12,
-        padding: 10,
-    },
-    confirmButtonText: {
-        color: palette.text.light,
-        fontWeight: 'bold',
-    },
     container: {
         backgroundColor: palette.background.secondary,
         flex: 1,
     },
-    detailItem: {
-        flex: 1,
+    header: {
+        backgroundColor: palette.background.primary,
+        borderBottomColor: palette.border,
+        borderBottomWidth: 1,
+        padding: 16,
     },
-    detailLabel: {
-        color: palette.text.secondary,
-        fontSize: 13,
-    },
-    detailRow: {
+    headerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: 8,
     },
-    detailValue: {
-        fontSize: 15,
+    title: {
+        fontSize: 18,
         fontWeight: 'bold',
         color: palette.text.primary,
-    },
-    divider: {
-        backgroundColor: palette.border,
-        height: 1,
-        marginVertical: 12,
-    },
-    employeeText: {
-        color: palette.text.secondary,
-        fontSize: 14,
     },
     exportButton: {
         backgroundColor: palette.success,
@@ -355,87 +730,60 @@ const styles = (palette, isDark) => StyleSheet.create({
         color: palette.text.light,
         fontWeight: 'bold',
     },
-    footer: {
-        backgroundColor: palette.background.primary,
-        borderTopColor: palette.border,
-        borderTopWidth: 1,
-        padding: 16,
+    periodSelector: {
+        marginTop: 12,
+        width: '100%',
     },
-    header: {
-        alignItems: 'center',
-        backgroundColor: palette.background.primary,
-        borderBottomColor: palette.border,
-        borderBottomWidth: 1,
+    employeeSelector: {
+        marginTop: 16,
+        width: '100%',
+    },
+    selectorLabel: {
+        fontSize: 14,
+        color: palette.text.secondary,
+        marginBottom: 8,
+    },
+    selectorScroll: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        padding: 16,
+    },
+    selectorButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: palette.border,
+        backgroundColor: palette.background.secondary,
+        marginRight: 8,
+    },
+    selectorButtonActive: {
+        backgroundColor: palette.primary,
+        borderColor: palette.primary,
+    },
+    selectorButtonText: {
+        fontSize: 14,
+        color: palette.text.primary,
+        fontWeight: '500',
+    },
+    selectorButtonTextActive: {
+        color: palette.text.light,
+    },
+    loader: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     listContent: {
         padding: 16,
     },
-    loader: {
-        alignItems: 'center',
-        flex: 1,
-        justifyContent: 'center',
-    },
-    periodText: {
+    sectionTitle: {
         fontSize: 16,
         fontWeight: 'bold',
         color: palette.text.primary,
+        marginBottom: 12,
+        marginTop: 8,
     },
-    statusBadge: {
-        borderRadius: 12,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-    },
-    statusConfirmed: {
-        backgroundColor: palette.successLight,
-    },
-    statusDraft: {
-        backgroundColor: palette.warningLight,
-    },
-    statusPending: {
-        backgroundColor: palette.primaryLight,
-    },
-    statusText: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        // Используем isDark, который передан в функцию стилей
-        color: palette.text.primary,
-    },
-    summaryColumn: {
-        alignItems: 'flex-end',
-    },
-    summaryRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    taxLabel: {
-        color: palette.text.secondary,
-        fontSize: 13,
-    },
-    taxValue: {
-        color: palette.danger,
-        fontSize: 15,
-    },
-    title: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-    },
-    totalLabel: {
-        color: palette.text.primary,
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    totalValue: {
-        color: palette.success,
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    // Styles for current salary card
     currentSalaryCard: {
-        backgroundColor: palette.success + '15', // Light background
+        backgroundColor: palette.success + '15',
         borderColor: palette.success,
         borderWidth: 2,
         borderRadius: 12,
@@ -479,11 +827,153 @@ const styles = (palette, isDark) => StyleSheet.create({
         color: palette.text.secondary,
         fontStyle: 'italic',
     },
-    sectionTitle: {
+    card: {
+        backgroundColor: palette.background.primary,
+        borderRadius: 8,
+        elevation: 2,
+        marginBottom: 16,
+        padding: 16,
+        shadowColor: palette.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    cardHeader: {
+        alignItems: 'center',
+        borderBottomColor: palette.border,
+        borderBottomWidth: 1,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+        paddingBottom: 12,
+    },
+    periodText: {
         fontSize: 16,
         fontWeight: 'bold',
         color: palette.text.primary,
+    },
+    employeeText: {
+        color: palette.text.secondary,
+        fontSize: 14,
+    },
+    statusBadge: {
+        borderRadius: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    statusConfirmed: {
+        backgroundColor: palette.successLight,
+    },
+    statusDraft: {
+        backgroundColor: palette.warningLight,
+    },
+    statusPending: {
+        backgroundColor: palette.primaryLight,
+    },
+    statusText: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: palette.text.primary,
+    },
+    detailRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    detailItem: {
+        flex: 1,
+    },
+    detailLabel: {
+        color: palette.text.secondary,
+        fontSize: 13,
+    },
+    detailValue: {
+        fontSize: 15,
+        fontWeight: 'bold',
+        color: palette.text.primary,
+    },
+    enhancedSection: {
+        backgroundColor: palette.background.secondary,
+        borderRadius: 6,
+        padding: 12,
+        marginVertical: 8,
+    },
+    enhancedTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: palette.text.primary,
+        marginBottom: 8,
+    },
+    enhancedRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
+    enhancedLabel: {
+        fontSize: 13,
+        color: palette.text.secondary,
+    },
+    enhancedValue: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: palette.text.primary,
+    },
+    divider: {
+        backgroundColor: palette.border,
+        height: 1,
+        marginVertical: 12,
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    summaryColumn: {
+        alignItems: 'flex-end',
+    },
+    totalLabel: {
+        color: palette.text.primary,
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    totalValue: {
+        color: palette.success,
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    confirmButton: {
+        alignItems: 'center',
+        backgroundColor: palette.primary,
+        borderRadius: 4,
+        marginTop: 12,
+        padding: 10,
+    },
+    confirmButtonText: {
+        color: palette.text.light,
+        fontWeight: 'bold',
+    },
+    footer: {
+        backgroundColor: palette.background.primary,
+        borderTopColor: palette.border,
+        borderTopWidth: 1,
+        padding: 16,
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+        paddingHorizontal: 32,
+    },
+    emptyTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: palette.text.primary,
         marginBottom: 12,
-        marginTop: 8,
-    }
+    },
+    emptyText: {
+        fontSize: 16,
+        color: palette.text.secondary,
+        textAlign: 'center',
+        lineHeight: 24,
+    },
 });

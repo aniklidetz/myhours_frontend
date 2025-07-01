@@ -7,14 +7,22 @@
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.myhoursapp",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses camera for biometric check-in/check-out verification",
         "NSLocationWhenInUseUsageDescription": "This app uses location to verify you are at the office for accurate time tracking",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses location to verify you are at the office for accurate time tracking"
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses location to verify you are at the office for accurate time tracking",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": true
+            }
+          }
+        }
       }
     },
     "android": {
@@ -28,7 +36,8 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "com.anonymous.myhoursapp"
+      "package": "com.anonymous.myhoursapp",
+      "usesCleartextTraffic": false
     },
     "web": {
       "bundler": "metro",

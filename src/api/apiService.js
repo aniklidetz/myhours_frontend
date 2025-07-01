@@ -16,6 +16,46 @@ const apiClient = axios.create({
   },
 });
 
+// Create heavy requests client with longer timeout
+const apiClientHeavy = axios.create({
+  baseURL: API_URL,
+  timeout: APP_CONFIG.API_TIMEOUT_HEAVY,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
+
+// Create light requests client with shorter timeout
+const apiClientLight = axios.create({
+  baseURL: API_URL,
+  timeout: APP_CONFIG.API_TIMEOUT_LIGHT,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
+
+// Track recent errors to avoid spam
+const errorTracker = new Map();
+
+const logUniqueError = (url, error) => {
+  const errorKey = `${url}_${error.message}`;
+  const now = Date.now();
+  const lastLogged = errorTracker.get(errorKey);
+  
+  // Only log if this error wasn't logged in the last minute
+  if (!lastLogged || now - lastLogged > 60000) {
+    console.error('❌ API Error:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+    errorTracker.set(errorKey, now);
+  }
+};
+
 // Retry logic helper with abort signal support
 const retryRequest = async (fn, retries = APP_CONFIG.RETRY_ATTEMPTS, signal = null) => {
   try {
@@ -44,11 +84,14 @@ const retryRequest = async (fn, retries = APP_CONFIG.RETRY_ATTEMPTS, signal = nu
 
 // Helper function to get device information
 const getDeviceInfo = async () => {
+  // Handle web platform where some APIs are not available
+  const isWeb = Platform.OS === 'web';
+  
   return {
     platform: Platform.OS,
-    os_version: Platform.Version.toString(),
+    os_version: isWeb ? 'web' : (Platform.Version ? Platform.Version.toString() : 'unknown'),
     app_version: Constants.expoConfig?.version || '1.0.0',
-    device_model: Device.modelName || `${Platform.OS} Device`,
+    device_model: isWeb ? 'Web Browser' : (Device.modelName || `${Platform.OS} Device`),
     device_id: await getUniqueDeviceId()
   };
 };
@@ -69,8 +112,10 @@ const getUniqueDeviceId = async () => {
   }
 };
 
-// Request interceptor to add auth token
-apiClient.interceptors.request.use(
+// Helper function to add auth interceptors to all clients
+const addAuthInterceptors = (client) => {
+  // Request interceptor to add auth token
+  client.interceptors.request.use(
   async (config) => {
     try {
       const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
@@ -114,8 +159,8 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling
-apiClient.interceptors.response.use(
+  // Response interceptor for error handling
+  client.interceptors.response.use(
   (response) => {
     if (APP_CONFIG.ENABLE_DEBUG_LOGS) {
       console.log('📥 API Response:', {
@@ -128,12 +173,7 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     if (APP_CONFIG.ENABLE_DEBUG_LOGS) {
-      console.error('❌ API Error:', {
-        url: error.config?.url,
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
+      logUniqueError(error.config?.url, error);
     }
 
     // Handle 401 Unauthorized - clear token and redirect to login
@@ -149,7 +189,13 @@ apiClient.interceptors.response.use(
 
     return Promise.reject(error);
   }
-);
+  );
+};
+
+// Apply interceptors to all clients
+addAuthInterceptors(apiClient);
+addAuthInterceptors(apiClientHeavy);
+addAuthInterceptors(apiClientLight);
 
 // API Service methods
 const apiService = {
@@ -471,8 +517,44 @@ const apiService = {
 
   // Employees
   employees: {
-    getAll: async (params = {}) => {
-      const response = await apiClient.get(API_ENDPOINTS.EMPLOYEES, { params });
+    getAll: async (params = {}, useCache = true) => {
+      console.log('👥 Fetching employees with params:', params);
+      
+      // Check cache if enabled and no specific params
+      if (useCache && Object.keys(params).length === 0) {
+        try {
+          const cachedData = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.EMPLOYEES_CACHE);
+          const cacheTimestamp = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.CACHE_TIMESTAMP);
+          
+          if (cachedData && cacheTimestamp) {
+            const now = Date.now();
+            const lastCache = parseInt(cacheTimestamp);
+            
+            if (now - lastCache < APP_CONFIG.CACHE_DURATION) {
+              console.log('📱 Using cached employees data');
+              return JSON.parse(cachedData);
+            }
+          }
+        } catch (error) {
+          console.warn('❌ Cache read error:', error);
+        }
+      }
+      
+      const response = await apiClientHeavy.get(API_ENDPOINTS.EMPLOYEES, { params });
+      
+      // Cache the response if no specific params
+      if (Object.keys(params).length === 0) {
+        try {
+          await AsyncStorage.multiSet([
+            [APP_CONFIG.STORAGE_KEYS.EMPLOYEES_CACHE, JSON.stringify(response.data)],
+            [APP_CONFIG.STORAGE_KEYS.CACHE_TIMESTAMP, Date.now().toString()]
+          ]);
+          console.log('💾 Cached employees data');
+        } catch (error) {
+          console.warn('❌ Cache write error:', error);
+        }
+      }
+      
       return response.data;
     },
 
@@ -515,6 +597,19 @@ const apiService = {
       );
       return response.data;
     },
+
+    // Clear employees cache
+    clearCache: async () => {
+      try {
+        await AsyncStorage.multiRemove([
+          APP_CONFIG.STORAGE_KEYS.EMPLOYEES_CACHE,
+          APP_CONFIG.STORAGE_KEYS.CACHE_TIMESTAMP
+        ]);
+        console.log('🗑️ Employees cache cleared');
+      } catch (error) {
+        console.warn('❌ Cache clear error:', error);
+      }
+    },
   },
 
   // Biometrics
@@ -537,7 +632,7 @@ const apiService = {
           };
         }
         
-        const response = await apiClient.get(API_ENDPOINTS.BIOMETRICS.STATUS);
+        const response = await apiClientLight.get(API_ENDPOINTS.BIOMETRICS.STATUS);
         
         console.log('✅ Work status check successful:', {
           isCheckedIn: response.data.is_checked_in,
@@ -752,7 +847,8 @@ const apiService = {
   // Work time
   worktime: {
     getLogs: async (params = {}) => {
-      const response = await apiClient.get(API_ENDPOINTS.WORKTIME.LOGS, { params });
+      console.log('📊 Fetching work logs with params:', params);
+      const response = await apiClientHeavy.get(API_ENDPOINTS.WORKTIME.LOGS, { params });
       return response.data;
     },
 
@@ -780,6 +876,23 @@ const apiService = {
       const response = await apiClient.post(
         API_ENDPOINTS.PAYROLL.CALCULATE(salaryId)
       );
+      return response.data;
+    },
+
+    getEarnings: async (params = {}) => {
+      console.log('📊 Fetching earnings with params:', params);
+      const response = await apiClient.get(API_ENDPOINTS.PAYROLL.EARNINGS, { params });
+      return response.data;
+    },
+
+    getEnhancedEarnings: async (params = {}) => {
+      console.log('📊 Fetching enhanced earnings with params:', params);
+      const response = await apiClient.get(API_ENDPOINTS.PAYROLL.EARNINGS_ENHANCED, { params });
+      return response.data;
+    },
+
+    getCompensatoryDays: async (params = {}) => {
+      const response = await apiClient.get(API_ENDPOINTS.PAYROLL.COMPENSATORY_DAYS, { params });
       return response.data;
     },
   },
