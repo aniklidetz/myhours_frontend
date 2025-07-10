@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useUser, ROLES } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
-import BackButton from '../src/components/BackButton';
+import HeaderBackButton from '../src/components/HeaderBackButton';
 import ApiService from '../src/api/apiService';
 import { API_ENDPOINTS, API_URL, APP_CONFIG } from '../src/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -117,15 +117,31 @@ export default function PayrollScreen() {
                 salariesData = salariesResponse.results || salariesResponse || [];
                 console.log('📊 Found salaries for employees:', salariesData.map(s => s.employee));
                 
-                // Fetch enhanced earnings for each employee with period
-                const earningsPromises = salariesData.map(salary => 
-                    ApiService.payroll.getEnhancedEarnings(getApiParams(salary.employee))
-                );
+                // Fetch enhanced earnings for each employee with period (handle errors individually)
+                const earningsPromises = salariesData.map(async (salary) => {
+                    try {
+                        const params = getApiParams(salary.employee);
+                        console.log(`🔍 Fetching earnings for employee ${salary.employee} with params:`, params);
+                        const data = await ApiService.payroll.getEnhancedEarnings(params);
+                        return data;
+                    } catch (error) {
+                        console.error(`❌ Failed to fetch earnings for employee ${salary.employee}:`, error);
+                        // Return null for failed requests instead of throwing
+                        return null;
+                    }
+                });
                 
                 earningsData = await Promise.all(earningsPromises);
                 
-                // Filter out failed requests
-                earningsData = earningsData.filter(data => data !== null);
+                // Filter out failed requests and log results
+                const successfulEarnings = earningsData.filter(data => data !== null);
+                const failedCount = earningsData.length - successfulEarnings.length;
+                
+                if (failedCount > 0) {
+                    console.warn(`⚠️ ${failedCount} out of ${earningsData.length} employees failed to load payroll data`);
+                }
+                
+                earningsData = successfulEarnings;
                 
             } else {
                 // Regular employee viewing their own data - use enhanced API
@@ -271,6 +287,89 @@ export default function PayrollScreen() {
             
         } catch (error) {
             console.error('Error fetching payroll data:', error);
+            console.error('Error details:', {
+                message: error.message,
+                status: error.response?.status,
+                data: error.response?.data
+            });
+            
+            // Show user-friendly error message based on enhanced backend error responses
+            if (error.response?.status === 500) {
+                const errorData = error.response?.data;
+                let title = 'Configuration Error';
+                let message = 'Unable to load payroll data. This may be due to incomplete salary configuration.';
+                
+                // Check for specific error types from enhanced backend validation
+                if (errorData?.error) {
+                    if (errorData.error.includes('Hourly rate not configured')) {
+                        title = 'Hourly Rate Missing';
+                        message = 'Employee hourly rate is not configured. Please set the hourly rate in salary settings.';
+                    } else if (errorData.error.includes('Base salary not configured')) {
+                        title = 'Base Salary Missing';
+                        message = 'Employee base salary is not configured. Please set the base salary in salary settings.';
+                    } else if (errorData.error.includes('Project dates not configured')) {
+                        title = 'Project Dates Missing';
+                        message = 'Project start and end dates are required for project-based employees.';
+                    } else if (errorData.error.includes('calculation type not configured')) {
+                        title = 'Calculation Type Missing';
+                        message = 'Employee salary calculation type is not set. Please configure in admin panel.';
+                    } else if (errorData.error.includes('No salary configuration')) {
+                        title = 'Salary Configuration Missing';
+                        message = 'No salary configuration found for this employee. Please create salary settings in admin panel.';
+                    } else if (errorData.error.includes('calculation error') || errorData.error.includes('mathematical error')) {
+                        title = 'Calculation Error';
+                        message = 'Error in salary calculation. Please contact administrator to resolve this issue.';
+                    }
+                }
+                
+                // Add details if available for debugging
+                if (errorData?.details && errorData.details.suggestion) {
+                    message += `\n\nSuggestion: ${errorData.details.suggestion}`;
+                }
+                
+                console.warn('🚨 Server error (500) - detailed:', errorData);
+                Alert.alert(title, message, [{ text: 'OK' }]);
+                
+            } else if (error.response?.status === 404) {
+                const errorData = error.response?.data;
+                let title = 'No Data Found';
+                let message = 'No payroll data found for the selected period.';
+                
+                if (errorData?.error && errorData.error.includes('No salary configuration')) {
+                    title = 'Salary Configuration Missing';
+                    message = 'No salary configuration found for this employee. Please create salary settings in admin panel.';
+                } else {
+                    message = 'No payroll data found for the selected period. Please ensure employees have completed work sessions.';
+                }
+                
+                console.warn('🚨 Data not found (404):', errorData);
+                Alert.alert(title, message, [{ text: 'OK' }]);
+                
+            } else if (error.response?.status === 400) {
+                const errorData = error.response?.data;
+                let title = 'Invalid Configuration';
+                let message = 'Invalid salary configuration detected.';
+                
+                if (errorData?.error) {
+                    message = errorData.error;
+                }
+                
+                if (errorData?.details && errorData.details.suggestion) {
+                    message += `\n\nSuggestion: ${errorData.details.suggestion}`;
+                }
+                
+                console.warn('🚨 Invalid configuration (400):', errorData);
+                Alert.alert(title, message, [{ text: 'OK' }]);
+                
+            } else {
+                console.warn('🚨 Network or other error');
+                Alert.alert(
+                    'Network Error', 
+                    'Unable to load payroll data. Please check your connection and try again.',
+                    [{ text: 'OK' }]
+                );
+            }
+            
             // Use empty array instead of mock data
             setPayrollData([]);
         } finally {
@@ -474,92 +573,148 @@ export default function PayrollScreen() {
 
     const stylesWithDarkMode = styles(palette, isDark);
 
-    const renderPayrollItem = ({ item }) => (
-        <View style={stylesWithDarkMode.card}>
-            <View style={stylesWithDarkMode.cardHeader}>
-                <Text style={stylesWithDarkMode.periodText}>{item.period}</Text>
-                {canViewAllEmployees && <Text style={stylesWithDarkMode.employeeText}>{item.employee.name}</Text>}
-                <View style={[stylesWithDarkMode.statusBadge,
-                    item.status === 'Confirmed' ? stylesWithDarkMode.statusConfirmed :
-                    item.status === 'Pending' ? stylesWithDarkMode.statusPending :
-                    stylesWithDarkMode.statusDraft]}>
-                    <Text style={stylesWithDarkMode.statusText}>{item.status}</Text>
+    const renderPayrollItem = ({ item }) => {
+        // Extract additional data from enhanced breakdown
+        const enhanced = item.enhancedBreakdown || {};
+        const calculationType = enhanced.calculation_type || 'unknown';
+        const workedDays = enhanced.worked_days || 0;
+        const totalWorkingDays = enhanced.total_working_days || 0;
+        const regularHours = enhanced.regular_hours || 0;
+        const overtimeHours = enhanced.overtime_hours || 0;
+        const holidayHours = enhanced.holiday_hours || 0;
+        const sabbathHours = enhanced.shabbat_hours || 0;
+        
+        return (
+            <View style={stylesWithDarkMode.card}>
+                <View style={stylesWithDarkMode.cardHeader}>
+                    <Text style={stylesWithDarkMode.periodText}>{item.period}</Text>
+                    {canViewAllEmployees && <Text style={stylesWithDarkMode.employeeText}>{item.employee.name}</Text>}
+                    <View style={[stylesWithDarkMode.statusBadge,
+                        item.status === 'Confirmed' ? stylesWithDarkMode.statusConfirmed :
+                        item.status === 'Pending' ? stylesWithDarkMode.statusPending :
+                        stylesWithDarkMode.statusDraft]}>
+                        <Text style={stylesWithDarkMode.statusText}>{item.status}</Text>
+                    </View>
                 </View>
-            </View>
 
-            <View style={stylesWithDarkMode.detailRow}>
-                <View style={stylesWithDarkMode.detailItem}>
-                    <Text style={stylesWithDarkMode.detailLabel}>Base Salary:</Text>
-                    <Text style={stylesWithDarkMode.detailValue}>{item.baseSalary} ₪</Text>
+                {/* Employee Type and Basic Info */}
+                <View style={stylesWithDarkMode.typeRow}>
+                    <Text style={stylesWithDarkMode.typeLabel}>
+                        {calculationType === 'monthly' ? '📅 Monthly Employee' : 
+                         calculationType === 'hourly' ? '⏰ Hourly Employee' : '👤 Employee'}
+                    </Text>
                 </View>
-                <View style={stylesWithDarkMode.detailItem}>
-                    <Text style={stylesWithDarkMode.detailLabel}>Hours Worked:</Text>
-                    <Text style={stylesWithDarkMode.detailValue}>{item.hoursWorked}</Text>
-                </View>
-            </View>
 
-            <View style={stylesWithDarkMode.detailRow}>
-                <View style={stylesWithDarkMode.detailItem}>
-                    <Text style={stylesWithDarkMode.detailLabel}>Overtime Hours:</Text>
-                    <Text style={stylesWithDarkMode.detailValue}>{item.overtime}</Text>
+                {/* Primary Info Row */}
+                <View style={stylesWithDarkMode.detailRow}>
+                    <View style={stylesWithDarkMode.detailItem}>
+                        <Text style={stylesWithDarkMode.detailLabel}>
+                            {calculationType === 'monthly' ? 'Base Salary:' : 'Total Earnings:'}
+                        </Text>
+                        <Text style={stylesWithDarkMode.detailValue}>{item.baseSalary} ₪</Text>
+                    </View>
+                    <View style={stylesWithDarkMode.detailItem}>
+                        <Text style={stylesWithDarkMode.detailLabel}>Total Hours:</Text>
+                        <Text style={stylesWithDarkMode.detailValue}>{item.hoursWorked}h</Text>
+                    </View>
                 </View>
-                <View style={stylesWithDarkMode.detailItem}>
-                    <Text style={stylesWithDarkMode.detailLabel}>Bonuses:</Text>
-                    <Text style={stylesWithDarkMode.detailValue}>{item.bonuses} ₪</Text>
-                </View>
-            </View>
 
-            {/* Enhanced Breakdown Section */}
-            {(Number(item.overtimePay) > 0 || Number(item.sabbathPay) > 0 || Number(item.holidayPay) > 0 || Number(item.compensatoryDays) > 0) && (
-                <View style={stylesWithDarkMode.enhancedSection}>
-                    <Text style={stylesWithDarkMode.enhancedTitle}>📊 Detailed Breakdown</Text>
-                    
-                    {Number(item.overtimePay) > 0 && (
-                        <View style={stylesWithDarkMode.enhancedRow}>
-                            <Text style={stylesWithDarkMode.enhancedLabel}>Overtime Pay:</Text>
-                            <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.overtimePay).toLocaleString()} ₪</Text>
+                {/* Work Attendance Row */}
+                <View style={stylesWithDarkMode.detailRow}>
+                    <View style={stylesWithDarkMode.detailItem}>
+                        <Text style={stylesWithDarkMode.detailLabel}>Days Worked:</Text>
+                        <Text style={stylesWithDarkMode.detailValue}>{workedDays} / {totalWorkingDays}</Text>
+                    </View>
+                    <View style={stylesWithDarkMode.detailItem}>
+                        <Text style={stylesWithDarkMode.detailLabel}>Regular Hours:</Text>
+                        <Text style={stylesWithDarkMode.detailValue}>{regularHours}h</Text>
+                    </View>
+                </View>
+
+                {/* Overtime and Special Hours */}
+                {(overtimeHours > 0 || holidayHours > 0 || sabbathHours > 0) && (
+                    <View style={stylesWithDarkMode.detailRow}>
+                        {overtimeHours > 0 && (
+                            <View style={stylesWithDarkMode.detailItem}>
+                                <Text style={stylesWithDarkMode.detailLabel}>Overtime:</Text>
+                                <Text style={stylesWithDarkMode.detailValue}>{overtimeHours}h</Text>
+                            </View>
+                        )}
+                        {(holidayHours > 0 || sabbathHours > 0) && (
+                            <View style={stylesWithDarkMode.detailItem}>
+                                <Text style={stylesWithDarkMode.detailLabel}>Special Days:</Text>
+                                <Text style={stylesWithDarkMode.detailValue}>
+                                    {holidayHours > 0 && `${holidayHours}h holidays`}
+                                    {holidayHours > 0 && sabbathHours > 0 && ', '}
+                                    {sabbathHours > 0 && `${sabbathHours}h sabbath`}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                )}
+
+                {/* Bonuses Row */}
+                {item.bonuses > 0 && (
+                    <View style={stylesWithDarkMode.detailRow}>
+                        <View style={stylesWithDarkMode.detailItem}>
+                            <Text style={stylesWithDarkMode.detailLabel}>Bonuses & Extras:</Text>
+                            <Text style={stylesWithDarkMode.detailValue}>{item.bonuses} ₪</Text>
                         </View>
-                    )}
-                    
-                    {Number(item.sabbathPay) > 0 && (
-                        <View style={stylesWithDarkMode.enhancedRow}>
-                            <Text style={stylesWithDarkMode.enhancedLabel}>Sabbath Work:</Text>
-                            <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.sabbathPay).toLocaleString()} ₪</Text>
-                        </View>
-                    )}
-                    
-                    {Number(item.holidayPay) > 0 && (
-                        <View style={stylesWithDarkMode.enhancedRow}>
-                            <Text style={stylesWithDarkMode.enhancedLabel}>Holiday Work:</Text>
-                            <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.holidayPay).toLocaleString()} ₪</Text>
-                        </View>
-                    )}
-                    
-                    {Number(item.compensatoryDays) > 0 && (
-                        <View style={stylesWithDarkMode.enhancedRow}>
-                            <Text style={stylesWithDarkMode.enhancedLabel}>Compensatory Days:</Text>
-                            <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.compensatoryDays)}</Text>
-                        </View>
-                    )}
-                </View>
-            )}
+                    </View>
+                )}
 
-            <View style={stylesWithDarkMode.divider} />
+                {/* Enhanced Breakdown Section */}
+                {(Number(item.overtimePay) > 0 || Number(item.sabbathPay) > 0 || Number(item.holidayPay) > 0 || Number(item.compensatoryDays) > 0) && (
+                    <View style={stylesWithDarkMode.enhancedSection}>
+                        <Text style={stylesWithDarkMode.enhancedTitle}>📊 Detailed Breakdown</Text>
+                        
+                        {Number(item.overtimePay) > 0 && (
+                            <View style={stylesWithDarkMode.enhancedRow}>
+                                <Text style={stylesWithDarkMode.enhancedLabel}>Overtime Pay:</Text>
+                                <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.overtimePay).toLocaleString()} ₪</Text>
+                            </View>
+                        )}
+                        
+                        {Number(item.sabbathPay) > 0 && (
+                            <View style={stylesWithDarkMode.enhancedRow}>
+                                <Text style={stylesWithDarkMode.enhancedLabel}>Sabbath Work:</Text>
+                                <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.sabbathPay).toLocaleString()} ₪</Text>
+                            </View>
+                        )}
+                        
+                        {Number(item.holidayPay) > 0 && (
+                            <View style={stylesWithDarkMode.enhancedRow}>
+                                <Text style={stylesWithDarkMode.enhancedLabel}>Holiday Work:</Text>
+                                <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.holidayPay).toLocaleString()} ₪</Text>
+                            </View>
+                        )}
+                        
+                        {Number(item.compensatoryDays) > 0 && (
+                            <View style={stylesWithDarkMode.enhancedRow}>
+                                <Text style={stylesWithDarkMode.enhancedLabel}>Compensatory Days:</Text>
+                                <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.compensatoryDays)}</Text>
+                            </View>
+                        )}
+                    </View>
+                )}
 
-            <View style={stylesWithDarkMode.summaryRow}>
-                <View style={stylesWithDarkMode.summaryColumn}>
-                    <Text style={stylesWithDarkMode.totalLabel}>Total Salary:</Text>
-                    <Text style={stylesWithDarkMode.totalValue}>{item.totalPayout} ₪</Text>
+                <View style={stylesWithDarkMode.divider} />
+
+                <View style={stylesWithDarkMode.summaryRow}>
+                    <View style={stylesWithDarkMode.summaryColumn}>
+                        <Text style={stylesWithDarkMode.totalLabel}>Total Salary:</Text>
+                        <Text style={stylesWithDarkMode.totalValue}>{item.totalPayout} ₪</Text>
+                    </View>
                 </View>
+
+                {canExportAndConfirm && item.status !== 'Confirmed' && (
+                    <TouchableOpacity style={stylesWithDarkMode.confirmButton} onPress={() => handleConfirm(item.id)}>
+                        <Text style={stylesWithDarkMode.confirmButtonText}>Confirm Calculation</Text>
+                    </TouchableOpacity>
+                )}
             </View>
-
-            {canExportAndConfirm && item.status !== 'Confirmed' && (
-                <TouchableOpacity style={stylesWithDarkMode.confirmButton} onPress={() => handleConfirm(item.id)}>
-                    <Text style={stylesWithDarkMode.confirmButtonText}>Confirm Calculation</Text>
-                </TouchableOpacity>
-            )}
-        </View>
-    );
+        );
+    };
 
     const renderEmptyComponent = () => (
         <View style={stylesWithDarkMode.emptyContainer}>
@@ -574,6 +729,7 @@ export default function PayrollScreen() {
 
     return (
         <SafeAreaView style={stylesWithDarkMode.container}>
+            <HeaderBackButton destination="/employees" />
             <View style={stylesWithDarkMode.header}>
                 <View style={stylesWithDarkMode.headerRow}>
                     <Text style={stylesWithDarkMode.title}>Payroll Calculation</Text>
@@ -691,9 +847,6 @@ export default function PayrollScreen() {
                 </>
             )}
 
-            <View style={stylesWithDarkMode.footer}>
-                <BackButton destination="/employees" />
-            </View>
         </SafeAreaView>
     );
 }
@@ -891,6 +1044,19 @@ const styles = (palette, isDark) => StyleSheet.create({
         fontSize: 15,
         fontWeight: 'bold',
         color: palette.text.primary,
+    },
+    typeRow: {
+        marginBottom: 12,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        backgroundColor: palette.background.secondary,
+        borderRadius: 6,
+    },
+    typeLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: palette.text.primary,
+        textAlign: 'center',
     },
     enhancedSection: {
         backgroundColor: palette.background.secondary,

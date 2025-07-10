@@ -14,8 +14,8 @@ import { useUser } from '../src/contexts/UserContext';
 import { useOffice } from '../src/contexts/OfficeContext';
 import { useWorkStatus } from '../src/contexts/WorkStatusContext';
 import useColors from '../hooks/useColors';
+import HeaderBackButton from '../src/components/HeaderBackButton';
 import useLocation from '../hooks/useLocation';
-import BackButton from '../src/components/BackButton';
 
 export default function CheckInOutScreen() {
   const [refreshing, setRefreshing] = useState(false);
@@ -175,6 +175,7 @@ export default function CheckInOutScreen() {
 
   return (
     <SafeAreaView style={styles(palette).container}>
+      <HeaderBackButton destination="/employees" />
       <View style={styles(palette).header}>
         <Text style={styles(palette).title}>Check In/Out</Text>
         <Text style={styles(palette).subtitle}>
@@ -275,9 +276,6 @@ export default function CheckInOutScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles(palette).footer}>
-        <BackButton destination="/employees" />
-      </View>
     </SafeAreaView>
   );
 }

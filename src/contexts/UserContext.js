@@ -3,6 +3,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../api/apiService';
 import { APP_CONFIG } from '../config';
+import { safeLog, safeLogUser } from '../utils/safeLogging';
 
 // Define user roles
 export const ROLES = {
@@ -50,7 +51,7 @@ export const UserProvider = ({ children }) => {
       if (storedUser && storedToken) {
         const userData = JSON.parse(storedUser);
         setUser(userData);
-        console.log('✅ User data loaded:', userData.email);
+        safeLog('✅ User data loaded:', safeLogUser(userData, 'storage_load'));
         console.log('🔍 User role from storage:', userData.role);
       } else {
         console.log('❌ No user data found in storage');

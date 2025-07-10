@@ -2,6 +2,8 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { TouchableOpacity, Platform } from 'react-native';
+import { router } from 'expo-router';
 import { UserProvider, useUser, ROLES } from '../src/contexts/UserContext';
 import { OfficeProvider } from '../src/contexts/OfficeContext';
 import { WorkStatusProvider } from '../src/contexts/WorkStatusContext';
@@ -25,6 +27,7 @@ function TabsNavigator() {
           backgroundColor: palette.background.primary,
         },
         headerTintColor: palette.text.primary,
+        headerBackVisible: true,
         tabBarStyle: user ? {
           backgroundColor: palette.background.primary,
           borderTopColor: palette.border,
@@ -110,12 +113,15 @@ function TabsNavigator() {
         }}
       />
 
-      {/* Hidden screens - not displayed in tab bar */}
+      {/* Modal/nested screens - not displayed in tab bar, hide tab bar for these */}
       <Tabs.Screen
         name="biometric-check"
         options={{
           title: 'Biometric Check',
           tabBarButton: () => null,
+          tabBarStyle: { display: 'none' },
+          headerShown: true,
+          headerBackVisible: true,
         }}
       />
 
@@ -124,6 +130,9 @@ function TabsNavigator() {
         options={{
           title: 'Biometric Registration',
           tabBarButton: () => null,
+          tabBarStyle: { display: 'none' },
+          headerShown: true,
+          headerBackVisible: true,
         }}
       />
 
@@ -132,6 +141,9 @@ function TabsNavigator() {
         options={{
           title: 'Office Settings',
           tabBarButton: () => null,
+          tabBarStyle: { display: 'none' },
+          headerShown: true,
+          headerBackVisible: true,
         }}
       />
 

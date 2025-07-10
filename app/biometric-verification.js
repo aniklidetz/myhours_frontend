@@ -16,10 +16,10 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
+import HeaderBackButton from '../src/components/HeaderBackButton';
 import useLocation from '../hooks/useLocation';
 import ApiService from '../src/api/apiService';
 import { APP_CONFIG } from '../src/config';
-import BackButton from '../src/components/BackButton';
 
 export default function BiometricVerificationScreen() {
   const [isCapturing, setIsCapturing] = useState(false);
@@ -275,7 +275,7 @@ export default function BiometricVerificationScreen() {
 
   return (
     <SafeAreaView style={styles(palette).container}>
-      <BackButton />
+      <HeaderBackButton />
       
       <ScrollView contentContainerStyle={styles(palette).scrollContent}>
         {/* Header */}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import useLocation from '../hooks/useLocation';
 import { useOffice } from '../src/contexts/OfficeContext';
 import { useUser, ROLES } from '../src/contexts/UserContext';
@@ -62,46 +62,58 @@ export default function BiometricCheckScreen() {
     }
   };
 
-  useEffect(() => {
-    console.log('🎥 BiometricCheckScreen mounting, initializing camera...');
-    // Reset all states on mount to ensure fresh start
-    setCameraActive(true);
-    setCameraReady(false);
-    setIsCapturing(false);
-    setLoading(false);
-    setCountdown(null);
-    setSuccessState(false);
-    setError(null);
-    
-    requestCameraPermission();
-    
-    // Cleanup function to abort any pending requests and timers
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      if (countdownTimerRef.current) {
-        clearInterval(countdownTimerRef.current);
-      }
-      // Reset camera state on unmount
-      setCameraActive(false);
+  // Reset state when screen comes into focus (fixes camera initialization after check-in)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🎥 BiometricCheckScreen focused, initializing camera...');
+      console.log('📱 Screen focus - resetting all states for fresh start');
+      
+      // Reset all states on focus to ensure fresh start
+      setCameraActive(true);
       setCameraReady(false);
       setIsCapturing(false);
       setLoading(false);
       setCountdown(null);
-      console.log('🧹 BiometricCheckScreen cleanup: Camera completely stopped');
-    };
-  }, []);
+      setSuccessState(false);
+      setError(null);
+      setRetryCount(0);
+      
+      console.log('📷 Requesting camera permissions on focus...');
+      requestCameraPermission();
+      
+      // Cleanup function when screen loses focus
+      return () => {
+        console.log('📱 BiometricCheckScreen unfocused, cleaning up...');
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        if (countdownTimerRef.current) {
+          clearInterval(countdownTimerRef.current);
+        }
+        // Stop camera when leaving screen
+        setCameraActive(false);
+        setCameraReady(false);
+        setIsCapturing(false);
+        setLoading(false);
+        setCountdown(null);
+        console.log('🧹 BiometricCheckScreen cleanup: Camera completely stopped');
+      };
+    }, [mode]) // Re-run when mode changes (check-in vs check-out)
+  );
 
   const requestCameraPermission = async () => {
     try {
       console.log('📷 Requesting camera permission for biometric check...');
       const { status } = await Camera.requestCameraPermissionsAsync();
       console.log(`📷 Camera permission status: ${status}`);
-      setHasPermission(status === 'granted');
       
-      if (status !== 'granted') {
+      if (status === 'granted') {
+        console.log('✅ Camera permission granted');
+        setHasPermission(true);
+        setError(null);
+      } else {
         console.warn('⚠️ Camera permission denied by user');
+        setHasPermission(false);
         setError('Camera permission denied. Please enable it in settings.');
       }
     } catch (error) {
@@ -619,6 +631,8 @@ export default function BiometricCheckScreen() {
           facing="front"
           onCameraReady={() => {
             console.log('✅ Camera is ready for biometric check');
+            console.log('📱 Camera mounted and initialized successfully');
+            console.log('🎬 Camera ready state updating to true');
             setCameraReady(true);
             setRetryCount(0);
             setError(null); // Clear any initialization errors

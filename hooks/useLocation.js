@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import * as Location from 'expo-location';
 import { APP_CONFIG } from '../src/config';
+import { safeLog, safeLogLocation } from '../src/utils/safeLogging';
 
 const useLocation = (options = {}) => {
   const { watchPosition = false, highAccuracy = true } = options;
@@ -40,9 +41,8 @@ const useLocation = (options = {}) => {
             if (mounted) {
               setLocation(currentLocation);
               setErrorMsg(null);
-              console.log('📍 Location obtained:', {
-                lat: currentLocation.coords.latitude.toFixed(6),
-                lng: currentLocation.coords.longitude.toFixed(6),
+              safeLog('📍 Location obtained:', {
+                location: safeLogLocation(currentLocation.coords.latitude, currentLocation.coords.longitude),
                 accuracy: currentLocation.coords.accuracy?.toFixed(0) + 'm'
               });
             }
@@ -73,9 +73,8 @@ const useLocation = (options = {}) => {
               if (mounted) {
                 setLocation(newLocation);
                 setErrorMsg(null);
-                console.log('📍 Location updated:', {
-                  lat: newLocation.coords.latitude.toFixed(6),
-                  lng: newLocation.coords.longitude.toFixed(6)
+                safeLog('📍 Location updated:', {
+                  location: safeLogLocation(newLocation.coords.latitude, newLocation.coords.longitude)
                 });
               }
             }

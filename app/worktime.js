@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useUser, ROLES } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
-import BackButton from '../src/components/BackButton';
+import HeaderBackButton from '../src/components/HeaderBackButton';
 import ApiService from '../src/api/apiService';
 import { API_ENDPOINTS, API_URL, APP_CONFIG } from '../src/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -31,6 +31,8 @@ export default function WorktimeScreen() {
     const [employees, setEmployees] = useState([]);
     const [selectedTimeFilter, setSelectedTimeFilter] = useState('3_DAYS');
     const [isTableView, setIsTableView] = useState(false);
+    const [displayCount, setDisplayCount] = useState(10); // Initially show 10 items
+    const [isExpanded, setIsExpanded] = useState(false); // Track expansion state
     const { user, hasAccess } = useUser();
     const { palette } = useColors();
     const canViewAll = hasAccess(ROLES.ACCOUNTANT);
@@ -39,6 +41,10 @@ export default function WorktimeScreen() {
         if (canViewAll) {
             fetchEmployees();
         }
+
+        // Reset display count when filters change
+        setDisplayCount(10);
+        setIsExpanded(false);
 
         const debounceTimer = setTimeout(() => {
             fetchWorktimeData();
@@ -254,6 +260,18 @@ export default function WorktimeScreen() {
         }
     };
 
+    const handleShowMore = () => {
+        if (isExpanded) {
+            // Collapse - show only first 10 items
+            setDisplayCount(10);
+            setIsExpanded(false);
+        } else {
+            // Expand - show all items
+            setDisplayCount(worktimeData.length);
+            setIsExpanded(true);
+        }
+    };
+
     const renderItem = ({ item }) => (
         <View style={styles(palette).card}>
             <View style={styles(palette).cardHeader}>
@@ -312,7 +330,7 @@ export default function WorktimeScreen() {
                     </View>
                     
                     {/* Table Rows */}
-                    {worktimeData.map((item, index) => (
+                    {worktimeData.slice(0, displayCount).map((item, index) => (
                         <View 
                             key={item.id} 
                             style={[
@@ -340,12 +358,30 @@ export default function WorktimeScreen() {
                         </View>
                     ))}
                 </View>
+                
+                {/* Show More/Less Button for Table View */}
+                {worktimeData.length > 10 && (
+                    <View style={styles(palette).showMoreContainer}>
+                        <TouchableOpacity
+                            style={styles(palette).showMoreButton}
+                            onPress={handleShowMore}
+                        >
+                            <Text style={styles(palette).showMoreText}>
+                                {isExpanded 
+                                    ? `Show Less (${worktimeData.length} → 10)` 
+                                    : `Show All (${displayCount} of ${worktimeData.length})`
+                                }
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </ScrollView>
         );
     };
 
     return (
         <SafeAreaView style={styles(palette).container}>
+            <HeaderBackButton destination="/employees" />
             <View style={styles(palette).header}>
                 <Text style={styles(palette).title}>Worktime Tracking</Text>
                 
@@ -456,7 +492,7 @@ export default function WorktimeScreen() {
                 renderTableView()
             ) : (
                 <FlatList
-                    data={worktimeData}
+                    data={worktimeData.slice(0, displayCount)}
                     renderItem={renderItem}
                     keyExtractor={item => item.id.toString()}
                     contentContainerStyle={styles(palette).listContent}
@@ -464,9 +500,23 @@ export default function WorktimeScreen() {
                 />
             )}
 
-            <View style={styles(palette).footer}>
-                <BackButton destination="/employees" />
-            </View>
+            {/* Show More/Less Button */}
+            {!loading && worktimeData.length > 10 && (
+                <View style={styles(palette).showMoreContainer}>
+                    <TouchableOpacity
+                        style={styles(palette).showMoreButton}
+                        onPress={handleShowMore}
+                    >
+                        <Text style={styles(palette).showMoreText}>
+                            {isExpanded 
+                                ? `Show Less (${worktimeData.length} → 10)` 
+                                : `Show All (${displayCount} of ${worktimeData.length})`
+                            }
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
         </SafeAreaView>
     );
 }
@@ -696,5 +746,27 @@ const styles = palette => StyleSheet.create({
     },
     colHours: {
         flex: 1.3,
+    },
+    showMoreContainer: {
+        padding: 16,
+        alignItems: 'center',
+        backgroundColor: palette.background.secondary,
+    },
+    showMoreButton: {
+        backgroundColor: palette.primary,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 8,
+        elevation: 2,
+        shadowColor: palette.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    showMoreText: {
+        color: palette.text.light,
+        fontSize: 14,
+        fontWeight: '600',
+        textAlign: 'center',
     },
 });
