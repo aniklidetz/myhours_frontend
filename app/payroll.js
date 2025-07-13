@@ -137,18 +137,24 @@ export default function PayrollScreen() {
                 // Fetch enhanced earnings for each employee with period (handle errors individually)
                 const earningsPromises = salariesData.map(async (salary) => {
                     try {
-                        const params = getApiParams(salary.employee);
+                        // FIXED: salary.employee is an object, we need the ID
+                        const employeeId = salary.employee?.id || salary.employee;
+                        const params = getApiParams(employeeId);
                         if (isDebugMode) {
                             safeLog(`🔍 Fetching earnings for employee`, { 
-                                employee_hash: salary.employee ? `emp_${salary.employee}` : 'unknown',
-                                has_params: Object.keys(params).length > 0
+                                employee_id: employeeId,
+                                employee_name: salary.employee?.name,
+                                has_params: Object.keys(params).length > 0,
+                                params_debug: params
                             });
                         }
                         const data = await ApiService.payroll.getEarnings(params);
                         return data;
                     } catch (error) {
+                        const employeeId = salary.employee?.id || salary.employee;
                         safeLogError(`❌ Failed to fetch earnings for employee`, {
-                            employee_hash: salary.employee ? `emp_${salary.employee}` : 'unknown',
+                            employee_id: employeeId,
+                            employee_name: salary.employee?.name,
                             error
                         });
                         // Return null for failed requests instead of throwing
@@ -193,8 +199,20 @@ export default function PayrollScreen() {
                 });
             }
             
-            // Transform single earnings response to array format for cards
-            const apiData = Array.isArray(earningsData) ? earningsData : [earningsData];
+            
+            // Transform earnings data to flat array format for cards
+            const apiData = [];
+            if (Array.isArray(earningsData)) {
+                // In "All Employees" mode, earningsData is an array of earnings objects
+                earningsData.forEach((earnings) => {
+                    if (earnings) {
+                        apiData.push(earnings);
+                    }
+                });
+            } else if (earningsData) {
+                // Single employee mode
+                apiData.push(earningsData);
+            }
             
             // Transform API data to match UI format (combining earnings + salary data)
             const transformedData = Array.isArray(apiData) ? apiData.map(earnings => {
@@ -291,8 +309,8 @@ export default function PayrollScreen() {
                     });
                 }
                 
-                return {
-                    id: earnings.id || `earnings-${employeeId}-${Date.now()}`,
+                const result = {
+                    id: earnings.id || `earnings-${employeeId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     period: isCurrentMonth ? `${periodLabel} (Current)` : periodLabel,
                     employee: {
                         id: employeeId,
@@ -305,43 +323,6 @@ export default function PayrollScreen() {
                     bonuses,
                     totalPayout,
                     status: isCurrentMonth ? 'In Progress' : 'Completed', // Historical periods are completed
-                    
-                    // Enhanced breakdown data with proper extraction
-                    enhancedBreakdown: earnings,
-                    overtimePay: Number(overtimePay) || 0,
-                    sabbathPay: Number(sabbathPay) || 0,
-                    holidayPay: Number(holidayPay) || 0,
-                    compensatoryDays: Number(compensatoryDays) || 0,
-                    
-                    // Additional fields for UI display
-                    workedDays: workedDaysFromData || Math.max(1, Math.round(hoursWorked / 8.5)),
-                    workSessions: earnings.enhanced_breakdown?.work_sessions || earnings.work_sessions_count || workedDaysFromData || Math.max(1, Math.round(hoursWorked / 8.5)),
-                    regularPayAmount: regularPayAmount,
-                    hourlyRate: earnings.hourly_rate || earnings.enhanced_breakdown?.rates?.base_hourly || 0,
-                    
-                    // Map API fields to UI expected fields for consistent access
-                    regularHours: earnings.regular_hours || 0,
-                    overtimeHours: earnings.overtime_hours || 0,
-                    holidayHours: earnings.holiday_hours || 0,
-                    sabbathHours: earnings.shabbat_hours || 0,
-                    totalWorkingDays: earnings.total_working_days || 0,
-                    baseHourlyRate: earnings.hourly_rate || 0
-                };
-                
-                const result = {
-                    id: earnings.id || `earnings-${employeeId}-${Date.now()}`,
-                    period: isCurrentMonth ? `${periodLabel} (Current)` : periodLabel,
-                    employee: {
-                        id: employeeId,
-                        name: employeeName,
-                        email: employeeEmail
-                    },
-                    baseSalary,
-                    hoursWorked,
-                    overtime,
-                    bonuses,
-                    totalPayout,
-                    status: isCurrentMonth ? 'In Progress' : 'Completed',
                     
                     // Enhanced breakdown data with proper extraction
                     enhancedBreakdown: earnings,
@@ -401,6 +382,7 @@ export default function PayrollScreen() {
                 // Admin/accountant viewing specific employee
                 filteredData = transformedData.filter(item => item.employee.id === selectedEmployee.id);
             }
+            
             
             setPayrollData(filteredData);
             
@@ -828,9 +810,9 @@ export default function PayrollScreen() {
                             <Text style={stylesWithDarkMode.detailValue}>{item.baseHourlyRate || item.hourlyRate} ₪/h</Text>
                         </View>
                         <View style={stylesWithDarkMode.detailItem}>
-                            <Text style={stylesWithDarkMode.detailLabel}>Total Hours:</Text>
+                            <Text style={stylesWithDarkMode.detailLabel}>Gross Pay:</Text>
                             <Text style={stylesWithDarkMode.detailValue}>
-                                {`${item.hoursWorked}h`}
+                                {Math.round(item.totalPayout)} ₪
                             </Text>
                         </View>
                     </View>
@@ -878,19 +860,19 @@ export default function PayrollScreen() {
                     </View>
                 </View>
 
-                {/* Regular Hours row for hourly employees */}
+                {/* Additional info row for hourly employees */}
                 {calculationType === 'hourly' && (
                     <View style={stylesWithDarkMode.detailRow}>
-                        <View style={stylesWithDarkMode.detailItem}>
-                            <Text style={stylesWithDarkMode.detailLabel}>Total Hours:</Text>
-                            <Text style={stylesWithDarkMode.detailValue}>
-                                {`${item.hoursWorked}h`}
-                            </Text>
-                        </View>
                         <View style={stylesWithDarkMode.detailItem}>
                             <Text style={stylesWithDarkMode.detailLabel}>Avg. Hours/Day:</Text>
                             <Text style={stylesWithDarkMode.detailValue}>
                                 {workedDays > 0 ? `${Math.round((item.hoursWorked / workedDays) * 10) / 10}h` : '0h'}
+                            </Text>
+                        </View>
+                        <View style={stylesWithDarkMode.detailItem}>
+                            <Text style={stylesWithDarkMode.detailLabel}>Days Worked:</Text>
+                            <Text style={stylesWithDarkMode.detailValue}>
+                                {workedDays} days
                             </Text>
                         </View>
                     </View>

@@ -129,7 +129,7 @@ export const APP_CONFIG = {
   
   // Development flags
   ENABLE_MOCK_DATA: false, // Disabled mock for working with real backend
-  ENABLE_DEBUG_LOGS: __DEV__ && false, // Auto-disabled in production builds, manually disabled for demo
+  ENABLE_DEBUG_LOGS: __DEV__ && false,
 };
 
 // Helper function to check if we're in development
