@@ -1,3 +1,4 @@
+// CACHE BUSTER: Updated at 2025-01-11T16:45:00Z - Force reload with overtime breakdown
 import React, { useState, useEffect } from 'react';
 import {
     StyleSheet,
@@ -16,6 +17,7 @@ import HeaderBackButton from '../src/components/HeaderBackButton';
 import ApiService from '../src/api/apiService';
 import { API_ENDPOINTS, API_URL, APP_CONFIG } from '../src/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeLog, safeLogPayroll, safeLogApiResponse, safeLogEmployee, safeLogError } from '../src/utils/safeLogging';
 
 export default function PayrollScreen() {
     const [payrollData, setPayrollData] = useState([]);
@@ -28,6 +30,9 @@ export default function PayrollScreen() {
     const { palette, isDark } = useColors();
     const canViewAllEmployees = hasAccess(ROLES.ACCOUNTANT);
     const canExportAndConfirm = hasAccess(ROLES.ACCOUNTANT);
+    
+    // Debug режим только для development и когда явно не отключен
+    const isDebugMode = __DEV__ && !process.env.DISABLE_PAYROLL_DEBUG;
 
     // Generate available periods (current + last 6 months)
     const getAvailablePeriods = () => {
@@ -68,7 +73,12 @@ export default function PayrollScreen() {
         try {
             setLoading(true);
             
-            console.log('🔍 Fetching payroll data...');
+            if (isDebugMode) {
+                safeLog('🔍 Fetching payroll data...', { 
+                    selectedEmployee: selectedEmployee ? safeLogEmployee(selectedEmployee, 'payroll_fetch') : null,
+                    selectedPeriod 
+                });
+            }
             
             const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
             if (!token) {
@@ -101,7 +111,7 @@ export default function PayrollScreen() {
                 const salaryParams = { employee: selectedEmployee.id };
                 
                 const [earnings, salaries] = await Promise.all([
-                    ApiService.payroll.getEnhancedEarnings(apiParams),
+                    ApiService.payroll.getEarnings(apiParams),
                     ApiService.payroll.getSalaries(salaryParams)
                 ]);
                 
@@ -110,22 +120,37 @@ export default function PayrollScreen() {
                 
             } else if (canViewAllEmployees) {
                 // "All Employees" mode - fetch data for each employee with enhanced API
-                console.log('🌍 Fetching enhanced data for all employees');
+                if (isDebugMode) {
+                    safeLog('🌍 Fetching enhanced data for all employees');
+                }
                 
                 // First get all salaries to know which employees to fetch
                 const salariesResponse = await ApiService.payroll.getSalaries();
                 salariesData = salariesResponse.results || salariesResponse || [];
-                console.log('📊 Found salaries for employees:', salariesData.map(s => s.employee));
+                if (isDebugMode) {
+                    safeLog('📊 Found salaries for employees:', { 
+                        employee_count: salariesData.length,
+                        has_data: salariesData.length > 0
+                    });
+                }
                 
                 // Fetch enhanced earnings for each employee with period (handle errors individually)
                 const earningsPromises = salariesData.map(async (salary) => {
                     try {
                         const params = getApiParams(salary.employee);
-                        console.log(`🔍 Fetching earnings for employee ${salary.employee} with params:`, params);
-                        const data = await ApiService.payroll.getEnhancedEarnings(params);
+                        if (isDebugMode) {
+                            safeLog(`🔍 Fetching earnings for employee`, { 
+                                employee_hash: salary.employee ? `emp_${salary.employee}` : 'unknown',
+                                has_params: Object.keys(params).length > 0
+                            });
+                        }
+                        const data = await ApiService.payroll.getEarnings(params);
                         return data;
                     } catch (error) {
-                        console.error(`❌ Failed to fetch earnings for employee ${salary.employee}:`, error);
+                        safeLogError(`❌ Failed to fetch earnings for employee`, {
+                            employee_hash: salary.employee ? `emp_${salary.employee}` : 'unknown',
+                            error
+                        });
                         // Return null for failed requests instead of throwing
                         return null;
                     }
@@ -138,7 +163,11 @@ export default function PayrollScreen() {
                 const failedCount = earningsData.length - successfulEarnings.length;
                 
                 if (failedCount > 0) {
-                    console.warn(`⚠️ ${failedCount} out of ${earningsData.length} employees failed to load payroll data`);
+                    safeLog(`⚠️ Some employees failed to load payroll data`, {
+                        failed_count: failedCount,
+                        total_count: earningsData.length,
+                        success_rate: `${Math.round((successfulEarnings.length / earningsData.length) * 100)}%`
+                    });
                 }
                 
                 earningsData = successfulEarnings;
@@ -149,7 +178,7 @@ export default function PayrollScreen() {
                 const salaryParams = { employee: user.id };
                 
                 const [earnings, salaries] = await Promise.all([
-                    ApiService.payroll.getEnhancedEarnings(apiParams),
+                    ApiService.payroll.getEarnings(apiParams),
                     ApiService.payroll.getSalaries(salaryParams)
                 ]);
                 
@@ -157,8 +186,12 @@ export default function PayrollScreen() {
                 salariesData = salaries.results || salaries || [];
             }
             
-            console.log('📊 Earnings API data:', earningsData);
-            console.log('📊 Salaries API data:', salariesData);
+            if (isDebugMode) {
+                safeLog('📊 API responses received:', {
+                    earnings: safeLogApiResponse(earningsData, 'earnings'),
+                    salaries: safeLogApiResponse(salariesData, 'salaries')
+                });
+            }
             
             // Transform single earnings response to array format for cards
             const apiData = Array.isArray(earningsData) ? earningsData : [earningsData];
@@ -185,14 +218,24 @@ export default function PayrollScreen() {
                 const employeeName = employeeData.name || selectedEmployee?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Unknown Employee';
                 const employeeEmail = employeeData.email || selectedEmployee?.email || user?.email || 'unknown@example.com';
                 
-                // Find matching salary data for base salary
+                // Find matching salary data for base salary (fallback only)
                 const salaryInfo = salariesData.find(s => s.employee === employeeId) || {};
-                console.log('🔍 Found salary info for employee:', { employeeId, salaryInfo });
+                if (isDebugMode) {
+                    safeLog('🔍 Found salary info for employee:', { 
+                        employee_hash: employeeId ? `emp_${employeeId}` : 'unknown',
+                        has_salary_info: Object.keys(salaryInfo).length > 0
+                    });
+                }
                 
-                // Combine data from both APIs
-                const baseSalary = safeParse(salaryInfo.base_salary || 0);
-                const hoursWorked = safeParse(earnings.regular_hours || earnings.total_hours || 0);
+                // Use enhanced earnings API data directly (more accurate)
+                const baseSalary = safeParse(earnings.base_salary || earnings.hourly_rate || salaryInfo.base_salary || 0);
+                const hoursWorked = safeParse(earnings.total_hours || earnings.regular_hours || 0);
                 const overtime = safeParse(earnings.overtime_hours || 0);
+                // Calculate regular pay amount for display
+                const calculationType = earnings.calculation_type || 'unknown';
+                const regularPayAmount = calculationType === 'hourly' ? 
+                    safeParse(earnings.regular_hours || 0) * safeParse(earnings.hourly_rate || 0) :
+                    safeParse(earnings.base_salary || 0);
                 
                 // Extract enhanced breakdown data from nested structure
                 const payBreakdown = earnings.pay_breakdown || {};
@@ -226,20 +269,27 @@ export default function PayrollScreen() {
                 // Extract compensatory days
                 const compensatoryDays = earnings.compensatory_days?.earned_this_period || 0;
                 
-                console.log('🔍 Enhanced payroll earnings processing:', {
-                    employeeData,
-                    employeeName,
-                    hoursWorked,
-                    overtime,
-                    totalPayout,
-                    overtimePay: `${overtimePay} (${typeof overtimePay})`,
-                    sabbathPay: `${sabbathPay} (${typeof sabbathPay})`,
-                    holidayPay: `${holidayPay} (${typeof holidayPay})`,
-                    compensatoryDays: `${compensatoryDays} (${typeof compensatoryDays})`,
-                    earningsId: earnings.id || 'generated',
-                    payBreakdown,
-                    specialDayPayData
-                });
+                // Calculate worked days from enhanced earnings API data
+                const workedDaysFromData = earnings.worked_days || 
+                                        earnings.summary?.worked_days || 
+                                        earnings.attendance?.days_worked || 
+                                        (earnings.daily_calculations ? earnings.daily_calculations.length : 0) ||
+                                        0;
+                
+                if (isDebugMode) {
+                    safeLog('🔍 Enhanced payroll earnings processing:', {
+                        employee_hash: employeeData.id ? `emp_${employeeData.id}` : 'unknown',
+                        calculation_type: calculationType,
+                        has_overtime: overtime > 0,
+                        has_enhanced_breakdown: !!earnings.enhanced_breakdown,
+                        has_detailed_breakdown: !!earnings.detailed_breakdown,
+                        data_quality: {
+                            has_regular_hours: !!(earnings.regular_hours),
+                            has_work_sessions: !!(earnings.work_sessions_count),
+                            has_pay_breakdown: !!payBreakdown && Object.keys(payBreakdown).length > 0
+                        }
+                    });
+                }
                 
                 return {
                     id: earnings.id || `earnings-${employeeId}-${Date.now()}`,
@@ -261,8 +311,71 @@ export default function PayrollScreen() {
                     overtimePay: Number(overtimePay) || 0,
                     sabbathPay: Number(sabbathPay) || 0,
                     holidayPay: Number(holidayPay) || 0,
-                    compensatoryDays: Number(compensatoryDays) || 0
+                    compensatoryDays: Number(compensatoryDays) || 0,
+                    
+                    // Additional fields for UI display
+                    workedDays: workedDaysFromData || Math.max(1, Math.round(hoursWorked / 8.5)),
+                    workSessions: earnings.enhanced_breakdown?.work_sessions || earnings.work_sessions_count || workedDaysFromData || Math.max(1, Math.round(hoursWorked / 8.5)),
+                    regularPayAmount: regularPayAmount,
+                    hourlyRate: earnings.hourly_rate || earnings.enhanced_breakdown?.rates?.base_hourly || 0,
+                    
+                    // Map API fields to UI expected fields for consistent access
+                    regularHours: earnings.regular_hours || 0,
+                    overtimeHours: earnings.overtime_hours || 0,
+                    holidayHours: earnings.holiday_hours || 0,
+                    sabbathHours: earnings.shabbat_hours || 0,
+                    totalWorkingDays: earnings.total_working_days || 0,
+                    baseHourlyRate: earnings.hourly_rate || 0
                 };
+                
+                const result = {
+                    id: earnings.id || `earnings-${employeeId}-${Date.now()}`,
+                    period: isCurrentMonth ? `${periodLabel} (Current)` : periodLabel,
+                    employee: {
+                        id: employeeId,
+                        name: employeeName,
+                        email: employeeEmail
+                    },
+                    baseSalary,
+                    hoursWorked,
+                    overtime,
+                    bonuses,
+                    totalPayout,
+                    status: isCurrentMonth ? 'In Progress' : 'Completed',
+                    
+                    // Enhanced breakdown data with proper extraction
+                    enhancedBreakdown: earnings,
+                    overtimePay: Number(overtimePay) || 0,
+                    sabbathPay: Number(sabbathPay) || 0,
+                    holidayPay: Number(holidayPay) || 0,
+                    compensatoryDays: Number(compensatoryDays) || 0,
+                    
+                    // Additional fields for UI display
+                    workedDays: workedDaysFromData || Math.max(1, Math.round(hoursWorked / 8.5)),
+                    workSessions: earnings.enhanced_breakdown?.work_sessions || earnings.work_sessions_count || workedDaysFromData || Math.max(1, Math.round(hoursWorked / 8.5)),
+                    regularPayAmount: regularPayAmount,
+                    hourlyRate: earnings.hourly_rate || earnings.enhanced_breakdown?.rates?.base_hourly || 0,
+                    
+                    // Map API fields to UI expected fields for consistent access
+                    regularHours: earnings.regular_hours || 0,
+                    overtimeHours: earnings.overtime_hours || 0,
+                    holidayHours: earnings.holiday_hours || 0,
+                    sabbathHours: earnings.shabbat_hours || 0,
+                    totalWorkingDays: earnings.total_working_days || 0,
+                    baseHourlyRate: earnings.hourly_rate || 0
+                };
+                
+                if (isDebugMode) {
+                    safeLog('🔧 Payroll data transformation completed:', {
+                        employee_hash: employeeData.id ? `emp_${employeeData.id}` : 'unknown',
+                        transformation_success: true,
+                        calculation_type: calculationType,
+                        has_required_fields: !!(hoursWorked && totalPayout),
+                        hours_range: hoursWorked > 0 ? (hoursWorked < 50 ? 'low' : hoursWorked < 200 ? 'medium' : 'high') : 'none'
+                    });
+                }
+                
+                return result;
             }) : [];
             
             // Apply role-based filtering
@@ -277,7 +390,13 @@ export default function PayrollScreen() {
                                       item.employee.name.includes(user.last_name || '');
                     return isOwnData;
                 });
-                console.log(`💰 Filtering payroll for user: ${user.email}, found ${filteredData.length} records`);
+                if (isDebugMode) {
+                    safeLog('💰 Filtering payroll for user:', {
+                        user_hash: user.id ? `usr_${user.id}` : 'unknown',
+                        filtered_records: filteredData.length,
+                        total_records: transformedData.length
+                    });
+                }
             } else if (selectedEmployee) {
                 // Admin/accountant viewing specific employee
                 filteredData = transformedData.filter(item => item.employee.id === selectedEmployee.id);
@@ -286,12 +405,14 @@ export default function PayrollScreen() {
             setPayrollData(filteredData);
             
         } catch (error) {
-            console.error('Error fetching payroll data:', error);
-            console.error('Error details:', {
-                message: error.message,
-                status: error.response?.status,
-                data: error.response?.data
-            });
+            safeLogError('Error fetching payroll data:', error);
+            if (isDebugMode) {
+                safeLogError('Error details:', {
+                    message: error.message,
+                    status: error.response?.status,
+                    has_response_data: !!error.response?.data
+                });
+            }
             
             // Show user-friendly error message based on enhanced backend error responses
             if (error.response?.status === 500) {
@@ -327,7 +448,12 @@ export default function PayrollScreen() {
                     message += `\n\nSuggestion: ${errorData.details.suggestion}`;
                 }
                 
-                console.warn('🚨 Server error (500) - detailed:', errorData);
+                if (isDebugMode) {
+                    safeLogError('🚨 Server error (500):', { 
+                        has_error_data: !!errorData,
+                        error_type: errorData?.error ? 'configuration' : 'unknown'
+                    });
+                }
                 Alert.alert(title, message, [{ text: 'OK' }]);
                 
             } else if (error.response?.status === 404) {
@@ -342,7 +468,12 @@ export default function PayrollScreen() {
                     message = 'No payroll data found for the selected period. Please ensure employees have completed work sessions.';
                 }
                 
-                console.warn('🚨 Data not found (404):', errorData);
+                if (isDebugMode) {
+                    safeLogError('🚨 Data not found (404):', {
+                        has_error_data: !!errorData,
+                        error_type: errorData?.error ? 'configuration' : 'missing_data'
+                    });
+                }
                 Alert.alert(title, message, [{ text: 'OK' }]);
                 
             } else if (error.response?.status === 400) {
@@ -358,11 +489,16 @@ export default function PayrollScreen() {
                     message += `\n\nSuggestion: ${errorData.details.suggestion}`;
                 }
                 
-                console.warn('🚨 Invalid configuration (400):', errorData);
+                if (isDebugMode) {
+                    safeLogError('🚨 Invalid configuration (400):', {
+                        has_error_data: !!errorData,
+                        has_suggestion: !!(errorData?.details?.suggestion)
+                    });
+                }
                 Alert.alert(title, message, [{ text: 'OK' }]);
                 
             } else {
-                console.warn('🚨 Network or other error');
+                safeLogError('🚨 Network or other error', { error_type: 'network_or_unknown' });
                 Alert.alert(
                     'Network Error', 
                     'Unable to load payroll data. Please check your connection and try again.',
@@ -381,7 +517,9 @@ export default function PayrollScreen() {
         if (!canViewAllEmployees) return;
         
         try {
-            console.log('🔍 Fetching employees list for payroll...');
+            if (isDebugMode) {
+                safeLog('🔍 Fetching employees list for payroll...');
+            }
             const response = await ApiService.employees.getAll();
             
             if (response && response.results) {
@@ -391,10 +529,15 @@ export default function PayrollScreen() {
                     email: emp.email
                 }));
                 setEmployees(employeeList);
-                console.log('✅ Fetched', employeeList.length, 'employees for payroll');
+                if (isDebugMode) {
+                    safeLog('✅ Fetched employees for payroll:', { 
+                        employee_count: employeeList.length,
+                        has_data: employeeList.length > 0
+                    });
+                }
             }
         } catch (error) {
-            console.error('❌ Error fetching employees for payroll:', error);
+            safeLogError('❌ Error fetching employees for payroll:', error);
             setEmployees([{
                 id: user.id,
                 name: user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.email,
@@ -435,18 +578,20 @@ export default function PayrollScreen() {
 
                 if (selectedEmployee) {
                     // Specific employee selected - use enhanced API
-                    data = await ApiService.payroll.getEnhancedEarnings(getApiParams(selectedEmployee.id));
+                    data = await ApiService.payroll.getEarnings(getApiParams(selectedEmployee.id));
                 } else if (canViewAllEmployees) {
                     // "All Employees" mode - fetch aggregated data with enhanced API
                     console.log('🌍 Fetching enhanced earnings for all employees');
-                    data = await ApiService.payroll.getEnhancedEarnings(getApiParams());
+                    data = await ApiService.payroll.getEarnings(getApiParams());
                 } else {
                     // Regular employee viewing their own data - use enhanced API
-                    data = await ApiService.payroll.getEnhancedEarnings(getApiParams(user.id));
+                    data = await ApiService.payroll.getEarnings(getApiParams(user.id));
                 }
                 
                 if (data) {
-                    console.log('Payroll API response:', data);
+                    if (isDebugMode) {
+                        safeLog('Payroll API response received:', safeLogApiResponse(data, 'current_salary'));
+                    }
                     
                     // Handle both single employee and multiple employees data
                     const isArrayData = Array.isArray(data);
@@ -482,7 +627,11 @@ export default function PayrollScreen() {
                                 name: data.employee?.name || selectedEmployee?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email
                             },
                             estimatedSalary: Math.round(data.total_earnings || data.total_salary || 0),
-                            hoursWorkedThisMonth: Math.round(data.total_hours || data.hours_worked || 0),
+                            hoursWorkedThisMonth: Math.round(
+                                data.total_hours > 0 ? data.total_hours : 
+                                (data.regular_hours || 0) + (data.overtime_hours || 0) + (data.holiday_hours || 0) + (data.shabbat_hours || 0) ||
+                                data.hours_worked || 0
+                            ),
                             daysWorked: data.worked_days || data.breakdown?.days_worked || currentDay,
                             daysInMonth: daysInMonth,
                             status: 'In Progress'
@@ -491,15 +640,19 @@ export default function PayrollScreen() {
                     }
                 }
             } catch (apiError) {
-                console.log('Could not fetch current earnings, using estimates. Error:', apiError);
+                if (isDebugMode) {
+                    safeLogError('Could not fetch current earnings, using estimates:', apiError);
+                }
             }
             
             // Fallback - hide current salary display if no real data is available
-            console.log('⚠️ No current earnings data available - hiding current month progress section');
+            if (isDebugMode) {
+                safeLog('⚠️ No current earnings data available - hiding current month progress section');
+            }
             setCurrentSalaryData(null);
             
         } catch (error) {
-            console.error('Error fetching current salary data:', error);
+            safeLogError('Error fetching current salary data:', error);
         }
     };
 
@@ -527,7 +680,12 @@ export default function PayrollScreen() {
                     {
                         text: 'CSV',
                         onPress: () => {
-                            console.log('CSV Export:', csv);
+                            if (isDebugMode) {
+                                safeLog('CSV Export initiated:', { 
+                                    export_type: 'csv',
+                                    record_count: exportData.length
+                                });
+                            }
                             Alert.alert('Success', 'Payroll report exported as CSV');
                         }
                     },
@@ -544,7 +702,7 @@ export default function PayrollScreen() {
                 ]
             );
         } catch (error) {
-            console.error('Export error:', error);
+            safeLogError('Export error:', error);
             Alert.alert('Error', 'Failed to export payroll report');
         }
     };
@@ -574,15 +732,48 @@ export default function PayrollScreen() {
     const stylesWithDarkMode = styles(palette, isDark);
 
     const renderPayrollItem = ({ item }) => {
-        // Extract additional data from enhanced breakdown
+        // Extract additional data from enhanced breakdown and direct API data
         const enhanced = item.enhancedBreakdown || {};
         const calculationType = enhanced.calculation_type || 'unknown';
-        const workedDays = enhanced.worked_days || 0;
-        const totalWorkingDays = enhanced.total_working_days || 0;
-        const regularHours = enhanced.regular_hours || 0;
-        const overtimeHours = enhanced.overtime_hours || 0;
-        const holidayHours = enhanced.holiday_hours || 0;
-        const sabbathHours = enhanced.shabbat_hours || 0;
+        
+        // Use the mapped data from the API response first, then fallback to enhanced breakdown
+        const workedDays = item.workedDays || enhanced.worked_days || enhanced.summary?.worked_days || enhanced.attendance?.days_worked || 0;
+        const totalWorkingDays = item.totalWorkingDays || enhanced.attendance?.working_days_in_period || enhanced.total_working_days || 
+                                 (calculationType === 'monthly' ? 22 : 0); // Default to 22 working days for monthly employees
+        
+        // Calculate correct hours breakdown
+        const totalHours = item.hoursWorked || enhanced.total_hours || 0;
+        const overtimeHours = item.overtimeHours || enhanced.overtime_hours || 0;
+        const holidayHours = item.holidayHours || enhanced.holiday_hours || 0;
+        const sabbathHours = item.sabbathHours || enhanced.shabbat_hours || 0;
+        
+        // Get regular hours from API response (more accurate than calculation)
+        const regularHours = enhanced.regular_hours || Math.max(0, totalHours - overtimeHours - holidayHours - sabbathHours);
+        
+        // Calculate regular pay for hourly employees
+        const hourlyRate = enhanced.hourly_rate || enhanced.rates?.base_hourly || item.baseHourlyRate || 0;
+        const regularPay = enhanced.enhanced_breakdown?.regular_pay || (regularHours * hourlyRate);
+        
+        // Safe debug logging for UI values
+        if (isDebugMode) {
+            safeLog('🎨 UI RENDER VALUES - TIMESTAMP:', new Date().toISOString(), {
+                employee_hash: item.employee.id ? `emp_${item.employee.id}` : 'unknown',
+                calculation_type: calculationType,
+                has_enhanced_data: !!enhanced,
+                render_success: true
+            });
+        }
+        
+        // Safe debugging for specific employee (if needed)
+        if (isDebugMode && item.employee.id === 33) { // Itai's ID
+            safeLog('🚨 Employee debug data:', {
+                employee_hash: 'emp_33',
+                has_work_sessions: item.workSessions > 0,
+                has_worked_days: workedDays > 0,
+                has_hours: item.hoursWorked > 0,
+                data_consistency: item.workSessions === workedDays
+            });
+        }
         
         return (
             <View style={stylesWithDarkMode.card}>
@@ -605,48 +796,182 @@ export default function PayrollScreen() {
                     </Text>
                 </View>
 
-                {/* Primary Info Row */}
+                {/* Primary Info Row - Enhanced for different employee types */}
                 <View style={stylesWithDarkMode.detailRow}>
                     <View style={stylesWithDarkMode.detailItem}>
                         <Text style={stylesWithDarkMode.detailLabel}>
-                            {calculationType === 'monthly' ? 'Base Salary:' : 'Total Earnings:'}
+                            {calculationType === 'monthly' ? 'Monthly Base:' : 'Regular Pay:'}
                         </Text>
-                        <Text style={stylesWithDarkMode.detailValue}>{item.baseSalary} ₪</Text>
+                        <Text style={stylesWithDarkMode.detailValue}>
+                            {calculationType === 'monthly' ? 
+                                `${item.baseSalary} ₪` : 
+                                `${Math.round(regularPay)} ₪`
+                            }
+                        </Text>
                     </View>
                     <View style={stylesWithDarkMode.detailItem}>
                         <Text style={stylesWithDarkMode.detailLabel}>Total Hours:</Text>
-                        <Text style={stylesWithDarkMode.detailValue}>{item.hoursWorked}h</Text>
+                        <Text style={stylesWithDarkMode.detailValue}>
+                            {/* Use the highest available value, prioritizing actual total */}
+                            {(totalHours > 0 ? totalHours : 
+                              (regularHours + overtimeHours + holidayHours + sabbathHours) || 
+                              item.hoursWorked || 0).toFixed(1)}h
+                        </Text>
+                    </View>
+                </View>
+                
+                {/* Rate Information Row for Hourly Employees */}
+                {calculationType === 'hourly' && (item.baseHourlyRate || item.hourlyRate) && (
+                    <View style={stylesWithDarkMode.detailRow}>
+                        <View style={stylesWithDarkMode.detailItem}>
+                            <Text style={stylesWithDarkMode.detailLabel}>Hourly Rate:</Text>
+                            <Text style={stylesWithDarkMode.detailValue}>{item.baseHourlyRate || item.hourlyRate} ₪/h</Text>
+                        </View>
+                        <View style={stylesWithDarkMode.detailItem}>
+                            <Text style={stylesWithDarkMode.detailLabel}>Total Hours:</Text>
+                            <Text style={stylesWithDarkMode.detailValue}>
+                                {`${item.hoursWorked}h`}
+                            </Text>
+                        </View>
+                    </View>
+                )}
+                
+                {/* Monthly Employee Progress */}
+                {calculationType === 'monthly' && (
+                    <View style={stylesWithDarkMode.detailRow}>
+                        <View style={stylesWithDarkMode.detailItem}>
+                            <Text style={stylesWithDarkMode.detailLabel}>Attendance:</Text>
+                            <Text style={stylesWithDarkMode.detailValue}>
+                                {enhanced.attendance_percentage ? Math.round(enhanced.attendance_percentage) : 
+                                 totalWorkingDays > 0 ? Math.round((workedDays / totalWorkingDays) * 100) : 0}%
+                            </Text>
+                        </View>
+                        <View style={stylesWithDarkMode.detailItem}>
+                            <Text style={stylesWithDarkMode.detailLabel}>Expected Hours:</Text>
+                            <Text style={stylesWithDarkMode.detailValue}>
+                                {totalWorkingDays > 0 ? Math.round(totalWorkingDays * 8.4) : 182}h
+                            </Text>
+                        </View>
+                    </View>
+                )}
+
+                {/* Work Attendance Row - Different display for hourly vs monthly */}
+                <View style={stylesWithDarkMode.detailRow}>
+                    <View style={stylesWithDarkMode.detailItem}>
+                        <Text style={stylesWithDarkMode.detailLabel}>
+                            {calculationType === 'hourly' ? 'Work Sessions:' : 'Days Worked:'}
+                        </Text>
+                        <Text style={stylesWithDarkMode.detailValue}>
+                            {calculationType === 'hourly' ? 
+                                (item.workSessions > 0 ? `${item.workSessions} session${item.workSessions > 1 ? 's' : ''}` : 'No work sessions') :
+                                `${workedDays} / ${totalWorkingDays}`
+                            }
+                        </Text>
+                    </View>
+                    <View style={stylesWithDarkMode.detailItem}>
+                        <Text style={stylesWithDarkMode.detailLabel}>
+                            {calculationType === 'hourly' ? 'Regular Hours:' : 'Regular Hours:'}
+                        </Text>
+                        <Text style={stylesWithDarkMode.detailValue}>
+                            {`${regularHours.toFixed(1)}h`}
+                        </Text>
                     </View>
                 </View>
 
-                {/* Work Attendance Row */}
-                <View style={stylesWithDarkMode.detailRow}>
-                    <View style={stylesWithDarkMode.detailItem}>
-                        <Text style={stylesWithDarkMode.detailLabel}>Days Worked:</Text>
-                        <Text style={stylesWithDarkMode.detailValue}>{workedDays} / {totalWorkingDays}</Text>
+                {/* Regular Hours row for hourly employees */}
+                {calculationType === 'hourly' && (
+                    <View style={stylesWithDarkMode.detailRow}>
+                        <View style={stylesWithDarkMode.detailItem}>
+                            <Text style={stylesWithDarkMode.detailLabel}>Total Hours:</Text>
+                            <Text style={stylesWithDarkMode.detailValue}>
+                                {`${item.hoursWorked}h`}
+                            </Text>
+                        </View>
+                        <View style={stylesWithDarkMode.detailItem}>
+                            <Text style={stylesWithDarkMode.detailLabel}>Avg. Hours/Day:</Text>
+                            <Text style={stylesWithDarkMode.detailValue}>
+                                {workedDays > 0 ? `${Math.round((item.hoursWorked / workedDays) * 10) / 10}h` : '0h'}
+                            </Text>
+                        </View>
                     </View>
-                    <View style={stylesWithDarkMode.detailItem}>
-                        <Text style={stylesWithDarkMode.detailLabel}>Regular Hours:</Text>
-                        <Text style={stylesWithDarkMode.detailValue}>{regularHours}h</Text>
-                    </View>
-                </View>
+                )}
 
                 {/* Overtime and Special Hours */}
                 {(overtimeHours > 0 || holidayHours > 0 || sabbathHours > 0) && (
                     <View style={stylesWithDarkMode.detailRow}>
                         {overtimeHours > 0 && (
                             <View style={stylesWithDarkMode.detailItem}>
-                                <Text style={stylesWithDarkMode.detailLabel}>Overtime:</Text>
-                                <Text style={stylesWithDarkMode.detailValue}>{overtimeHours}h</Text>
+                                <Text style={stylesWithDarkMode.detailLabel}>⏰ Overtime:</Text>
+                                <Text style={stylesWithDarkMode.detailValue}>
+                                    {/* Extract precise overtime breakdown from enhanced data */}
+                                    {(() => {
+                                        // Try multiple paths to find overtime breakdown data
+                                        const overtime125Hours = enhanced.detailed_breakdown?.overtime_125_hours || 
+                                                               enhanced.enhanced_breakdown?.overtime_breakdown?.overtime_125_hours || 
+                                                               enhanced.overtime_breakdown?.overtime_125_hours || 
+                                                               enhanced.enhanced_breakdown?.overtime_125_hours || 0;
+                                        const overtime150Hours = enhanced.detailed_breakdown?.overtime_150_hours || 
+                                                               enhanced.enhanced_breakdown?.overtime_breakdown?.overtime_150_hours || 
+                                                               enhanced.overtime_breakdown?.overtime_150_hours || 
+                                                               enhanced.enhanced_breakdown?.overtime_150_hours || 0;
+                                        
+                                        // Israeli labor law: first 2 hours overtime = 125%, rest = 150%
+                                        // If no breakdown available, calculate according to law
+                                        let display125Hours = overtime125Hours;
+                                        let display150Hours = overtime150Hours;
+                                        
+                                        if (overtime125Hours === 0 && overtime150Hours === 0 && overtimeHours > 0) {
+                                            // No detailed breakdown - apply Israeli law
+                                            if (overtimeHours <= 2) {
+                                                display125Hours = overtimeHours;
+                                                display150Hours = 0;
+                                            } else {
+                                                display125Hours = 2;
+                                                display150Hours = overtimeHours - 2;
+                                            }
+                                        }
+                                        
+                                        if (isDebugMode) {
+                                            safeLog('🔍 Overtime breakdown debug:', {
+                                                has_125_hours: overtime125Hours > 0,
+                                                has_150_hours: overtime150Hours > 0,
+                                                has_detailed_breakdown: !!enhanced.detailed_breakdown,
+                                                has_enhanced_breakdown: !!enhanced.enhanced_breakdown,
+                                                breakdown_source: 'api_data'
+                                            });
+                                        }
+                                        
+                                        if (display125Hours > 0 && display150Hours > 0) {
+                                            return `${display125Hours.toFixed(1)}h × 125% + ${display150Hours.toFixed(1)}h × 150%`;
+                                        } else if (display125Hours > 0) {
+                                            return `${display125Hours.toFixed(1)}h × 125%`;
+                                        } else if (display150Hours > 0) {
+                                            return `${display150Hours.toFixed(1)}h × 150%`;
+                                        } else {
+                                            return `${overtimeHours.toFixed(1)}h × 125-150%`;
+                                        }
+                                    })()}
+                                </Text>
                             </View>
                         )}
                         {(holidayHours > 0 || sabbathHours > 0) && (
                             <View style={stylesWithDarkMode.detailItem}>
-                                <Text style={stylesWithDarkMode.detailLabel}>Special Days:</Text>
+                                <Text style={stylesWithDarkMode.detailLabel}>🕯️ Sabbath:</Text>
                                 <Text style={stylesWithDarkMode.detailValue}>
-                                    {holidayHours > 0 && `${holidayHours}h holidays`}
-                                    {holidayHours > 0 && sabbathHours > 0 && ', '}
-                                    {sabbathHours > 0 && `${sabbathHours}h sabbath`}
+                                    {sabbathHours > 0 && (
+                                        (() => {
+                                            // Israeli law: Sabbath shift norm is 7 hours
+                                            const sabbathNormal = Math.min(sabbathHours, 7);
+                                            const sabbathOvertime = Math.max(0, sabbathHours - 7);
+                                            
+                                            if (sabbathOvertime > 0) {
+                                                return `├── Regular: ${sabbathNormal.toFixed(1)}h × 150%\n└── Overtime: ${sabbathOvertime.toFixed(1)}h × 175%`;
+                                            } else {
+                                                return `${sabbathNormal.toFixed(1)}h × 150%`;
+                                            }
+                                        })()
+                                    )}
+                                    {holidayHours > 0 && `${holidayHours.toFixed(1)}h holidays × 150%`}
                                 </Text>
                             </View>
                         )}
@@ -657,8 +982,36 @@ export default function PayrollScreen() {
                 {item.bonuses > 0 && (
                     <View style={stylesWithDarkMode.detailRow}>
                         <View style={stylesWithDarkMode.detailItem}>
-                            <Text style={stylesWithDarkMode.detailLabel}>Bonuses & Extras:</Text>
-                            <Text style={stylesWithDarkMode.detailValue}>{item.bonuses} ₪</Text>
+                            <Text style={stylesWithDarkMode.detailLabel}>Premium Pay:</Text>
+                            <Text style={stylesWithDarkMode.detailValue}>
+                                {(() => {
+                                    // Calculate total overtime premium (25% + 50% premiums only, not full pay)
+                                    const overtime125Hours = enhanced.enhanced_breakdown?.overtime_breakdown?.overtime_125_hours || 0;
+                                    const overtime150Hours = enhanced.enhanced_breakdown?.overtime_breakdown?.overtime_150_hours || 0;
+                                    const baseRate = enhanced.enhanced_breakdown?.rates?.base_hourly || 110;
+                                    
+                                    const overtimePremium125 = overtime125Hours * baseRate * 0.25; // 25% premium only
+                                    const overtimePremium150 = overtime150Hours * baseRate * 0.50; // 50% premium only
+                                    const overtimePay = overtimePremium125 + overtimePremium150;
+                                    
+                                    // Calculate sabbath premium (50% + 75% premiums only, not full pay)  
+                                    const sabbathRegularHours = enhanced.enhanced_breakdown?.special_days?.sabbath_regular_hours || 0;
+                                    const sabbathOvertimeHours = enhanced.enhanced_breakdown?.special_days?.sabbath_overtime_hours || 0;
+                                    
+                                    const sabbathPremium150 = sabbathRegularHours * baseRate * 0.50; // 50% premium for sabbath regular
+                                    const sabbathPremium175 = sabbathOvertimeHours * baseRate * 0.75; // 75% premium for sabbath overtime 
+                                    const sabbathPay = sabbathPremium150 + sabbathPremium175;
+                                    
+                                    const holidayPay = enhanced.enhanced_breakdown?.special_days?.holiday_pay || 0;
+                                    
+                                    const components = [];
+                                    if (overtimePay > 0) components.push(`Overtime: ${Math.round(overtimePay)}₪`);
+                                    if (sabbathPay > 0) components.push(`Sabbath: ${Math.round(sabbathPay)}₪`);
+                                    if (holidayPay > 0) components.push(`Holiday: ${Math.round(holidayPay)}₪`);
+                                    
+                                    return components.length > 0 ? components.join(' + ') : `${item.bonuses} ₪`;
+                                })()}
+                            </Text>
                         </View>
                     </View>
                 )}
@@ -666,12 +1019,85 @@ export default function PayrollScreen() {
                 {/* Enhanced Breakdown Section */}
                 {(Number(item.overtimePay) > 0 || Number(item.sabbathPay) > 0 || Number(item.holidayPay) > 0 || Number(item.compensatoryDays) > 0) && (
                     <View style={stylesWithDarkMode.enhancedSection}>
-                        <Text style={stylesWithDarkMode.enhancedTitle}>📊 Detailed Breakdown</Text>
+                        <Text style={stylesWithDarkMode.enhancedTitle}>📊 Payroll Calculation Details</Text>
+                        
+                        {/* Legal basis note */}
+                        <Text style={[stylesWithDarkMode.enhancedLabel, {fontSize: 11, fontStyle: 'italic', marginBottom: 8}]}>
+                            📋 Based on Israeli Labor Law (Hours of Work and Rest Law, Articles 2 & 16)
+                        </Text>
                         
                         {Number(item.overtimePay) > 0 && (
-                            <View style={stylesWithDarkMode.enhancedRow}>
-                                <Text style={stylesWithDarkMode.enhancedLabel}>Overtime Pay:</Text>
-                                <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.overtimePay).toLocaleString()} ₪</Text>
+                            <View>
+                                {/* Show precise overtime breakdown if available */}
+                                {(() => {
+                                    // Try multiple paths to find overtime breakdown data
+                                    const overtime125Hours = enhanced.detailed_breakdown?.overtime_125_hours || 
+                                                           enhanced.enhanced_breakdown?.overtime_breakdown?.overtime_125_hours || 
+                                                           enhanced.overtime_breakdown?.overtime_125_hours || 
+                                                           enhanced.enhanced_breakdown?.overtime_125_hours || 0;
+                                    const overtime150Hours = enhanced.detailed_breakdown?.overtime_150_hours || 
+                                                           enhanced.enhanced_breakdown?.overtime_breakdown?.overtime_150_hours || 
+                                                           enhanced.overtime_breakdown?.overtime_150_hours || 
+                                                           enhanced.enhanced_breakdown?.overtime_150_hours || 0;
+                                    const overtime125Pay = enhanced.detailed_breakdown?.overtime_125_pay || 
+                                                         enhanced.enhanced_breakdown?.overtime_breakdown?.overtime_125_pay || 
+                                                         enhanced.overtime_breakdown?.overtime_125_pay || 
+                                                         enhanced.enhanced_breakdown?.overtime_125_pay || 0;
+                                    const overtime150Pay = enhanced.detailed_breakdown?.overtime_150_pay || 
+                                                         enhanced.enhanced_breakdown?.overtime_breakdown?.overtime_150_pay || 
+                                                         enhanced.overtime_breakdown?.overtime_150_pay || 
+                                                         enhanced.enhanced_breakdown?.overtime_150_pay || 0;
+                                    
+                                    // Calculate premium amounts (not full pay)
+                                    const baseRate = enhanced.enhanced_breakdown?.rates?.base_hourly || enhanced.hourly_rate || 110;
+                                    let display125Hours = overtime125Hours;
+                                    let display150Hours = overtime150Hours;
+                                    let display125Pay = overtime125Hours * baseRate * 0.25; // 25% premium only
+                                    let display150Pay = overtime150Hours * baseRate * 0.50; // 50% premium only
+                                    
+                                    if (overtime125Hours === 0 && overtime150Hours === 0 && overtimeHours > 0) {
+                                        const hourlyRate = enhanced.hourly_rate || enhanced.rates?.base_hourly || 110;
+                                        if (overtimeHours <= 2) {
+                                            display125Hours = overtimeHours;
+                                            display125Pay = overtimeHours * hourlyRate * 0.25; // 25% premium only
+                                        } else {
+                                            display125Hours = 2;
+                                            display150Hours = overtimeHours - 2;
+                                            display125Pay = 2 * hourlyRate * 0.25; // 25% premium only
+                                            display150Pay = (overtimeHours - 2) * hourlyRate * 0.50; // 50% premium only
+                                        }
+                                    }
+                                    
+                                    if (display125Hours > 0 || display150Hours > 0) {
+                                        return (
+                                            <View>
+                                                {display125Hours > 0 && (
+                                                    <View style={stylesWithDarkMode.enhancedRow}>
+                                                        <Text style={stylesWithDarkMode.enhancedLabel}>First 2h overtime (+25%):</Text>
+                                                        <Text style={stylesWithDarkMode.enhancedValue}>
+                                                            {display125Hours.toFixed(1)}h premium = {Math.round(display125Pay).toLocaleString()} ₪
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                {display150Hours > 0 && (
+                                                    <View style={stylesWithDarkMode.enhancedRow}>
+                                                        <Text style={stylesWithDarkMode.enhancedLabel}>Additional overtime (+50%):</Text>
+                                                        <Text style={stylesWithDarkMode.enhancedValue}>
+                                                            {display150Hours.toFixed(1)}h premium = {Math.round(display150Pay).toLocaleString()} ₪
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                            </View>
+                                        );
+                                    } else {
+                                        return (
+                                            <View style={stylesWithDarkMode.enhancedRow}>
+                                                <Text style={stylesWithDarkMode.enhancedLabel}>Overtime Pay:</Text>
+                                                <Text style={stylesWithDarkMode.enhancedValue}>{Number(item.overtimePay).toLocaleString()} ₪</Text>
+                                            </View>
+                                        );
+                                    }
+                                })()}
                             </View>
                         )}
                         
@@ -702,8 +1128,15 @@ export default function PayrollScreen() {
 
                 <View style={stylesWithDarkMode.summaryRow}>
                     <View style={stylesWithDarkMode.summaryColumn}>
-                        <Text style={stylesWithDarkMode.totalLabel}>Total Salary:</Text>
+                        <Text style={stylesWithDarkMode.totalLabel}>
+                            {calculationType === 'hourly' ? 'Total Earnings:' : 'Total Salary:'}
+                        </Text>
                         <Text style={stylesWithDarkMode.totalValue}>{item.totalPayout} ₪</Text>
+                        {calculationType === 'hourly' && item.hoursWorked > 0 && (
+                            <Text style={stylesWithDarkMode.rateDisplay}>
+                                ({Math.round((item.totalPayout / item.hoursWorked) * 100) / 100} ₪/h avg)
+                            </Text>
+                        )}
                     </View>
                 </View>
 
@@ -721,9 +1154,14 @@ export default function PayrollScreen() {
             <Text style={stylesWithDarkMode.emptyTitle}>📊 No Payroll Data</Text>
             <Text style={stylesWithDarkMode.emptyText}>
                 {canViewAllEmployees 
-                    ? "No payroll records found. Make sure employees have salary configuration."
-                    : "No payroll records found for your account."}
+                    ? "No payroll records found. Make sure employees have salary configuration and work logs."
+                    : "No payroll records found for your account. Please check that you have:\n• Salary configuration set up\n• Completed work sessions\n• Proper employment type assigned"}
             </Text>
+            {selectedPeriod && (
+                <Text style={stylesWithDarkMode.emptySubtext}>
+                    Showing data for: {availablePeriods.find(p => p.key === selectedPeriod)?.label || selectedPeriod}
+                </Text>
+            )}
         </View>
     );
 
@@ -1106,6 +1544,12 @@ const styles = (palette, isDark) => StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
     },
+    rateDisplay: {
+        color: palette.text.secondary,
+        fontSize: 12,
+        fontStyle: 'italic',
+        marginTop: 2,
+    },
     confirmButton: {
         alignItems: 'center',
         backgroundColor: palette.primary,
@@ -1142,4 +1586,11 @@ const styles = (palette, isDark) => StyleSheet.create({
         textAlign: 'center',
         lineHeight: 24,
     },
-});
+    emptySubtext: {
+        fontSize: 14,
+        color: palette.text.secondary,
+        textAlign: 'center',
+        marginTop: 12,
+        fontStyle: 'italic',
+    },
+});// Force cache reload - Fri Jul 11 15:33:41 IDT 2025

@@ -17,7 +17,7 @@ import { API_ENDPOINTS, API_URL, APP_CONFIG } from '../src/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TIME_FILTERS = {
-    '3_DAYS': { label: '3 Days', days: 3 },
+    'THIS_MONTH': { label: 'This Month', days: new Date().getDate() + 30 }, // Current month + buffer
     '7_DAYS': { label: '7 Days', days: 7 },
     '14_DAYS': { label: '14 Days', days: 14 },
     '1_MONTH': { label: '1 Month', days: 30 },
@@ -29,7 +29,7 @@ export default function WorktimeScreen() {
     const [loading, setLoading] = useState(true);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const [employees, setEmployees] = useState([]);
-    const [selectedTimeFilter, setSelectedTimeFilter] = useState('3_DAYS');
+    const [selectedTimeFilter, setSelectedTimeFilter] = useState('THIS_MONTH');
     const [isTableView, setIsTableView] = useState(false);
     const [displayCount, setDisplayCount] = useState(10); // Initially show 10 items
     const [isExpanded, setIsExpanded] = useState(false); // Track expansion state

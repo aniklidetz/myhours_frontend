@@ -124,12 +124,26 @@ const addAuthInterceptors = (client) => {
         const enhancedAuthData = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA);
         
         if (enhancedAuthData) {
-          // Use DeviceToken for all API calls when we have enhanced auth
-          config.headers.Authorization = `DeviceToken ${token}`;
+          try {
+            const authData = JSON.parse(enhancedAuthData);
+            // Verify the stored token matches
+            if (authData.token !== token) {
+              console.warn('⚠️ Token mismatch detected, using stored token');
+              await AsyncStorage.setItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN, authData.token);
+            }
+            // Use DeviceToken for all API calls when we have enhanced auth
+            config.headers.Authorization = `DeviceToken ${authData.token || token}`;
+          } catch (parseError) {
+            console.error('❌ Error parsing enhanced auth data:', parseError);
+            // Fallback to basic token
+            config.headers.Authorization = `Token ${token}`;
+          }
         } else {
           // Legacy token for backward compatibility
           config.headers.Authorization = `Token ${token}`;
         }
+      } else {
+        console.warn('⚠️ No auth token found in storage');
       }
       
       // Log request in development
@@ -178,11 +192,19 @@ const addAuthInterceptors = (client) => {
 
     // Handle 401 Unauthorized - clear token and redirect to login
     if (error.response?.status === 401) {
+      console.error('🔐 401 Unauthorized - clearing authentication data');
+      console.error('Failed request:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        authHeader: error.config?.headers?.Authorization ? 'Present' : 'Missing'
+      });
+      
       await AsyncStorage.multiRemove([
         APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
         APP_CONFIG.STORAGE_KEYS.USER_DATA,
         APP_CONFIG.STORAGE_KEYS.BIOMETRIC_SESSION,
-        APP_CONFIG.STORAGE_KEYS.WORK_STATUS
+        APP_CONFIG.STORAGE_KEYS.WORK_STATUS,
+        APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA
       ]);
       // Note: Navigation to login should be handled by the app
     }
@@ -511,6 +533,49 @@ const apiService = {
       } catch (error) {
         console.error('Error checking token expiration:', error);
         return { isExpired: true, shouldRefresh: true };
+      }
+    },
+
+    // Debug authentication state
+    debugAuthState: async () => {
+      try {
+        const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+        const userData = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.USER_DATA);
+        const enhancedAuthData = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA);
+        
+        const debugInfo = {
+          hasToken: !!token,
+          tokenPreview: token ? `${token.substring(0, 20)}...` : null,
+          hasUserData: !!userData,
+          hasEnhancedAuth: !!enhancedAuthData,
+        };
+        
+        if (userData) {
+          const user = JSON.parse(userData);
+          debugInfo.user = {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            name: `${user.first_name} ${user.last_name}`
+          };
+        }
+        
+        if (enhancedAuthData) {
+          const authData = JSON.parse(enhancedAuthData);
+          debugInfo.enhancedAuth = {
+            hasToken: !!authData.token,
+            tokenMatches: authData.token === token,
+            expiresAt: authData.expires_at,
+            isExpired: new Date() >= new Date(authData.expires_at),
+            deviceId: authData.device_id ? `${authData.device_id.substring(0, 8)}...` : null
+          };
+        }
+        
+        console.log('🔍 Authentication State Debug:', debugInfo);
+        return debugInfo;
+      } catch (error) {
+        console.error('❌ Error debugging auth state:', error);
+        return { error: error.message };
       }
     },
   },

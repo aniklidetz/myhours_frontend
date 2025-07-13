@@ -29,6 +29,23 @@ export const WorkStatusProvider = ({ children }) => {
       return;
     }
 
+    // Check if token might be expired before making API call
+    try {
+      const tokenExpiration = await ApiService.auth.checkTokenExpiration();
+      if (tokenExpiration.isExpired || tokenExpiration.shouldRefresh) {
+        console.log('🔄 Token expired or needs refresh, attempting refresh...');
+        try {
+          await ApiService.auth.refreshToken();
+          console.log('✅ Token refreshed successfully');
+        } catch (refreshError) {
+          console.error('❌ Token refresh failed:', refreshError);
+          // Let the 401 handler deal with this
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not check token expiration:', error);
+    }
+
     // Prevent too frequent updates (unless forced)
     if (!forceRefresh && lastUpdate) {
       const timeSinceLastUpdate = Date.now() - lastUpdate;
@@ -92,6 +109,17 @@ export const WorkStatusProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('❌ Error loading work status:', error);
+      
+      // Handle authentication errors specifically
+      if (error.response?.status === 401) {
+        console.error('🔐 Authentication error in work status - token might be invalid');
+        // The API interceptor should handle logout, but we'll set safe defaults
+        setWorkStatus('off-shift');
+        setShiftStartTime(null);
+        setCurrentSession(null);
+        setLoading(false);
+        return;
+      }
       
       // Don't let work status errors block the UI
       if (error.message?.includes('timeout')) {

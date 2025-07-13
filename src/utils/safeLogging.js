@@ -246,6 +246,87 @@ export const safeLog = (message, data = {}) => {
 };
 
 /**
+ * Создаёт безопасное представление зарплатных данных для логирования
+ * @param {Object|Array} payrollData - Данные зарплаты (один объект или массив)
+ * @param {string} action - Описание действия
+ * @returns {Object} Безопасные данные для логирования
+ */
+export const safeLogPayroll = (payrollData, action = 'payroll_action') => {
+  if (!payrollData) {
+    return { action, status: 'no_data' };
+  }
+  
+  const isArray = Array.isArray(payrollData);
+  const data = isArray ? payrollData : [payrollData];
+  
+  const safeData = {
+    action,
+    employee_count: data.length,
+    has_data: data.length > 0,
+  };
+  
+  if (data.length > 0) {
+    const firstEmployee = data[0];
+    
+    // Безопасные метаданные (без сумм и личных данных)
+    safeData.calculation_types = [...new Set(data.map(d => d.calculation_type || 'unknown'))];
+    safeData.period = firstEmployee.period || 'unknown';
+    safeData.has_enhanced_breakdown = !!firstEmployee.enhanced_breakdown;
+    safeData.statuses = [...new Set(data.map(d => d.status || 'unknown'))];
+    
+    // Агрегированная статистика (без точных сумм)
+    const totalHours = data.reduce((sum, d) => sum + (d.total_hours || d.hoursWorked || 0), 0);
+    safeData.total_hours_range = totalHours > 0 ? 
+      (totalHours < 50 ? 'low' : totalHours < 200 ? 'medium' : 'high') : 'none';
+    
+    const hasOvertimes = data.some(d => (d.overtime_hours || d.overtime || 0) > 0);
+    safeData.has_overtime_data = hasOvertimes;
+    
+    // НЕ логируем: точные суммы, почасовые ставки, имена, email
+  }
+  
+  return safeData;
+};
+
+/**
+ * Создаёт безопасное представление API ответа для логирования
+ * @param {Object} apiResponse - Ответ от API
+ * @param {string} endpoint - Имя endpoint'а
+ * @returns {Object} Безопасные данные для логирования
+ */
+export const safeLogApiResponse = (apiResponse, endpoint = 'unknown_api') => {
+  if (!apiResponse) {
+    return { endpoint, status: 'no_response' };
+  }
+  
+  const safeData = {
+    endpoint,
+    has_data: !!apiResponse,
+    is_array: Array.isArray(apiResponse),
+  };
+  
+  if (Array.isArray(apiResponse)) {
+    safeData.item_count = apiResponse.length;
+    if (apiResponse.length > 0) {
+      const firstItem = apiResponse[0];
+      safeData.first_item_keys = Object.keys(firstItem || {}).filter(key => 
+        !['email', 'salary', 'pay', 'earnings', 'hourly_rate', 'total'].some(sensitive => 
+          key.toLowerCase().includes(sensitive)
+        )
+      ).slice(0, 5); // Только первые 5 безопасных ключей
+    }
+  } else {
+    safeData.response_keys = Object.keys(apiResponse).filter(key => 
+      !['email', 'salary', 'pay', 'earnings', 'hourly_rate', 'total'].some(sensitive => 
+        key.toLowerCase().includes(sensitive)
+      )
+    ).slice(0, 5); // Только первые 5 безопасных ключей
+  }
+  
+  return safeData;
+};
+
+/**
  * Безопасный wrapper для console.error
  * @param {string} message - Сообщение об ошибке
  * @param {Object} error - Объект ошибки

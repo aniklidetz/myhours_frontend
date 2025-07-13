@@ -14,9 +14,7 @@
     "lint": "expo lint",
     "lint:fix": "expo lint --fix && prettier --write \"**/*.{js,jsx,ts,tsx,json}\"",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json}\"",
-    "typecheck": "tsc --noEmit",
-    "migrate:ts": "node ./scripts/migrate-to-typescript.js",
-    "test:biometric": "node run-biometric-test.js"
+    "typecheck": "tsc --noEmit"
   },
   "jest": {
     "preset": "jest-expo"

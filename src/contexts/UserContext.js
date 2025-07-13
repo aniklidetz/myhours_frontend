@@ -50,9 +50,22 @@ export const UserProvider = ({ children }) => {
       
       if (storedUser && storedToken) {
         const userData = JSON.parse(storedUser);
+        
+        // Debug authentication state
+        console.log('🔐 Checking authentication state...');
+        const authDebug = await apiService.auth.debugAuthState();
+        
+        // Check if token might be expired
+        if (authDebug.enhancedAuth?.isExpired) {
+          console.warn('⚠️ Token is expired, clearing authentication');
+          await logout();
+          return;
+        }
+        
         setUser(userData);
         safeLog('✅ User data loaded:', safeLogUser(userData, 'storage_load'));
         console.log('🔍 User role from storage:', userData.role);
+        console.log('🔐 Auth state:', authDebug);
       } else {
         console.log('❌ No user data found in storage');
       }
@@ -229,6 +242,33 @@ export const UserProvider = ({ children }) => {
     return user.username || user.email || 'User';
   };
 
+  // Debug and fix authentication issues
+  const debugAuth = async () => {
+    console.log('🔧 Running authentication diagnostics...');
+    
+    // Check current auth state
+    const authState = await apiService.auth.debugAuthState();
+    console.log('🔍 Current auth state:', authState);
+    
+    // Check API connection
+    const apiOnline = await checkConnection();
+    console.log('🌐 API status:', apiOnline ? 'Online' : 'Offline');
+    
+    // Try to refresh token if needed
+    if (authState.hasToken && authState.enhancedAuth?.shouldRefresh) {
+      console.log('🔄 Attempting token refresh...');
+      try {
+        await apiService.auth.refreshToken();
+        console.log('✅ Token refreshed successfully');
+        await loadUserData(); // Reload user data
+      } catch (error) {
+        console.error('❌ Token refresh failed:', error);
+      }
+    }
+    
+    return authState;
+  };
+
   const value = {
     user,
     loading,
@@ -242,6 +282,7 @@ export const UserProvider = ({ children }) => {
     getUserDisplayName,
     refreshUser: loadUserData,
     checkConnection,
+    debugAuth,
   };
 
   return (

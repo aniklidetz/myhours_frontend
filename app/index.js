@@ -239,18 +239,6 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* Biometric test button - only in dev mode */}
-              {__DEV_MODE__ && (
-                <TouchableOpacity
-                  style={styles(palette).biometricTestButton}
-                  onPress={() => router.push('/test-biometric-flow')}
-                  disabled={loading}
-                >
-                  <Text style={styles(palette).biometricTestButtonText}>
-                    🧪 Test Biometric Flow
-                  </Text>
-                </TouchableOpacity>
-              )}
 
               {/* Dev testing info - only in dev mode */}
               {__DEV_MODE__ && (
