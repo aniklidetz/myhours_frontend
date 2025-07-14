@@ -368,8 +368,8 @@ export default function WorktimeScreen() {
                         >
                             <Text style={styles(palette).showMoreText}>
                                 {isExpanded 
-                                    ? `Show Less (${worktimeData.length} → 10)` 
-                                    : `Show All (${displayCount} of ${worktimeData.length})`
+                                    ? 'Hide' 
+                                    : 'Show more'
                                 }
                             </Text>
                         </TouchableOpacity>
@@ -500,8 +500,8 @@ export default function WorktimeScreen() {
                 />
             )}
 
-            {/* Show More/Less Button */}
-            {!loading && worktimeData.length > 10 && (
+            {/* Show More/Less Button - only for list view */}
+            {!loading && !isTableView && worktimeData.length > 10 && (
                 <View style={styles(palette).showMoreContainer}>
                     <TouchableOpacity
                         style={styles(palette).showMoreButton}
@@ -509,8 +509,8 @@ export default function WorktimeScreen() {
                     >
                         <Text style={styles(palette).showMoreText}>
                             {isExpanded 
-                                ? `Show Less (${worktimeData.length} → 10)` 
-                                : `Show All (${displayCount} of ${worktimeData.length})`
+                                ? 'Hide' 
+                                : 'Show more'
                             }
                         </Text>
                     </TouchableOpacity>

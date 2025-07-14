@@ -88,7 +88,7 @@ export default function BiometricVerificationScreen() {
       setIsCapturing(true);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
-      console.log('📸 Capturing biometric verification image...');
+      // console.log('📸 Capturing biometric verification image...');
       
       const photo = await cameraRef.current.takePictureAsync({
         quality: APP_CONFIG.CAMERA_QUALITY,
@@ -115,7 +115,7 @@ export default function BiometricVerificationScreen() {
 
   const processBiometricVerification = async (imageBase64) => {
     try {
-      console.log('🔐 Processing biometric verification...');
+      // console.log('🔐 Processing biometric verification...');
       
       // Create location data
       const locationData = location ? {
@@ -134,11 +134,7 @@ export default function BiometricVerificationScreen() {
       if (result.success) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        console.log('✅ Biometric verification successful:', {
-          sessionId: result.biometric_session_id,
-          verificationLevel: result.verification_level,
-          confidenceScore: result.confidence_score
-        });
+        console.log('✅ Biometric verification successful');
         
         Alert.alert(
           'Verification Successful',
@@ -165,7 +161,7 @@ export default function BiometricVerificationScreen() {
       }
       
     } catch (error) {
-      console.error('❌ Biometric verification failed:', error);
+      console.error('❌ Biometric verification failed:', error.message);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       
       const errorMessage = error.response?.data?.message || error.message || 'Verification failed';
@@ -348,85 +344,85 @@ export default function BiometricVerificationScreen() {
 
 const styles = (palette) => StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: palette.background.secondary,
+    flex: 1,
   },
   scrollContent: {
-    padding: 20,
     flexGrow: 1,
+    padding: 20,
   },
   header: {
     alignItems: 'center',
     marginBottom: 24,
   },
   title: {
+    color: palette.text.primary,
     fontSize: 24,
     fontWeight: 'bold',
-    color: palette.text.primary,
-    textAlign: 'center',
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
     color: palette.text.secondary,
+    fontSize: 16,
     textAlign: 'center',
   },
   descriptionCard: {
     backgroundColor: palette.background.primary,
-    padding: 20,
     borderRadius: 12,
     marginBottom: 16,
+    padding: 20,
   },
   description: {
-    fontSize: 16,
     color: palette.text.primary,
+    fontSize: 16,
     lineHeight: 24,
     textAlign: 'center',
   },
   securityCard: {
     backgroundColor: palette.primaryBackground,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
     borderColor: palette.primary,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    padding: 16,
   },
   securityTitle: {
+    color: palette.primary,
     fontSize: 16,
     fontWeight: 'bold',
-    color: palette.primary,
     marginBottom: 8,
   },
   securityText: {
-    fontSize: 14,
     color: palette.primaryDark,
+    fontSize: 14,
     lineHeight: 20,
   },
   instructionsCard: {
     backgroundColor: palette.background.primary,
-    padding: 16,
     borderRadius: 12,
     marginBottom: 24,
+    padding: 16,
   },
   instructionsTitle: {
+    color: palette.text.primary,
     fontSize: 16,
     fontWeight: 'bold',
-    color: palette.text.primary,
     marginBottom: 8,
   },
   instructionsText: {
-    fontSize: 14,
     color: palette.text.secondary,
+    fontSize: 14,
     lineHeight: 20,
   },
   actions: {
     gap: 12,
   },
   startButton: {
-    backgroundColor: palette.primary,
-    padding: 16,
-    borderRadius: 12,
     alignItems: 'center',
+    backgroundColor: palette.primary,
+    borderRadius: 12,
+    padding: 16,
   },
   startButtonText: {
     color: palette.text.light,
@@ -434,10 +430,10 @@ const styles = (palette) => StyleSheet.create({
     fontWeight: 'bold',
   },
   cancelMainButton: {
-    backgroundColor: palette.text.secondary,
-    padding: 16,
-    borderRadius: 12,
     alignItems: 'center',
+    backgroundColor: palette.text.secondary,
+    borderRadius: 12,
+    padding: 16,
   },
   cancelMainText: {
     color: palette.text.light,
@@ -449,8 +445,8 @@ const styles = (palette) => StyleSheet.create({
     padding: 20,
   },
   processingText: {
-    fontSize: 16,
     color: palette.text.primary,
+    fontSize: 16,
     marginTop: 12,
     textAlign: 'center',
   },
@@ -463,8 +459,8 @@ const styles = (palette) => StyleSheet.create({
     flex: 1,
   },
   cameraOverlay: {
-    flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
+    flex: 1,
   },
   cameraTop: {
     flexDirection: 'row',
@@ -474,9 +470,9 @@ const styles = (palette) => StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 20,
   },
   cancelText: {
     color: 'white',
@@ -484,48 +480,48 @@ const styles = (palette) => StyleSheet.create({
     fontWeight: 'bold',
   },
   faceGuideContainer: {
+    alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
   },
   faceGuide: {
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    borderWidth: 3,
-    borderColor: 'white',
-    justifyContent: 'center',
     alignItems: 'center',
+    borderColor: 'white',
+    borderRadius: 125,
     borderStyle: 'dashed',
+    borderWidth: 3,
+    height: 250,
+    justifyContent: 'center',
+    width: 250,
   },
   guideText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
-    textAlign: 'center',
     marginTop: 20,
+    textAlign: 'center',
   },
   cameraBottom: {
     alignItems: 'center',
     paddingBottom: 50,
   },
   captureButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'white',
-    justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 4,
+    backgroundColor: 'white',
     borderColor: palette.primary,
+    borderRadius: 40,
+    borderWidth: 4,
+    height: 80,
+    justifyContent: 'center',
+    width: 80,
   },
   captureButtonDisabled: {
     opacity: 0.6,
   },
   captureInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
     backgroundColor: palette.primary,
+    borderRadius: 30,
+    height: 60,
+    width: 60,
   },
 });

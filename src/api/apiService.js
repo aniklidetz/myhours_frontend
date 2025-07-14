@@ -36,6 +36,16 @@ const apiClientLight = axios.create({
   },
 });
 
+// Create biometric requests client with extended timeout for face recognition
+const apiClientBiometric = axios.create({
+  baseURL: API_URL,
+  timeout: APP_CONFIG.API_TIMEOUT_BIOMETRIC,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
+
 // Track recent errors to avoid spam
 const errorTracker = new Map();
 
@@ -218,6 +228,7 @@ const addAuthInterceptors = (client) => {
 addAuthInterceptors(apiClient);
 addAuthInterceptors(apiClientHeavy);
 addAuthInterceptors(apiClientLight);
+addAuthInterceptors(apiClientBiometric);
 
 // API Service methods
 const apiService = {
@@ -697,7 +708,7 @@ const apiService = {
           };
         }
         
-        const response = await apiClientLight.get(API_ENDPOINTS.BIOMETRICS.STATUS);
+        const response = await apiClientLight.get(API_ENDPOINTS.BIOMETRICS.WORK_STATUS);
         
         console.log('✅ Work status check successful:', {
           isCheckedIn: response.data.is_checked_in,
@@ -755,7 +766,7 @@ const apiService = {
           });
         }
         
-        const response = await apiClient.post(API_ENDPOINTS.BIOMETRICS.REGISTER, {
+        const response = await apiClientBiometric.post(API_ENDPOINTS.BIOMETRICS.REGISTER, {
           employee_id: employeeId,
           image: imageBase64,
         });
@@ -821,7 +832,7 @@ const apiService = {
         }
         
         const result = await retryRequest(async () => {
-          const response = await apiClient.post(API_ENDPOINTS.BIOMETRICS.CHECK_IN, {
+          const response = await apiClientBiometric.post(API_ENDPOINTS.BIOMETRICS.CHECK_IN, {
             image: imageBase64,
             location: location,
           }, {
@@ -881,7 +892,7 @@ const apiService = {
           });
         }
         
-        const response = await apiClient.post(API_ENDPOINTS.BIOMETRICS.CHECK_OUT, {
+        const response = await apiClientBiometric.post(API_ENDPOINTS.BIOMETRICS.CHECK_OUT, {
           image: imageBase64,
           location: location,
         });
@@ -906,6 +917,56 @@ const apiService = {
     getStats: async () => {
       const response = await apiClient.get(API_ENDPOINTS.BIOMETRICS.STATS);
       return response.data;
+    },
+
+    // Get current user's biometric status
+    getBiometricStatus: async () => {
+      try {
+        console.log('🔍 Checking current user biometric status...');
+        
+        // Mock mode for development
+        if (APP_CONFIG.ENABLE_MOCK_DATA) {
+          console.log('🔄 Using mock biometric status');
+          return {
+            has_biometric: false,
+            registration_date: null,
+            last_verification: null
+          };
+        }
+        
+        const response = await apiClientLight.get(API_ENDPOINTS.BIOMETRICS.STATUS);
+        
+        console.log('✅ Biometric status API response:', {
+          status: response.status,
+          data: response.data,
+          hasBiometric: response.data?.has_biometric,
+          registrationDate: response.data?.registration_date
+        });
+        
+        // Ensure we return proper boolean values
+        const normalizedData = {
+          has_biometric: Boolean(response.data?.has_biometric),
+          registration_date: response.data?.registration_date || null,
+          last_verification: response.data?.last_verification || null
+        };
+        
+        console.log('✅ Normalized biometric status:', normalizedData);
+        return normalizedData;
+      } catch (error) {
+        console.error('❌ Failed to get biometric status:', error);
+        console.error('❌ Error response:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          message: error.message
+        });
+        
+        // Return default status if API fails
+        return {
+          has_biometric: false,
+          registration_date: null,
+          last_verification: null
+        };
+      }
     },
   },
 

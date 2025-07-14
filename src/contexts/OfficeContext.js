@@ -159,7 +159,7 @@ const updateOfficeLocation = async (locationOrLat, maybeLon) => {
       const officeLon = typeof location.longitude === 'number' ? location.longitude : parseFloat(location.longitude);
       
       const d = distanceMeters(lat, lon, officeLat, officeLon);
-      console.log(`Distance from office: ${d.toFixed(2)}m, radius: ${radius}m, inside: ${d <= radius}`);
+      // console.log(`Distance from office: ${d.toFixed(2)}m, radius: ${radius}m, inside: ${d <= radius}`);
       return d <= radius;
     },
     [officeSettings]

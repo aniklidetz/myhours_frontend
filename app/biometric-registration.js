@@ -6,13 +6,16 @@ import {
   Alert, 
   ActivityIndicator, 
   TouchableOpacity,
-  SafeAreaView 
+  SafeAreaView,
+  UIAccessibility
 } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
 import { useLocalSearchParams, router } from 'expo-router';
 import ApiService from '../src/api/apiService';
-import { APP_CONFIG } from '../src/config';
+// import { APP_CONFIG } from '../src/config';
 import useColors from '../hooks/useColors';
+import { useToast } from '../components/Toast';
+import FaceCaptureOverlay from '../components/FaceCaptureOverlay';
 
 export default function BiometricRegistrationScreen() {
   const cameraRef = useRef(null);
@@ -21,19 +24,26 @@ export default function BiometricRegistrationScreen() {
   const [hasPermission, setHasPermission] = useState(null);
   const [error, setError] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [overlayActive, setOverlayActive] = useState(true); // Управление оверлеем
+  const [_buttonsVisible, setButtonsVisible] = useState(false); // Анимация кнопок
   const { palette } = useColors();
+  const { showSuccess, showError, ToastComponent } = useToast();
 
   const { employeeId, employeeName } = useLocalSearchParams();
 
   useEffect(() => {
     requestCameraPermission();
+    // Сбрасываем состояние оверлея при монтировании
+    setOverlayActive(true);
+    setButtonsVisible(false);
   }, []);
 
   const requestCameraPermission = async () => {
     try {
-      console.log('📷 Requesting camera permission...');
+      // console.log('📷 Requesting camera permission...');
       const { status } = await Camera.requestCameraPermissionsAsync();
-      console.log(`📷 Camera permission status: ${status}`);
+      // console.log(`📷 Camera permission status: ${status}`);
       setHasPermission(status === 'granted');
       
       if (status !== 'granted') {
@@ -41,12 +51,7 @@ export default function BiometricRegistrationScreen() {
         setError('Camera permission denied. Please enable it in settings.');
       }
     } catch (error) {
-      console.error('❌ Camera permission error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        code: error.code
-      });
+      console.error('❌ Camera permission error:', error.message);
       setHasPermission(false);
       setError(`Failed to request camera permission: ${error.message}`);
     }
@@ -54,6 +59,12 @@ export default function BiometricRegistrationScreen() {
 
   const startCountdown = () => {
     setCountdown(3);
+    
+    // Объявляем начало обратного отсчета для VoiceOver
+    if (UIAccessibility && UIAccessibility.post) {
+      UIAccessibility.post(UIAccessibility.Announcement, 'Starting countdown for biometric registration');
+    }
+    
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -61,6 +72,12 @@ export default function BiometricRegistrationScreen() {
           takePhoto();
           return null;
         }
+        
+        // Объявляем каждую секунду для VoiceOver
+        if (UIAccessibility && UIAccessibility.post) {
+          UIAccessibility.post(UIAccessibility.Announcement, `Registration photo in ${prev - 1} seconds`);
+        }
+        
         return prev - 1;
       });
     }, 1000);
@@ -95,9 +112,8 @@ export default function BiometricRegistrationScreen() {
 
     try {
       setLoading(true);
-      console.log('📸 Starting photo capture for biometric registration...');
-      console.log('Camera ref exists:', !!cameraRef.current);
-      console.log('Camera ready state:', cameraReady);
+      setIsCapturing(true);
+      console.log('📸 Starting photo capture for registration...');
       
       // Добавляем небольшую задержку перед съемкой
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -109,11 +125,7 @@ export default function BiometricRegistrationScreen() {
         // Убираем skipProcessing - может вызывать проблемы
       });
 
-      console.log('📸 Photo captured successfully:', {
-        hasBase64: !!photo?.base64,
-        base64Length: photo?.base64?.length || 0,
-        uri: photo?.uri ? 'present' : 'missing'
-      });
+      // console.log('📸 Photo captured successfully');
 
       if (!photo || !photo.base64) {
         throw new Error('Photo capture returned invalid data - base64 is missing');
@@ -121,13 +133,7 @@ export default function BiometricRegistrationScreen() {
 
       await registerFace(photo);
     } catch (error) {
-      console.error('❌ Error capturing photo:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        code: error.code,
-        name: error.name
-      });
+      console.error('❌ Error capturing photo:', error.message);
       
       let errorMessage = 'Failed to capture photo. ';
       
@@ -145,6 +151,7 @@ export default function BiometricRegistrationScreen() {
       Alert.alert('Camera Error', errorMessage);
     } finally {
       setLoading(false);
+      setIsCapturing(false);
     }
   };
 
@@ -165,46 +172,34 @@ export default function BiometricRegistrationScreen() {
     }
 
     try {
-      console.log('🔧 Starting face registration for employee:', {
-        employeeId,
-        employeeName,
-        imageDataLength: photo.base64.length
-      });
+      console.log('🔧 Starting face registration for:', employeeName || `Employee #${employeeId}`);
       
       const imageData = `data:image/jpeg;base64,${photo.base64}`;
       const result = await ApiService.biometrics.register(employeeId, imageData);
       
-      console.log('✅ Registration API response:', {
-        success: result.success,
-        hasError: !!result.error,
-        message: result.message
-      });
+      // console.log('✅ Registration successful');
       
       if (result.success) {
         const employeeDisplayName = employeeName || `Employee #${employeeId}`;
-        Alert.alert(
-          'Registration Successful',
+        
+        // Скрываем оверлей с fade-out анимацией после успешной регистрации
+        setOverlayActive(false);
+        
+        showSuccess(
           `Face registered successfully for ${employeeDisplayName}`,
-          [{ 
-            text: 'OK', 
-            onPress: () => {
-              console.log('✅ Registration complete, navigating back');
-              router.back(); // Просто возвращаемся назад вместо замены на /employees
-            }
-          }]
+          2000
         );
+        
+        // Навигация назад с задержкой
+        setTimeout(() => {
+          router.back();
+        }, 2000);
       } else {
         console.warn('⚠️ Registration failed with error:', result.error);
         handleRegistrationError(result.error);
       }
     } catch (error) {
-      console.error('❌ Registration API error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        stack: error.stack
-      });
+      console.error('❌ Registration API error:', error.response?.data?.message || error.message);
       
       let errorMessage = 'Failed to register face. ';
       
@@ -223,7 +218,7 @@ export default function BiometricRegistrationScreen() {
       }
       
       setError(errorMessage);
-      Alert.alert('Registration Error', errorMessage);
+      showError(errorMessage, 4000);
     }
   };
 
@@ -242,7 +237,7 @@ export default function BiometricRegistrationScreen() {
       errorMessage = `Image error: ${error.image.join(', ')}`;
     }
     
-    Alert.alert('Registration Failed', errorMessage);
+    showError(errorMessage, 4000);
   };
 
   const getButtonText = () => {
@@ -293,6 +288,19 @@ export default function BiometricRegistrationScreen() {
           setCameraReady(false);
         }}
       />
+      
+      {/* Face Capture Overlay - круглая маска */}
+      <FaceCaptureOverlay
+        isActive={hasPermission && cameraReady && !loading && overlayActive}
+        isCapturing={isCapturing}
+        onAnimationComplete={() => {
+          // console.log('🎭 Face capture overlay animation completed for registration');
+          // Показываем кнопки с задержкой 100ms после маски
+          setTimeout(() => {
+            setButtonsVisible(true);
+          }, 100);
+        }}
+      />
 
       <View style={styles(palette).overlay}>
         {/* Header info */}
@@ -314,18 +322,19 @@ export default function BiometricRegistrationScreen() {
           </View>
         )}
 
-        {/* Face guide */}
+        {/* Face guide - теперь только счётчик и инструкции */}
         <View style={styles(palette).faceGuide}>
-          <View style={[
-            styles(palette).faceFrame,
-            !!countdown && styles(palette).faceFrameActive
-          ]} />
+          {/* Счётчик обратного отсчёта */}
           {!!countdown && (
             <View style={styles(palette).countdownContainer}>
               <Text style={styles(palette).countdownText}>{countdown}</Text>
             </View>
           )}
-          <Text style={styles(palette).instructionText}>
+          <Text 
+            style={styles(palette).instructionText}
+            accessible={true}
+            accessibilityLabel={countdown ? `Taking registration photo in ${countdown} seconds` : 'Position your face within the frame for biometric registration'}
+          >
             Position your face within the frame for registration
           </Text>
         </View>
@@ -340,6 +349,13 @@ export default function BiometricRegistrationScreen() {
             ]}
             onPress={startCountdown}
             disabled={loading || !!countdown || isCapturing}
+            accessible={true}
+            accessibilityLabel={
+              loading ? 'Processing biometric registration' :
+              countdown ? `Taking registration photo in ${countdown} seconds` :
+              'Take photo for registration'
+            }
+            accessibilityRole="button"
           >
             {!!loading && (
               <ActivityIndicator 
@@ -373,14 +389,17 @@ export default function BiometricRegistrationScreen() {
           </View>
         </View>
       </View>
+      
+      {/* Toast уведомления */}
+      <ToastComponent />
     </View>
   );
 }
 
 const styles = (palette) => StyleSheet.create({
   container: { 
-    flex: 1, 
-    backgroundColor: palette.background.primary 
+    backgroundColor: palette.background.primary, 
+    flex: 1 
   },
   camera: { 
     flex: 1 
@@ -392,74 +411,80 @@ const styles = (palette) => StyleSheet.create({
     padding: 20,
   },
   centered: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: palette.background.primary,
+    flex: 1,
+    justifyContent: 'center',
     padding: 20,
   },
   
-  // Top info
+  // Top info - адаптивное позиционирование
   topInfo: {
     alignItems: 'center',
     marginTop: 50,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    maxHeight: 140, // Ограничиваем высоту для предотвращения перекрытия
+    paddingHorizontal: 20,
   },
   modeText: {
-    fontSize: 24,
+    fontSize: 20, // Уменьшили размер для экономии места
     fontWeight: 'bold',
     color: palette.text.light,
     textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginBottom: 10,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginBottom: 8,
   },
   userText: {
-    fontSize: 16,
+    fontSize: 14, // Уменьшили размер
     color: palette.text.light,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 15,
-    paddingVertical: 5,
-    borderRadius: 15,
-    marginBottom: 10,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   statusText: {
-    fontSize: 14,
+    fontSize: 12, // Уменьшили размер
     color: palette.text.light,
     textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    padding: 10,
-    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   
-  // Face guide
+  // Face guide - теперь только для счётчика и инструкций
   faceGuide: {
     alignItems: 'center',
-    justifyContent: 'center',
     flex: 1,
+    justifyContent: 'center',
+    paddingBottom: 220,
+    paddingTop: 160,
   },
+  // Старые стили для круга больше не нужны
   faceFrame: {
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    borderWidth: 3,
-    borderColor: palette.primary,
-    backgroundColor: 'transparent',
+    display: 'none',
   },
   faceFrameActive: {
-    borderColor: palette.success,
-    shadowColor: palette.success,
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
+    display: 'none',
   },
   countdownContainer: {
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
+    width: 180, // Соответствует размеру круга
+    height: 180, // Соответствует размеру круга
   },
   countdownText: {
-    fontSize: 48,
+    fontSize: 42, // Уменьшили чтобы помещался в круг
     fontWeight: 'bold',
     color: palette.success,
     textShadowColor: 'rgba(0,0,0,0.8)',
@@ -469,29 +494,47 @@ const styles = (palette) => StyleSheet.create({
   instructionText: {
     color: palette.text.light,
     textAlign: 'center',
-    marginTop: 20,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 8,
-    borderRadius: 8,
-    fontSize: 16,
+    marginTop: 20, // Уменьшили отступ
+    backgroundColor: 'rgba(0,0,0,0.9)', // Более темный фон
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    fontSize: 14, // Уменьшили размер
+    fontWeight: '600',
+    marginHorizontal: 30,
+    maxWidth: 280, // Уменьшили максимальную ширину
+    alignSelf: 'center',
   },
   
-  // Controls
+  // Controls - фиксированная панель действий
   bottomControls: {
-    marginBottom: 30,
-    gap: 15,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingBottom: 50, // Отступ от safe area
+    backgroundColor: 'rgba(0,0,0,0.85)', // Более темный фон
+    paddingTop: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    zIndex: 10,
+    maxHeight: 200, // Ограничиваем высоту панели
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 12,
     elevation: 3,
     shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
+    height: 48, // Фиксированная высота
+    minWidth: '100%',
   },
   registerButton: {
     backgroundColor: palette.primary,
@@ -501,39 +544,43 @@ const styles = (palette) => StyleSheet.create({
   },
   actionButtonText: {
     color: palette.text.light,
-    fontSize: 18,
+    fontSize: 16, // Уменьшили размер
     fontWeight: 'bold',
   },
   buttonLoader: {
     marginRight: 10,
   },
   cancelButton: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    padding: 12,
-    borderRadius: 8,
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 8,
+    height: 36,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10, // Фиксированная высота
   },
   cancelButtonText: {
     color: palette.text.light,
-    fontSize: 16,
+    fontSize: 14, // Уменьшили размер
     fontWeight: '600',
   },
   instructionsContainer: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 16,
+    backgroundColor: 'rgba(0,0,0,0.8)',
     borderRadius: 8,
     marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   instructionsTitle: {
-    fontSize: 16,
+    fontSize: 14, // Уменьшили размер
     fontWeight: 'bold',
     color: palette.text.light,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   instructionsText: {
-    fontSize: 14,
+    fontSize: 12, // Уменьшили размер
     color: palette.text.light,
-    lineHeight: 20,
+    lineHeight: 16,
   },
   
   // Error states
@@ -541,35 +588,39 @@ const styles = (palette) => StyleSheet.create({
     color: palette.danger,
     fontSize: 20,
     fontWeight: 'bold',
-    textAlign: 'center',
     marginBottom: 16,
+    textAlign: 'center',
   },
   retryButton: {
     backgroundColor: palette.primary,
-    padding: 12,
     borderRadius: 8,
     marginTop: 20,
+    padding: 12,
   },
   retryButtonText: {
     color: palette.text.light,
     fontWeight: 'bold',
   },
   
-  // Error display
+  // Error display - адаптивное позиционирование
   errorContainer: {
     position: 'absolute',
-    top: 120,
+    top: 150, // Ниже верхней информации
     left: 20,
     right: 20,
-    zIndex: 10,
+    zIndex: 15, // Выше других элементов
+    maxHeight: 80, // Ограничиваем высоту
   },
   errorBanner: {
-    backgroundColor: 'rgba(220, 53, 69, 0.9)',
+    backgroundColor: 'rgba(220, 53, 69, 0.95)',
+    borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
+    borderWidth: 1,
     color: palette.text.light,
-    padding: 12,
-    borderRadius: 8,
-    fontSize: 14,
-    textAlign: 'center',
+    fontSize: 13,
     fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    textAlign: 'center',
   },
 });

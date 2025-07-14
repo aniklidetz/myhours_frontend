@@ -2,19 +2,74 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { TouchableOpacity, Platform } from 'react-native';
+import { TouchableOpacity, Platform, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { UserProvider, useUser, ROLES } from '../src/contexts/UserContext';
 import { OfficeProvider } from '../src/contexts/OfficeContext';
 import { WorkStatusProvider } from '../src/contexts/WorkStatusContext';
 import useColors from '../hooks/useColors';
 
+function LogoutButton() {
+  const { logout } = useUser();
+  const { palette } = useColors();
+
+  const handleLogout = async () => {
+    console.log('🚪 Logout button clicked');
+    
+    // For web, use window.confirm instead of Alert.alert
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to logout?');
+      if (confirmed) {
+        try {
+          console.log('🚪 Starting logout process...');
+          await logout();
+          console.log('✅ Logout successful, redirecting...');
+          router.replace('/');
+        } catch (error) {
+          console.error('❌ Logout error:', error);
+          window.alert('Failed to logout: ' + error.message);
+        }
+      }
+    } else {
+      // Mobile version uses Alert.alert
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Logout', 
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                console.log('🚪 Starting logout process...');
+                await logout();
+                console.log('✅ Logout successful, redirecting...');
+                router.replace('/');
+              } catch (error) {
+                console.error('❌ Logout error:', error);
+                Alert.alert('Error', 'Failed to logout: ' + error.message);
+              }
+            }
+          }
+        ]
+      );
+    }
+  };
+
+  return (
+    <TouchableOpacity onPress={handleLogout} style={{ marginRight: 15 }}>
+      <Ionicons name="log-out" size={24} color={palette.text.primary} />
+    </TouchableOpacity>
+  );
+}
+
 function TabsNavigator() {
   const { user, hasAccess } = useUser();
   const { palette } = useColors();
 
   const isEmployee = user?.role === ROLES.EMPLOYEE;
-  const canManagePayroll = hasAccess(ROLES.ACCOUNTANT);
+  const _canManagePayroll = hasAccess(ROLES.ACCOUNTANT);
   const canAdministrate = hasAccess(ROLES.ADMIN);
 
   return (
@@ -28,6 +83,7 @@ function TabsNavigator() {
         },
         headerTintColor: palette.text.primary,
         headerBackVisible: true,
+        headerRight: user ? () => <LogoutButton /> : undefined,
         tabBarStyle: user ? {
           backgroundColor: palette.background.primary,
           borderTopColor: palette.border,
@@ -78,8 +134,8 @@ function TabsNavigator() {
       <Tabs.Screen
         name="worktime"
         options={{
-          title: isEmployee ? 'My Work Time' : 'Work Time',
-          tabBarLabel: 'Time',
+          title: isEmployee ? 'My Work Hours' : 'Work Time',
+          tabBarLabel: isEmployee ? 'Hours' : 'Time',
           tabBarIcon: ({ color }) => (
             <Ionicons name="time" size={24} color={color} />
           ),
@@ -87,16 +143,16 @@ function TabsNavigator() {
         }}
       />
 
-      {/* Payroll - only for accountants and admins */}
+      {/* Payroll - available for all authenticated users (employees see own data, managers see all) */}
       <Tabs.Screen
         name="payroll"
         options={{
-          title: 'Payroll',
-          tabBarLabel: 'Payroll',
+          title: isEmployee ? 'My Salary' : 'Payroll',
+          tabBarLabel: isEmployee ? 'Salary' : 'Payroll',
           tabBarIcon: ({ color }) => (
             <Ionicons name="cash" size={24} color={color} />
           ),
-          tabBarButton: (!user || !canManagePayroll) ? () => null : undefined,
+          tabBarButton: !user ? () => null : undefined,
         }}
       />
 

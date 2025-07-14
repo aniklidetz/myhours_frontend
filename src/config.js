@@ -57,6 +57,7 @@ export const API_ENDPOINTS = {
     CHECK_IN: '/api/v1/biometrics/check-in/',
     CHECK_OUT: '/api/v1/biometrics/check-out/',
     STATUS: '/api/v1/biometrics/status/',
+    WORK_STATUS: '/api/v1/biometrics/work-status/',
     STATS: '/api/v1/biometrics/management/stats/',
   },
   
@@ -72,7 +73,7 @@ export const API_ENDPOINTS = {
     SALARIES: '/api/v1/payroll/salaries/',
     CALCULATE: (id) => `/api/v1/payroll/salaries/${id}/calculate/`,
     EARNINGS: '/api/v1/payroll/earnings/',
-    EARNINGS_ENHANCED: '/api/v1/payroll/earnings/enhanced/',
+    EARNINGS_ENHANCED: '/api/v1/payroll/earnings/',
     EARNINGS_DEMO: '/api/v1/payroll/earnings/demo/',
     COMPENSATORY_DAYS: '/api/v1/payroll/compensatory-days/',
   },
@@ -125,6 +126,7 @@ export const APP_CONFIG = {
   API_TIMEOUT: 10000, // 10 seconds - default for simple requests
   API_TIMEOUT_HEAVY: 30000, // 30 seconds - for heavy requests like employees/worklogs
   API_TIMEOUT_LIGHT: 5000, // 5 seconds - for status checks
+  API_TIMEOUT_BIOMETRIC: 45000, // 45 seconds - for biometric operations (face recognition)
   RETRY_ATTEMPTS: 3,
   
   // Development flags

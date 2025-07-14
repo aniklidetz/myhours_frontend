@@ -160,6 +160,7 @@ export const WorkStatusProvider = ({ children }) => {
   // Check in handler
   const handleCheckInSuccess = useCallback(async (checkInData) => {
     console.log('✅ Check-in successful, updating global status:', checkInData);
+    console.log('📊 Current user state:', { userId: user?.id, userName: user?.name });
     
     setWorkStatus('on-shift');
     setShiftStartTime(checkInData.check_in_time);
@@ -182,17 +183,23 @@ export const WorkStatusProvider = ({ children }) => {
         `${WORK_STATUS_KEY}_${user.id}`,
         JSON.stringify(statusData)
       );
+      console.log('💾 Work status saved to AsyncStorage');
+    } else {
+      console.warn('⚠️ No user found for AsyncStorage save');
     }
     
     // Clear employees cache to refresh hours data
     try {
+      console.log('🗑️ Clearing employees cache after check-in...');
       const ApiService = require('../api/apiService').default;
       await ApiService.employees.clearCache();
+      console.log('✅ Employees cache cleared successfully');
     } catch (error) {
-      console.warn('Cache clear failed:', error);
+      console.warn('❌ Cache clear failed:', error);
     }
     
     setLastUpdate(Date.now());
+    console.log('🔄 Check-in success handler completed');
   }, [user]);
 
   // Check out handler

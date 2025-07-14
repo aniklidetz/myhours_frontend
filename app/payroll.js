@@ -105,7 +105,15 @@ export default function PayrollScreen() {
                 return params;
             };
 
+            console.log('🔍 Payroll fetch conditions:', {
+                selectedEmployee: !!selectedEmployee,
+                canViewAllEmployees,
+                userRole: user?.role,
+                userId: user?.id
+            });
+
             if (selectedEmployee) {
+                console.log('📊 Branch: Specific employee selected');
                 // Specific employee selected - use enhanced API
                 const apiParams = getApiParams(selectedEmployee.id);
                 const salaryParams = { employee: selectedEmployee.id };
@@ -119,6 +127,7 @@ export default function PayrollScreen() {
                 salariesData = salaries.results || salaries || [];
                 
             } else if (canViewAllEmployees) {
+                console.log('📊 Branch: Admin viewing all employees');
                 // "All Employees" mode - fetch data for each employee with enhanced API
                 if (isDebugMode) {
                     safeLog('🌍 Fetching enhanced data for all employees');
@@ -179,9 +188,12 @@ export default function PayrollScreen() {
                 earningsData = successfulEarnings;
                 
             } else {
-                // Regular employee viewing their own data - use enhanced API
-                const apiParams = getApiParams(user.id);
-                const salaryParams = { employee: user.id };
+                console.log('📊 Branch: Regular employee viewing own data', { userId: user?.id });
+                // Regular employee viewing their own data - let backend determine user from token
+                const apiParams = getApiParams(); // Don't pass employee_id, let backend use token
+                const salaryParams = {}; // Don't specify employee, let backend use current user
+                
+                console.log('📊 Employee API params (no employee_id for security):', { apiParams, salaryParams });
                 
                 const [earnings, salaries] = await Promise.all([
                     ApiService.payroll.getEarnings(apiParams),
@@ -190,6 +202,11 @@ export default function PayrollScreen() {
                 
                 earningsData = earnings;
                 salariesData = salaries.results || salaries || [];
+                
+                console.log('📊 Employee data received:', {
+                    earningsCount: Array.isArray(earningsData) ? earningsData.length : 'not array',
+                    salariesCount: salariesData.length
+                });
             }
             
             if (isDebugMode) {
@@ -566,8 +583,8 @@ export default function PayrollScreen() {
                     console.log('🌍 Fetching enhanced earnings for all employees');
                     data = await ApiService.payroll.getEarnings(getApiParams());
                 } else {
-                    // Regular employee viewing their own data - use enhanced API
-                    data = await ApiService.payroll.getEarnings(getApiParams(user.id));
+                    // Regular employee viewing their own data - use enhanced API without employee_id
+                    data = await ApiService.payroll.getEarnings(getApiParams());
                 }
                 
                 if (data) {

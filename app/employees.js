@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
-  ScrollView
+  ScrollView,
+  Platform
 } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,6 +31,7 @@ export default function EmployeesScreen() {
   const [biometricSessionValid, setBiometricSessionValid] = useState(false);
   const [lastAuthCheck, setLastAuthCheck] = useState(0);
   const [todayHours, setTodayHours] = useState('0h 0m');
+  const [userBiometricStatus, setUserBiometricStatus] = useState(null);
   
   const { user, hasAccess, logout, loading: userLoading } = useUser();
   const { palette } = useColors();
@@ -56,7 +58,7 @@ export default function EmployeesScreen() {
       
       const workLogs = await ApiService.worktime.getLogs({
         date: today,
-        employee: user.id,
+        // Don't pass employee param - let backend determine from token
         page_size: 50  // Ограничиваем количество записей
       });
 
@@ -68,10 +70,12 @@ export default function EmployeesScreen() {
         const todayLogs = workLogs.results.filter(log => {
           if (!log.check_in) return false;
           
-          const logDate = new Date(log.check_in).toISOString().split('T')[0];
+          const checkInDate = new Date(log.check_in).toISOString().split('T')[0];
+          const checkOutDate = log.check_out ? new Date(log.check_out).toISOString().split('T')[0] : null;
           const todayDate = new Date().toISOString().split('T')[0];
           
-          return logDate === todayDate;
+          // Include shifts that started today OR ended today (for night shifts)
+          return checkInDate === todayDate || checkOutDate === todayDate;
         });
 
         console.log(`📊 Filtered logs for current user: ${todayLogs.length}/${workLogs.results.length}`);
@@ -80,19 +84,13 @@ export default function EmployeesScreen() {
           const hoursWorked = log.total_hours || log.hours_worked;
           console.log(`📊 Processing log: hours=${hoursWorked}, check_in=${log.check_in}, check_out=${log.check_out}`);
           
-          if (hoursWorked && hoursWorked > 0) {
-            const minutesToAdd = Math.round(hoursWorked * 60);
-            console.log(`➕ Adding ${minutesToAdd} minutes (${hoursWorked}h)`);
-            totalMinutes += minutesToAdd;
-          }
-          
-          // Add current session time if checked in but not out
+          // Only count completed work logs (exclude active sessions)
           if (log.check_in && !log.check_out) {
-            const now = new Date();
-            const checkInTime = new Date(log.check_in);
-            const currentSessionMinutes = Math.max(0, Math.floor((now - checkInTime) / (1000 * 60)));
-            console.log(`⏱️ Adding current session: ${currentSessionMinutes} minutes`);
-            totalMinutes += currentSessionMinutes;
+            console.log(`🔄 Found active session: check_in=${log.check_in}, excluding from today's hours`);
+          } else if (hoursWorked && hoursWorked > 0) {
+            const minutesToAdd = Math.round(hoursWorked * 60);
+            console.log(`➕ Adding ${minutesToAdd} minutes (${hoursWorked}h) - completed work`);
+            totalMinutes += minutesToAdd;
           }
         });
       }
@@ -110,6 +108,7 @@ export default function EmployeesScreen() {
     }
   }, [user]);
 
+
   useEffect(() => {
     console.log('🔄 EmployeesScreen useEffect triggered:', {
       hasUser: !!user,
@@ -121,6 +120,7 @@ export default function EmployeesScreen() {
     
     if (user && user.id) {
       loadEnhancedAuthStatus();
+      loadUserBiometricStatus();
       calculateTodayHours();
       if (canManageEmployees) {
         fetchEmployees();
@@ -185,11 +185,16 @@ export default function EmployeesScreen() {
       if (user && user.id) {
         console.log('📱 Dashboard focused, refreshing data...');
         loadEnhancedAuthStatus();
+        loadUserBiometricStatus();
         loadWorkStatus();
         calculateTodayHours();
         // Refresh employee hours after check-in/out
         if (canManageEmployees) {
-          fetchEmployees();
+          // Force refresh employees data, especially after biometric registration
+          console.log('🔄 Force refreshing employee data...');
+          setTimeout(() => {
+            fetchEmployees();
+          }, 300); // Small delay to ensure backend is updated
         }
       }
     }, [user, loadWorkStatus, canManageEmployees, calculateTodayHours])
@@ -233,6 +238,44 @@ export default function EmployeesScreen() {
     }
   }, [lastAuthCheck]);
 
+  // Load user's biometric status
+  const loadUserBiometricStatus = useCallback(async () => {
+    try {
+      console.log('🔍 Loading user biometric status...');
+      const status = await ApiService.biometrics.getBiometricStatus();
+      
+      console.log('🔐 User biometric status detailed:', {
+        hasBiometric: status.has_biometric,
+        registrationDate: status.registration_date,
+        lastVerification: status.last_verification,
+        fullResponse: status
+      });
+      
+      // Ensure we have proper boolean values
+      const normalizedStatus = {
+        has_biometric: Boolean(status.has_biometric),
+        registration_date: status.registration_date,
+        last_verification: status.last_verification
+      };
+      
+      console.log('🔐 Normalized biometric status:', normalizedStatus);
+      setUserBiometricStatus(normalizedStatus);
+    } catch (error) {
+      console.error('❌ Error loading user biometric status:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      // Set default status if API fails
+      setUserBiometricStatus({
+        has_biometric: false,
+        registration_date: null,
+        last_verification: null
+      });
+    }
+  }, []);
 
   const fetchEmployees = async () => {
     try {
@@ -292,32 +335,32 @@ export default function EmployeesScreen() {
 
                 console.log(`📊 Filtered logs for ${emp.first_name || 'Unknown'}: ${todayLogs.length}/${workLogs.results.length} (excluded future dates)`);
 
-                todayLogs.forEach(log => {
-                  // API возвращает total_hours, а не hours_worked
-                  const hoursWorked = log.total_hours || log.hours_worked;
-                  console.log(`📊 Processing log for ${emp.first_name || 'Unknown'}: hours=${hoursWorked}, check_in=${log.check_in}, check_out=${log.check_out}`);
-                  
-                  if (hoursWorked && hoursWorked > 0) {
-                    // Convert hours to minutes and add to total
-                    const minutesToAdd = Math.round(hoursWorked * 60);
-                    console.log(`➕ Adding ${minutesToAdd} minutes (${hoursWorked}h) for ${emp.first_name}`);
-                    totalMinutes += minutesToAdd;
-                  }
+                let activeSessionCount = 0;
+                let completedSessionCount = 0;
+
+                todayLogs.forEach((log, index) => {
+                  console.log(`🔍 Log ${index + 1}: check_in=${log.check_in}, check_out=${log.check_out}, total_hours=${log.total_hours}`);
                   
                   // Check if there's an active session (checked in but not out)
-                  // API возвращает check_in и check_out, а не check_in_time и check_out_time
                   if (log.check_in && !log.check_out) {
+                    activeSessionCount++;
                     hasActiveSession = true;
                     status = 'on-shift';
                     
-                    // Calculate current session duration
-                    const checkInTime = new Date(log.check_in);
-                    const now = new Date();
-                    const sessionMinutes = Math.floor((now - checkInTime) / (1000 * 60));
+                    // For active sessions, don't count the ongoing time in "today's hours"
+                    // Today's hours should only include completed work
+                    console.log(`🔄 Found active session #${activeSessionCount} for ${emp.first_name || 'Unknown'}: check_in=${log.check_in}`);
+                  } else {
+                    completedSessionCount++;
+                    // Only count completed work logs (with check_out)
+                    const hoursWorked = log.total_hours || log.hours_worked;
+                    console.log(`📊 Processing completed log #${completedSessionCount} for ${emp.first_name || 'Unknown'}: hours=${hoursWorked}, check_in=${log.check_in}, check_out=${log.check_out}`);
                     
-                    // Only add session time if it's reasonable (not negative or too large)
-                    if (sessionMinutes >= 0 && sessionMinutes < 24 * 60) {
-                      totalMinutes += sessionMinutes;
+                    if (hoursWorked && hoursWorked > 0) {
+                      // Convert hours to minutes and add to total
+                      const minutesToAdd = Math.round(hoursWorked * 60);
+                      console.log(`➕ Adding ${minutesToAdd} minutes (${hoursWorked}h) for ${emp.first_name}`);
+                      totalMinutes += minutesToAdd;
                     }
                   }
                 });
@@ -328,6 +371,7 @@ export default function EmployeesScreen() {
                 todayHours = `${hours}h ${minutes}m`;
                 
                 console.log(`💼 ${emp.first_name || 'Unknown'} ${emp.last_name || ''}: ${todayHours}, status: ${status}`);
+                console.log(`📈 Summary: ${activeSessionCount} active sessions, ${completedSessionCount} completed sessions, total minutes: ${totalMinutes}`);
               }
 
               return {
@@ -388,6 +432,23 @@ export default function EmployeesScreen() {
     });
   };
 
+  // Handle self-service biometric registration
+  const handleSelfBiometricRegistration = () => {
+    if (!user || !user.id) {
+      Alert.alert('Error', 'User information not available');
+      return;
+    }
+
+    router.push({
+      pathname: '/biometric-registration',
+      params: {
+        employeeId: user.id,
+        employeeName: `${user.first_name || 'Unknown'} ${user.last_name || 'User'}`,
+        selfService: 'true' // Flag to indicate self-service registration
+      }
+    });
+  };
+
   const handleSendInvitation = async (employee) => {
     Alert.alert(
       'Send Invitation',
@@ -416,28 +477,6 @@ export default function EmployeesScreen() {
     );
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await logout();
-              router.replace('/');
-            } catch (error) {
-              console.error('Logout error:', error);
-              Alert.alert('Error', 'Failed to logout');
-            }
-          }
-        }
-      ]
-    );
-  };
 
   const isInOffice = location && officeSettings.location.latitude && 
     isUserInRadius(officeSettings.location, officeSettings.checkRadius);
@@ -597,12 +636,6 @@ export default function EmployeesScreen() {
           )}
         </View>
         
-        <TouchableOpacity 
-          style={styles(palette).logoutButton}
-          onPress={handleLogout}
-        >
-          <Text style={styles(palette).logoutText}>Logout</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Content */}
@@ -686,7 +719,7 @@ export default function EmployeesScreen() {
               >
                 <Ionicons name="time" size={24} color={palette.primary} />
                 <Text style={styles(palette).quickAccessTitle}>Work Hours</Text>
-                <Text style={styles(palette).quickAccessSubtext}>View time tracking</Text>
+                <Text style={styles(palette).quickAccessSubtext}>View my work logs</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
@@ -694,9 +727,44 @@ export default function EmployeesScreen() {
                 onPress={() => router.push('/payroll')}
               >
                 <Ionicons name="cash" size={24} color={palette.success} />
-                <Text style={styles(palette).quickAccessTitle}>Salary</Text>
-                <Text style={styles(palette).quickAccessSubtext}>View earnings</Text>
+                <Text style={styles(palette).quickAccessTitle}>My Salary</Text>
+                <Text style={styles(palette).quickAccessSubtext}>View my payroll</Text>
               </TouchableOpacity>
+              
+              {/* Biometric Registration/Update Cards */}
+              {userBiometricStatus && (
+                <>
+                  {console.log('🎨 Rendering biometric card. Status:', {
+                    hasBiometric: userBiometricStatus.has_biometric,
+                    statusType: typeof userBiometricStatus.has_biometric,
+                    registrationDate: userBiometricStatus.registration_date
+                  })}
+                  
+                  {!userBiometricStatus.has_biometric ? (
+                    // Show registration card if no biometric data
+                    <TouchableOpacity 
+                      style={[styles(palette).quickAccessCard, styles(palette).biometricCard]}
+                      onPress={handleSelfBiometricRegistration}
+                    >
+                      <Ionicons name="finger-print" size={24} color={palette.warning} />
+                      <Text style={styles(palette).quickAccessTitle}>Register Face ID</Text>
+                      <Text style={styles(palette).quickAccessSubtext}>Complete your profile</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    // Show completion status if biometric data exists
+                    <View style={[styles(palette).quickAccessCard, styles(palette).biometricCompleteCard]}>
+                      <Ionicons name="checkmark-circle" size={24} color={palette.success} />
+                      <Text style={styles(palette).quickAccessTitle}>Face ID Complete</Text>
+                      <Text style={styles(palette).quickAccessSubtext}>
+                        Registered {userBiometricStatus.registration_date ? 
+                          new Date(userBiometricStatus.registration_date).toLocaleDateString() : 
+                          'successfully'}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+              
             </View>
           </View>
 
@@ -913,12 +981,14 @@ const styles = (palette) => StyleSheet.create({
   },
   quickAccessGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
   quickAccessCard: {
-    flex: 1,
+    minWidth: '48%',
+    maxWidth: '48%',
     backgroundColor: palette.background.primary,
-    padding: 20,
+    padding: 16,
     borderRadius: 12,
     alignItems: 'center',
     elevation: 2,
@@ -937,6 +1007,24 @@ const styles = (palette) => StyleSheet.create({
     fontSize: 12,
     color: palette.text.secondary,
     marginTop: 4,
+  },
+  biometricCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: palette.warning,
+  },
+  biometricUpdateCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: palette.success,
+  },
+  biometricCompleteCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: palette.success,
+    backgroundColor: palette.background.secondary,
+    opacity: 0.8,
+  },
+  logoutCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: palette.error,
   },
   managementSection: {
     paddingHorizontal: 16,
