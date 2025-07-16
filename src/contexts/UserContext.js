@@ -3,7 +3,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../api/apiService';
 import { APP_CONFIG } from '../config';
-import { safeLog, safeLogUser } from '../utils/safeLogging';
+import { safeLog, safeLogUser, maskEmail } from '../utils/safeLogging';
 
 // Define user roles
 export const ROLES = {
@@ -28,15 +28,22 @@ export const UserProvider = ({ children }) => {
     checkConnection();
   }, []);
 
+  // Handle user state changes (including logout)
+  useEffect(() => {
+    if (!user && !loading) {
+      console.log('🔍 User is null and not loading - user logged out');
+      setIsLoggingOut(false); // Reset logout flag when user is cleared
+    }
+  }, [user, loading]);
+
   // Check API connection
   const checkConnection = async () => {
     try {
-      console.log('🔍 Checking API connection...');
       await apiService.testConnection();
       setIsOnline(true);
       console.log('✅ API is online');
     } catch (error) {
-      console.error('❌ API is offline:', error.message);
+      console.warn('⚠️ API is offline, using cached data');
       setIsOnline(false);
     }
   };
@@ -44,28 +51,33 @@ export const UserProvider = ({ children }) => {
   // Load user data from AsyncStorage
   const loadUserData = async () => {
     try {
-      console.log('🔍 Loading user data from storage...');
       const storedUser = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.USER_DATA);
       const storedToken = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
       
       if (storedUser && storedToken) {
         const userData = JSON.parse(storedUser);
         
-        // Debug authentication state
-        console.log('🔐 Checking authentication state...');
-        const authDebug = await apiService.auth.debugAuthState();
-        
-        // Check if token might be expired
-        if (authDebug.enhancedAuth?.isExpired) {
-          console.warn('⚠️ Token is expired, clearing authentication');
-          await logout();
-          return;
+        // Only check auth state if online
+        if (isOnline) {
+          try {
+            console.log('🔍 Checking auth state...');
+            // Temporarily disable auth debug check to see if it's blocking
+            // const authDebug = await apiService.auth.debugAuthState();
+            // console.log('🔍 Auth debug response:', authDebug);
+            
+            // Check if token might be expired
+            // if (authDebug.enhancedAuth?.isExpired) {
+            //   console.warn('⚠️ Token is expired, clearing authentication');
+            //   await logout();
+            //   return;
+            // }
+          } catch (error) {
+            console.warn('⚠️ Auth check failed, using cached user data:', error.message);
+          }
         }
         
         setUser(userData);
-        safeLog('✅ User data loaded:', safeLogUser(userData, 'storage_load'));
-        console.log('🔍 User role from storage:', userData.role);
-        console.log('🔐 Auth state:', authDebug);
+        console.log('✅ User data loaded from storage');
       } else {
         console.log('❌ No user data found in storage');
       }
@@ -118,16 +130,15 @@ export const UserProvider = ({ children }) => {
       console.log('🔍 API LOGIN RESPONSE:', {
         success: response.success,
         hasUser: !!response.user,
-        hasToken: !!response.token,
-        user: response.user
+        hasToken: !!response.token
       });
       
       if (response.success && response.user && response.token) {
         setUser(response.user);
-        console.log('✅ Login successful:', response.user.email);
+        console.log('✅ Login successful:', maskEmail(response.user.email));
         console.log('🔍 User role from API response:', response.user.role);
         console.log('🔍 User is_superuser from API response:', response.user.is_superuser);
-        console.log('🔍 Full user object:', response.user);
+        console.log('🔍 User login data:', safeLogUser(response.user, 'login'));
         return true;
       } else {
         throw new Error('Invalid response from server');
@@ -138,33 +149,52 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  // Logout function
+  // Logout function with protection against multiple calls
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const logout = async () => {
+    if (isLoggingOut) {
+      console.log('🚪 Logout already in progress, skipping...');
+      return;
+    }
+    
+    setIsLoggingOut(true);
+    
     try {
       console.log('🚪 Logging out...');
       
-      // Call logout API FIRST (while we still have the token)
-      if (isOnline && !APP_CONFIG.ENABLE_MOCK_DATA) {
+      // Always try to call logout API first (while we still have the token)
+      if (!APP_CONFIG.ENABLE_MOCK_DATA) {
         try {
           await apiService.auth.logout();
           console.log('✅ API logout successful');
         } catch (logoutError) {
           console.warn('⚠️ API logout failed, continuing with local cleanup:', logoutError.message);
         }
-      } else if (APP_CONFIG.ENABLE_MOCK_DATA) {
+      } else {
         console.log('🔄 Mock logout - skipping API call');
       }
       
-      // THEN clear local state
+      // ALWAYS clear local state regardless of API status
+      console.log('🔄 Clearing user state and storage');
       setUser(null);
       
-      // Note: Storage cleanup is handled by apiService.auth.logout() above
+      // Force storage cleanup regardless of API response
+      await AsyncStorage.multiRemove([
+        APP_CONFIG.STORAGE_KEYS.USER_DATA,
+        APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
+        APP_CONFIG.STORAGE_KEYS.WORK_STATUS,
+        APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA,
+        APP_CONFIG.STORAGE_KEYS.BIOMETRIC_SESSION,
+        APP_CONFIG.STORAGE_KEYS.DEVICE_ID
+      ]);
+      console.log('🧹 Local storage cleared');
       
       console.log('✅ Logout successful');
     } catch (error) {
       console.error('❌ Logout error:', error);
       
-      // Fallback: ensure state and storage are cleared even if API fails
+      // Fallback: ensure state and storage are cleared even if everything fails
+      console.log('🔄 Setting user to null in logout error handler');
       setUser(null);
       try {
         await AsyncStorage.multiRemove([
@@ -179,40 +209,33 @@ export const UserProvider = ({ children }) => {
       } catch (storageError) {
         console.error('❌ Storage cleanup failed:', storageError);
       }
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
   // Check if user has access to specific role
   const hasAccess = (role) => {
     if (!user) {
-      console.log('🔒 hasAccess: No user found');
       return false;
     }
     
-    console.log(`🔒 hasAccess check: user.role='${user.role}', required='${role}', is_superuser=${user.is_superuser}`);
-    
     // Superuser has access to everything
     if (user.is_superuser) {
-      console.log('✅ hasAccess: Superuser access granted');
       return true;
     }
     
     // Admin has access to everything
     if (user.role === ROLES.ADMIN) {
-      console.log('✅ hasAccess: Admin access granted');
       return true;
     }
     
     // Check specific role access
     if (role === ROLES.ACCOUNTANT) {
-      const hasAccess = user.role === ROLES.ACCOUNTANT || user.role === ROLES.ADMIN;
-      console.log(`✅ hasAccess: Accountant check result=${hasAccess}`);
-      return hasAccess;
+      return user.role === ROLES.ACCOUNTANT || user.role === ROLES.ADMIN;
     }
     
-    const hasAccess = user.role === role;
-    console.log(`✅ hasAccess: Direct role check result=${hasAccess}`);
-    return hasAccess;
+    return user.role === role;
   };
 
   // Check if user has specific role

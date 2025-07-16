@@ -1,34 +1,62 @@
 // src/config.js
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // Determine API URL based on platform and environment
 const getApiUrl = () => {
-  // Check for environment variable first
+  // Try multiple sources for API URL
+  const expoConstantsUrl = Constants.expoConfig?.extra?.apiUrl;
   const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (envApiUrl) {
-    return envApiUrl;
+  
+  console.log('🔍 Environment variable EXPO_PUBLIC_API_URL:', envApiUrl);
+  console.log('🔍 Expo Constants API URL:', expoConstantsUrl);
+  
+  // Prefer environment variable, then expo constants
+  const apiUrl = envApiUrl || expoConstantsUrl;
+  
+  if (apiUrl) {
+    console.log('🌐 Using API URL from environment/constants:', apiUrl);
+    return apiUrl;
   }
+  
+  console.log('⚠️ No environment variable found, using platform defaults');
   
   if (__DEV__) {
     // In development mode
     if (Platform.OS === 'android') {
       // For Android emulator use 10.0.2.2, for physical device use your local IP
-      return 'http://10.0.2.2:8000';
+      // Physical device needs actual IP address
+      const androidUrl = 'http://192.168.1.164:8000';
+      console.log('🤖 Android development API URL:', androidUrl);
+      return androidUrl;
     } else if (Platform.OS === 'web') {
       // For web development
       return 'http://localhost:8000';
     } else {
-      // For iOS simulator and physical devices
-      // Use local IP address for physical device testing
-      return 'http://192.168.1.164:8000';
+      // For iOS simulator - use IP address for better compatibility
+      // iOS simulator sometimes has issues with localhost
+      const iosUrl = 'http://192.168.1.164:8000';
+      console.log('🍎 iOS development API URL:', iosUrl);
+      return iosUrl;
     }
   } else {
     // In production use environment variable
-    return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
+    const prodUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
+    console.log('🚀 Production API URL:', prodUrl);
+    return prodUrl;
   }
 };
 
 export const API_URL = getApiUrl();
+
+// Debug information
+console.log('🔧 CONFIG DEBUG:', {
+  platform: Platform.OS,
+  isDev: __DEV__,
+  envVar: process.env.EXPO_PUBLIC_API_URL,
+  expoConstants: Constants.expoConfig?.extra?.apiUrl,
+  finalUrl: API_URL
+});
 
 
 export const API_ENDPOINTS = {
@@ -95,6 +123,14 @@ export const APP_CONFIG = {
   // Location settings
   LOCATION_TIMEOUT: 10000, // 10 seconds
   HIGH_ACCURACY_LOCATION: true,
+  
+  // Emulator-specific settings
+  IS_EMULATOR: __DEV__ && (Platform.OS === 'ios' ? false : true), // Android emulator detection
+  EMULATOR_LOCATION: {
+    latitude: 37.7749,
+    longitude: -122.4194,
+    accuracy: 5
+  },
   
   // Storage keys
   STORAGE_KEYS: {

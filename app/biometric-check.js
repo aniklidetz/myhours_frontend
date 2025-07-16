@@ -20,6 +20,7 @@ import { API_URL } from '../src/config';
 import { useWorkStatus } from '../src/contexts/WorkStatusContext';
 import { useToast } from '../components/Toast';
 import FaceCaptureOverlay from '../components/FaceCaptureOverlay';
+import { maskName } from '../src/utils/safeLogging';
 
 export default function BiometricCheckScreen() {
   // Get `mode` safely: string | undefined | string[]  →  string | undefined
@@ -257,7 +258,7 @@ export default function BiometricCheckScreen() {
         ? ApiService.biometrics.checkIn(imageData, locationString)
         : ApiService.biometrics.checkOut(imageData, locationString));
 
-      console.log(`✅ ${isCheckIn ? 'Check-in' : 'Check-out'} successful for ${result?.employee_name}`);
+      console.log(`✅ ${isCheckIn ? 'Check-in' : 'Check-out'} successful for ${result?.employee_name ? maskName(result.employee_name) : 'employee'}`);
 
       // Call the appropriate success handler from WorkStatusContext
       if (isCheckIn) {
@@ -271,18 +272,21 @@ export default function BiometricCheckScreen() {
       // Скрываем оверлей с fade-out анимацией после успешного распознавания
       setOverlayActive(false);
       
-      // Show success toast вместо alert
-      showSuccess(
+      // Show success alert
+      Alert.alert(
+        'Success!',
         isCheckIn 
           ? `Welcome, ${result.employee_name}! You are now checked in.`
-          : `Goodbye, ${result.employee_name}! Hours worked: ${result.hours_worked || 0}`,
-        2000
+          : `Goodbye, ${result.employee_name}! Hours worked: ${result.hours_worked || 0}h`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              router.replace('/employees');
+            }
+          }
+        ]
       );
-      
-      // Небольшая задержка перед навигацией
-      setTimeout(() => {
-        router.replace('/employees');
-      }, 2000);
       
       setSuccessState(true);
     } catch (error) {
@@ -731,21 +735,15 @@ export default function BiometricCheckScreen() {
           </View>
         )}
 
-        {/* Face guide - теперь только счётчик и инструкции */}
+        {/* Face guide - только инструкции без дублирования таймера */}
         {!successState && (
           <View style={styles(palette).faceGuide}>
-            {/* Счётчик обратного отсчёта */}
-            {!!countdown && (
-              <View style={styles(palette).countdownContainer}>
-                <Text style={styles(palette).countdownText}>{countdown}</Text>
-              </View>
-            )}
             <Text 
               style={styles(palette).instructionText}
               accessible={true}
               accessibilityLabel={countdown ? `Taking photo in ${countdown} seconds` : 'Position your face within the frame for biometric recognition'}
             >
-              {countdown ? `Taking photo in ${countdown}...` : 'Position your face within the frame'}
+              Position your face within the frame
             </Text>
           </View>
         )}
@@ -892,8 +890,8 @@ const styles = (palette) => StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    paddingBottom: 180,
-    paddingTop: 170,
+    paddingBottom: 150,
+    paddingTop: 220,
   },
   // Старые стили для круга больше не нужны
   faceFrame: {

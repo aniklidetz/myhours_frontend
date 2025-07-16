@@ -144,7 +144,11 @@ const updateOfficeLocation = async (locationOrLat, maybeLon) => {
     ({ latitude, longitude }, customRadius) => {
       const { location, checkRadius } = officeSettings;
       if (location.latitude == null || location.longitude == null) {
-        console.log('Office location not configured, cannot check if inside office');
+        // Only log once per session to avoid spam
+        if (!isInsideOffice._hasLoggedOfficeNotConfigured) {
+          console.log('Office location not configured, cannot check if inside office');
+          isInsideOffice._hasLoggedOfficeNotConfigured = true;
+        }
         return false; // not configured
       }
       

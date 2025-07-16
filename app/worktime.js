@@ -57,7 +57,7 @@ export default function WorktimeScreen() {
         try {
             setLoading(true);
 
-            console.log('🔍 Fetching worktime data...');
+            // Fetching worktime data
 
             // Calculate date range based on selected filter
             const daysBack = TIME_FILTERS[selectedTimeFilter].days;
@@ -69,7 +69,7 @@ export default function WorktimeScreen() {
             const startDateStr = startDate.toISOString().split('T')[0];
             const endDateStr = endDate.toISOString().split('T')[0];
 
-            console.log(`📅 Fetching worktime data from ${startDateStr} to ${endDateStr} (${daysBack} days)`);
+            // Fetching worktime data from ${startDateStr} to ${endDateStr}
 
             // Build parameters object for ApiService
             const apiParams = {
@@ -84,12 +84,8 @@ export default function WorktimeScreen() {
                 apiParams.employee = selectedEmployee.id;
             }
 
-            console.log('📥 Calling ApiService.worktime.getLogs with params:', apiParams);
             let responseData = await ApiService.worktime.getLogs(apiParams);
-            console.log('📊 Worktime API data:', responseData);
-
             const apiData = responseData.results || responseData || [];
-            console.log(`📊 Total records fetched: ${apiData.length}`);
 
             // Transform API data
             const transformedData = Array.isArray(apiData) ? apiData.map(worklog => {
@@ -103,13 +99,13 @@ export default function WorktimeScreen() {
                 // Enhanced employee data extraction
                 const employeeData = worklog.employee || worklog.employee_data || {};
                 
-                console.log('🔍 Processing worklog item:', {
-                    worklogId: worklog.id,
-                    employeeField: worklog.employee,
-                    employeeDataField: worklog.employee_data,
-                    employeeNameField: worklog.employee_name,
-                    mergedEmployeeData: employeeData
-                });
+                // console.log('🔍 Processing worklog item:', {
+                //     worklogId: worklog.id,
+                //     employeeField: worklog.employee,
+                //     employeeDataField: worklog.employee_data,
+                //     employeeNameField: worklog.employee_name,
+                //     mergedEmployeeData: employeeData
+                // });
                 
                 const employeeName = (() => {
                     // Priority 1: Try employee object with name fields
@@ -159,12 +155,12 @@ export default function WorktimeScreen() {
                 const employeeId = employeeData.id || worklog.employee_id || worklog.employee || user.id;
                 const employeeEmail = employeeData.email || 'unknown@example.com';
                 
-                console.log('✅ Processed worklog item:', {
-                    worklogId: worklog.id,
-                    employeeId,
-                    employeeName,
-                    employeeEmail
-                });
+                // console.log('✅ Processed worklog item:', {
+                //     worklogId: worklog.id,
+                //     employeeId,
+                //     employeeName,
+                //     employeeEmail
+                // });
 
                 return {
                     id: worklog.id || Math.random(),
@@ -207,7 +203,7 @@ export default function WorktimeScreen() {
                 console.log(`👤 After user filtering: ${filtered.length} records`);
             } else if (selectedEmployee) {
                 filtered = filtered.filter(item => item.employee.id === selectedEmployee.id);
-                console.log(`👤 After employee filtering (${selectedEmployee.name}): ${filtered.length} records`);
+                console.log(`👤 After employee filtering: ${filtered.length} records`);
             }
 
             // Sort by date (newest first)
@@ -220,15 +216,20 @@ export default function WorktimeScreen() {
             console.log('📋 Sample records:', filtered.slice(0, 3).map(item => ({
                 id: item.id,
                 date: item.dateShort,
-                employee: item.employee.name,
+                employee: canViewAll ? item.employee.name : 'Current User',
                 hours: item.totalHours
             })));
             
             setWorktimeData(filtered);
 
         } catch (error) {
-            console.error('❌ Error fetching worktime data:', error);
-            setWorktimeData([]);
+            if (error.message?.includes('Network Error')) {
+                console.warn('⚠️ Worktime API unavailable, using offline mode');
+                setWorktimeData([]);
+            } else {
+                console.error('❌ Error fetching worktime data:', error);
+                setWorktimeData([]);
+            }
         } finally {
             setLoading(false);
         }

@@ -48,7 +48,28 @@ const useLocation = (options = {}) => {
             }
           } catch (error) {
             console.error('❌ Error getting current location:', error);
-            if (mounted) {
+            
+            // For emulator, provide fallback location
+            if (mounted && APP_CONFIG.IS_EMULATOR) {
+              console.log('📱 Using emulator fallback location');
+              const fallbackLocation = {
+                coords: {
+                  latitude: APP_CONFIG.EMULATOR_LOCATION.latitude,
+                  longitude: APP_CONFIG.EMULATOR_LOCATION.longitude,
+                  accuracy: APP_CONFIG.EMULATOR_LOCATION.accuracy,
+                  altitude: null,
+                  heading: null,
+                  speed: null,
+                },
+                timestamp: Date.now()
+              };
+              setLocation(fallbackLocation);
+              setErrorMsg(null);
+              safeLog('📍 Emulator location fallback:', {
+                location: safeLogLocation(fallbackLocation.coords.latitude, fallbackLocation.coords.longitude),
+                accuracy: fallbackLocation.coords.accuracy + 'm'
+              });
+            } else if (mounted) {
               setErrorMsg('Failed to get current location');
             }
           }

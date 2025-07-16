@@ -149,14 +149,7 @@ export default function PayrollScreen() {
                         // FIXED: salary.employee is an object, we need the ID
                         const employeeId = salary.employee?.id || salary.employee;
                         const params = getApiParams(employeeId);
-                        if (isDebugMode) {
-                            safeLog(`🔍 Fetching earnings for employee`, { 
-                                employee_id: employeeId,
-                                employee_name: salary.employee?.name,
-                                has_params: Object.keys(params).length > 0,
-                                params_debug: params
-                            });
-                        }
+                        // Removed excessive logging for each employee
                         const data = await ApiService.payroll.getEarnings(params);
                         return data;
                     } catch (error) {
@@ -193,7 +186,7 @@ export default function PayrollScreen() {
                 const apiParams = getApiParams(); // Don't pass employee_id, let backend use token
                 const salaryParams = {}; // Don't specify employee, let backend use current user
                 
-                console.log('📊 Employee API params (no employee_id for security):', { apiParams, salaryParams });
+                // Employee API params configured for security
                 
                 const [earnings, salaries] = await Promise.all([
                     ApiService.payroll.getEarnings(apiParams),
@@ -203,18 +196,10 @@ export default function PayrollScreen() {
                 earningsData = earnings;
                 salariesData = salaries.results || salaries || [];
                 
-                console.log('📊 Employee data received:', {
-                    earningsCount: Array.isArray(earningsData) ? earningsData.length : 'not array',
-                    salariesCount: salariesData.length
-                });
+                // Employee data received
             }
             
-            if (isDebugMode) {
-                safeLog('📊 API responses received:', {
-                    earnings: safeLogApiResponse(earningsData, 'earnings'),
-                    salaries: safeLogApiResponse(salariesData, 'salaries')
-                });
-            }
+            // API responses received and processed
             
             
             // Transform earnings data to flat array format for cards
@@ -255,12 +240,13 @@ export default function PayrollScreen() {
                 
                 // Find matching salary data for base salary (fallback only)
                 const salaryInfo = salariesData.find(s => s.employee === employeeId) || {};
-                if (isDebugMode) {
-                    safeLog('🔍 Found salary info for employee:', { 
-                        employee_hash: employeeId ? `emp_${employeeId}` : 'unknown',
-                        has_salary_info: Object.keys(salaryInfo).length > 0
-                    });
-                }
+                // Debug logging disabled to reduce console noise
+                // if (isDebugMode) {
+                //     safeLog('🔍 Found salary info for employee:', { 
+                //         employee_hash: employeeId ? `emp_${employeeId}` : 'unknown',
+                //         has_salary_info: Object.keys(salaryInfo).length > 0
+                //     });
+                // }
                 
                 // Use enhanced earnings API data directly (more accurate)
                 const baseSalary = safeParse(earnings.base_salary || earnings.hourly_rate || salaryInfo.base_salary || 0);
@@ -311,20 +297,21 @@ export default function PayrollScreen() {
                                         (earnings.daily_calculations ? earnings.daily_calculations.length : 0) ||
                                         0;
                 
-                if (isDebugMode) {
-                    safeLog('🔍 Enhanced payroll earnings processing:', {
-                        employee_hash: employeeData.id ? `emp_${employeeData.id}` : 'unknown',
-                        calculation_type: calculationType,
-                        has_overtime: overtime > 0,
-                        has_enhanced_breakdown: !!earnings.enhanced_breakdown,
-                        has_detailed_breakdown: !!earnings.detailed_breakdown,
-                        data_quality: {
-                            has_regular_hours: !!(earnings.regular_hours),
-                            has_work_sessions: !!(earnings.work_sessions_count),
-                            has_pay_breakdown: !!payBreakdown && Object.keys(payBreakdown).length > 0
-                        }
-                    });
-                }
+                // Debug logging disabled to reduce console noise
+                // if (isDebugMode) {
+                //     safeLog('🔍 Enhanced payroll earnings processing:', {
+                //         employee_hash: employeeData.id ? `emp_${employeeData.id}` : 'unknown',
+                //         calculation_type: calculationType,
+                //         has_overtime: overtime > 0,
+                //         has_enhanced_breakdown: !!earnings.enhanced_breakdown,
+                //         has_detailed_breakdown: !!earnings.detailed_breakdown,
+                //         data_quality: {
+                //             has_regular_hours: !!(earnings.regular_hours),
+                //             has_work_sessions: !!(earnings.work_sessions_count),
+                //             has_pay_breakdown: !!payBreakdown && Object.keys(payBreakdown).length > 0
+                //         }
+                //     });
+                // }
                 
                 const result = {
                     id: earnings.id || `earnings-${employeeId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -363,15 +350,16 @@ export default function PayrollScreen() {
                     baseHourlyRate: earnings.hourly_rate || 0
                 };
                 
-                if (isDebugMode) {
-                    safeLog('🔧 Payroll data transformation completed:', {
-                        employee_hash: employeeData.id ? `emp_${employeeData.id}` : 'unknown',
-                        transformation_success: true,
-                        calculation_type: calculationType,
-                        has_required_fields: !!(hoursWorked && totalPayout),
-                        hours_range: hoursWorked > 0 ? (hoursWorked < 50 ? 'low' : hoursWorked < 200 ? 'medium' : 'high') : 'none'
-                    });
-                }
+                // Debug logging disabled to reduce console noise
+                // if (isDebugMode) {
+                //     safeLog('🔧 Payroll data transformation completed:', {
+                //         employee_hash: employeeData.id ? `emp_${employeeData.id}` : 'unknown',
+                //         transformation_success: true,
+                //         calculation_type: calculationType,
+                //         has_required_fields: !!(hoursWorked && totalPayout),
+                //         hours_range: hoursWorked > 0 ? (hoursWorked < 50 ? 'low' : hoursWorked < 200 ? 'medium' : 'high') : 'none'
+                //     });
+                // }
                 
                 return result;
             }) : [];
@@ -404,6 +392,13 @@ export default function PayrollScreen() {
             setPayrollData(filteredData);
             
         } catch (error) {
+            // Only log detailed errors in debug mode for network errors
+            if (error.message?.includes('Network Error')) {
+                console.warn('⚠️ Payroll API unavailable, using cached data');
+                setPayrollData([]); // Set empty data for offline mode
+                return;
+            }
+            
             safeLogError('Error fetching payroll data:', error);
             if (isDebugMode) {
                 safeLogError('Error details:', {
@@ -497,12 +492,11 @@ export default function PayrollScreen() {
                 Alert.alert(title, message, [{ text: 'OK' }]);
                 
             } else {
-                safeLogError('🚨 Network or other error', { error_type: 'network_or_unknown' });
-                Alert.alert(
-                    'Network Error', 
-                    'Unable to load payroll data. Please check your connection and try again.',
-                    [{ text: 'OK' }]
-                );
+                // Don't spam with network errors - user already knows they're offline
+                if (isDebugMode) {
+                    safeLogError('🚨 Network or other error', { error_type: 'network_or_unknown' });
+                }
+                // Don't show alert for network errors - handle gracefully
             }
             
             // Use empty array instead of mock data
@@ -639,7 +633,10 @@ export default function PayrollScreen() {
                     }
                 }
             } catch (apiError) {
-                if (isDebugMode) {
+                // Only log network errors once and quietly
+                if (apiError.message?.includes('Network Error')) {
+                    console.warn('⚠️ Earnings API unavailable, using offline mode');
+                } else if (isDebugMode) {
                     safeLogError('Could not fetch current earnings, using estimates:', apiError);
                 }
             }
@@ -753,26 +750,26 @@ export default function PayrollScreen() {
         const hourlyRate = enhanced.hourly_rate || enhanced.rates?.base_hourly || item.baseHourlyRate || 0;
         const regularPay = enhanced.enhanced_breakdown?.regular_pay || (regularHours * hourlyRate);
         
-        // Safe debug logging for UI values
-        if (isDebugMode) {
-            safeLog('🎨 UI RENDER VALUES - TIMESTAMP:', new Date().toISOString(), {
-                employee_hash: item.employee.id ? `emp_${item.employee.id}` : 'unknown',
-                calculation_type: calculationType,
-                has_enhanced_data: !!enhanced,
-                render_success: true
-            });
-        }
+        // Debug logging disabled to reduce console noise
+        // if (isDebugMode) {
+        //     safeLog('🎨 UI RENDER VALUES - TIMESTAMP:', new Date().toISOString(), {
+        //         employee_hash: item.employee.id ? `emp_${item.employee.id}` : 'unknown',
+        //         calculation_type: calculationType,
+        //         has_enhanced_data: !!enhanced,
+        //         render_success: true
+        //     });
+        // }
         
-        // Safe debugging for specific employee (if needed)
-        if (isDebugMode && item.employee.id === 33) { // Itai's ID
-            safeLog('🚨 Employee debug data:', {
-                employee_hash: 'emp_33',
-                has_work_sessions: item.workSessions > 0,
-                has_worked_days: workedDays > 0,
-                has_hours: item.hoursWorked > 0,
-                data_consistency: item.workSessions === workedDays
-            });
-        }
+        // Debug logging disabled to reduce console noise
+        // if (isDebugMode && item.employee.id === 33) { // Itai's ID
+        //     safeLog('🚨 Employee debug data:', {
+        //         employee_hash: 'emp_33',
+        //         has_work_sessions: item.workSessions > 0,
+        //         has_worked_days: workedDays > 0,
+        //         has_hours: item.hoursWorked > 0,
+        //         data_consistency: item.workSessions === workedDays
+        //     });
+        // }
         
         return (
             <View style={stylesWithDarkMode.card}>
@@ -930,15 +927,16 @@ export default function PayrollScreen() {
                                             }
                                         }
                                         
-                                        if (isDebugMode) {
-                                            safeLog('🔍 Overtime breakdown debug:', {
-                                                has_125_hours: overtime125Hours > 0,
-                                                has_150_hours: overtime150Hours > 0,
-                                                has_detailed_breakdown: !!enhanced.detailed_breakdown,
-                                                has_enhanced_breakdown: !!enhanced.enhanced_breakdown,
-                                                breakdown_source: 'api_data'
-                                            });
-                                        }
+                                        // Debug logging disabled to reduce console noise
+                                        // if (isDebugMode) {
+                                        //     safeLog('🔍 Overtime breakdown debug:', {
+                                        //         has_125_hours: overtime125Hours > 0,
+                                        //         has_150_hours: overtime150Hours > 0,
+                                        //         has_detailed_breakdown: !!enhanced.detailed_breakdown,
+                                        //         has_enhanced_breakdown: !!enhanced.enhanced_breakdown,
+                                        //         breakdown_source: 'api_data'
+                                        //     });
+                                        // }
                                         
                                         if (display125Hours > 0 && display150Hours > 0) {
                                             return `${display125Hours.toFixed(1)}h × 125% + ${display150Hours.toFixed(1)}h × 150%`;

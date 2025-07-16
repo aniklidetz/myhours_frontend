@@ -42,13 +42,18 @@ function LogoutButton() {
             style: 'destructive',
             onPress: async () => {
               try {
+                console.log('🚪 Logout button clicked');
                 console.log('🚪 Starting logout process...');
                 await logout();
                 console.log('✅ Logout successful, redirecting...');
-                router.replace('/');
+                
+                // Force navigation to login screen
+                setTimeout(() => {
+                  router.replace('/');
+                }, 100);
               } catch (error) {
                 console.error('❌ Logout error:', error);
-                Alert.alert('Error', 'Failed to logout: ' + error.message);
+                Alert.alert('Logout Error', 'Failed to logout. You may need to restart the app.');
               }
             }
           }

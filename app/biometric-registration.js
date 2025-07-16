@@ -16,9 +16,11 @@ import ApiService from '../src/api/apiService';
 import useColors from '../hooks/useColors';
 import { useToast } from '../components/Toast';
 import FaceCaptureOverlay from '../components/FaceCaptureOverlay';
+import { maskName } from '../src/utils/safeLogging';
 
 export default function BiometricRegistrationScreen() {
   const cameraRef = useRef(null);
+  const timerRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(null);
   const [hasPermission, setHasPermission] = useState(null);
@@ -30,13 +32,36 @@ export default function BiometricRegistrationScreen() {
   const { palette } = useColors();
   const { showSuccess, showError, ToastComponent } = useToast();
 
-  const { employeeId, employeeName } = useLocalSearchParams();
+  const { employeeId, employeeName, selfService } = useLocalSearchParams();
 
   useEffect(() => {
+    console.log('📷 BiometricRegistrationScreen mounted with params:', {
+      employeeId,
+      employeeName,
+      selfService
+    });
     requestCameraPermission();
     // Сбрасываем состояние оверлея при монтировании
     setOverlayActive(true);
     setButtonsVisible(false);
+    
+    // Cleanup function to prevent memory leaks and app reloads
+    return () => {
+      console.log('🧹 BiometricRegistrationScreen cleanup: clearing timers and camera refs');
+      
+      // Clear countdown timer if running
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+        console.log('🧹 Cleared countdown timer');
+      }
+      
+      // Clear camera ref
+      if (cameraRef.current) {
+        cameraRef.current = null;
+        console.log('🧹 Cleared camera ref');
+      }
+    };
   }, []);
 
   const requestCameraPermission = async () => {
@@ -58,6 +83,13 @@ export default function BiometricRegistrationScreen() {
   };
 
   const startCountdown = () => {
+    // Clear any existing timer first
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      console.log('🧹 Cleared previous countdown timer before starting new one');
+    }
+    
     setCountdown(3);
     
     // Объявляем начало обратного отсчета для VoiceOver
@@ -65,10 +97,12 @@ export default function BiometricRegistrationScreen() {
       UIAccessibility.post(UIAccessibility.Announcement, 'Starting countdown for biometric registration');
     }
     
-    const timer = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          clearInterval(timer);
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+          console.log('🧹 Countdown completed, cleared timer');
           takePhoto();
           return null;
         }
@@ -94,7 +128,16 @@ export default function BiometricRegistrationScreen() {
       Alert.alert(
         'Camera Error', 
         'Camera is not ready. Please go back and try again.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => {
+          // Use selfService from useLocalSearchParams
+          if (selfService === 'true') {
+            console.log('📱 Navigation after error: returning to employees dashboard (selfService mode)');
+            router.replace('/employees');
+          } else {
+            console.log('📱 Navigation after error: returning to previous screen (admin mode)');
+            router.back();
+          }
+        }}]
       );
       return;
     }
@@ -172,7 +215,7 @@ export default function BiometricRegistrationScreen() {
     }
 
     try {
-      console.log('🔧 Starting face registration for:', employeeName || `Employee #${employeeId}`);
+      console.log('🔧 Starting face registration for:', employeeName ? maskName(employeeName) : `Employee #${employeeId}`);
       
       const imageData = `data:image/jpeg;base64,${photo.base64}`;
       const result = await ApiService.biometrics.register(employeeId, imageData);
@@ -185,15 +228,25 @@ export default function BiometricRegistrationScreen() {
         // Скрываем оверлей с fade-out анимацией после успешной регистрации
         setOverlayActive(false);
         
-        showSuccess(
+        Alert.alert(
+          'Success!',
           `Face registered successfully for ${employeeDisplayName}`,
-          2000
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Use selfService from useLocalSearchParams
+                if (selfService === 'true') {
+                  console.log('📱 Navigation after success: returning to employees dashboard (selfService mode)');
+                  router.replace('/employees');
+                } else {
+                  console.log('📱 Navigation after success: returning to previous screen (admin mode)');
+                  router.back();
+                }
+              }
+            }
+          ]
         );
-        
-        // Навигация назад с задержкой
-        setTimeout(() => {
-          router.back();
-        }, 2000);
       } else {
         console.warn('⚠️ Registration failed with error:', result.error);
         handleRegistrationError(result.error);
@@ -322,14 +375,8 @@ export default function BiometricRegistrationScreen() {
           </View>
         )}
 
-        {/* Face guide - теперь только счётчик и инструкции */}
+        {/* Face guide - только инструкции без дублирования таймера */}
         <View style={styles(palette).faceGuide}>
-          {/* Счётчик обратного отсчёта */}
-          {!!countdown && (
-            <View style={styles(palette).countdownContainer}>
-              <Text style={styles(palette).countdownText}>{countdown}</Text>
-            </View>
-          )}
           <Text 
             style={styles(palette).instructionText}
             accessible={true}
@@ -371,7 +418,25 @@ export default function BiometricRegistrationScreen() {
 
           <TouchableOpacity 
             style={styles(palette).cancelButton}
-            onPress={() => router.back()}
+            onPress={() => {
+              console.log('🚫 Cancel button pressed in biometric registration');
+              console.log('📱 Navigation params:', { 
+                selfService, 
+                employeeId,
+                employeeName,
+                routerQuery: router.query,
+                routerParams: router.params 
+              });
+              
+              // Check selfService parameter from useLocalSearchParams
+              if (selfService === 'true') {
+                console.log('📱 Navigating back to employees dashboard (selfService mode)');
+                router.replace('/employees');
+              } else {
+                console.log('📱 Navigating back to previous screen (admin mode)');
+                router.back();
+              }
+            }}
             disabled={loading || !!countdown}
           >
             <Text style={styles(palette).cancelButtonText}>Cancel</Text>
@@ -466,8 +531,8 @@ const styles = (palette) => StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    paddingBottom: 220,
-    paddingTop: 160,
+    paddingBottom: 180,
+    paddingTop: 220,
   },
   // Старые стили для круга больше не нужны
   faceFrame: {

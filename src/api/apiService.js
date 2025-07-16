@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { API_URL, API_ENDPOINTS, APP_CONFIG } from '../config';
+import { maskName } from '../utils/safeLogging';
 
 // Create axios instance
 const apiClient = axios.create({
@@ -153,7 +154,12 @@ const addAuthInterceptors = (client) => {
           config.headers.Authorization = `Token ${token}`;
         }
       } else {
-        console.warn('⚠️ No auth token found in storage');
+        // Only warn about missing token for protected endpoints
+        const publicEndpoints = ['/api/health/', '/api/v1/users/auth/login/', '/api/v1/users/auth/enhanced-login/'];
+        const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
+        if (!isPublicEndpoint) {
+          console.warn('⚠️ No auth token found for protected endpoint:', config.url);
+        }
       }
       
       // Log request in development
@@ -235,14 +241,29 @@ const apiService = {
   // Test connection
   testConnection: async () => {
     try {
+      console.log('🔍 Testing API connection to:', `${API_URL}/api/health/`);
       const response = await apiClient.get('/api/health/', {
         // Bypass authentication for health check
         headers: {
           'Authorization': undefined
-        }
+        },
+        timeout: 5000 // Increase timeout for health check
       });
+      console.log('✅ API health check response:', response.data);
       return response.data;
     } catch (error) {
+      console.error('❌ API health check failed:', {
+        url: `${API_URL}/api/health/`,
+        code: error.code,
+        message: error.message,
+        response: error.response?.data
+      });
+      
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        console.warn('⚠️ API health check timeout');
+      } else if (error.message?.includes('Network Error')) {
+        console.warn('⚠️ Network error during health check');
+      }
       throw error;
     }
   },
@@ -287,7 +308,7 @@ const apiService = {
           
           console.log('✅ Enhanced login successful:', {
             userId: response.data.user.id,
-            userName: response.data.user.first_name + ' ' + response.data.user.last_name,
+            userName: maskName(response.data.user.first_name + ' ' + response.data.user.last_name),
             role: response.data.user.role,
             biometricRegistered: response.data.biometric_registered,
             requiresBiometric: response.data.security_info?.requires_biometric_verification
@@ -712,7 +733,7 @@ const apiService = {
         
         console.log('✅ Work status check successful:', {
           isCheckedIn: response.data.is_checked_in,
-          employeeName: response.data.employee_info?.employee_name,
+          employeeName: response.data.employee_info?.employee_name ? maskName(response.data.employee_info.employee_name) : 'unknown',
           sessionId: response.data.current_session?.worklog_id
         });
         
@@ -842,7 +863,7 @@ const apiService = {
         }, APP_CONFIG.RETRY_ATTEMPTS, signal);
         
         console.log('✅ Biometric check-in successful:', {
-          employeeName: result.employee_name,
+          employeeName: result.employee_name ? maskName(result.employee_name) : 'unknown',
           checkInTime: result.check_in_time,
           location: result.location
         });
@@ -898,7 +919,7 @@ const apiService = {
         });
         
         console.log('✅ Biometric check-out successful:', {
-          employeeName: response.data.employee_name,
+          employeeName: response.data.employee_name ? maskName(response.data.employee_name) : 'unknown',
           checkOutTime: response.data.check_out_time,
           hoursWorked: response.data.hours_worked,
           location: response.data.location
@@ -953,12 +974,12 @@ const apiService = {
         console.log('✅ Normalized biometric status:', normalizedData);
         return normalizedData;
       } catch (error) {
-        console.error('❌ Failed to get biometric status:', error);
-        console.error('❌ Error response:', {
-          status: error.response?.status,
-          data: error.response?.data,
-          message: error.message
-        });
+        // Use existing error deduplication mechanism
+        if (error.message?.includes('Network Error')) {
+          console.warn('⚠️ Biometric API unavailable, using defaults');
+        } else {
+          logUniqueError(API_ENDPOINTS.BIOMETRICS.STATUS, error);
+        }
         
         // Return default status if API fails
         return {
@@ -973,7 +994,6 @@ const apiService = {
   // Work time
   worktime: {
     getLogs: async (params = {}) => {
-      console.log('📊 Fetching work logs with params:', params);
       const response = await apiClientHeavy.get(API_ENDPOINTS.WORKTIME.LOGS, { params });
       return response.data;
     },
@@ -1006,13 +1026,11 @@ const apiService = {
     },
 
     getEarnings: async (params = {}) => {
-      console.log('📊 Fetching earnings with params:', params);
       const response = await apiClient.get(API_ENDPOINTS.PAYROLL.EARNINGS, { params });
       return response.data;
     },
 
     getEnhancedEarnings: async (params = {}) => {
-      console.log('📊 Fetching enhanced earnings with params:', params);
       const response = await apiClient.get(API_ENDPOINTS.PAYROLL.EARNINGS_ENHANCED, { params });
       return response.data;
     },

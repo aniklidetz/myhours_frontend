@@ -21,7 +21,7 @@ import useColors from '../hooks/useColors';
 import apiService from '../src/api/apiService';
 
 // Dev mode flag - set to false for production
-const __DEV_MODE__ = false; // Always false for production
+const __DEV_MODE__ = false; // Disabled for user interface
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -29,7 +29,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const passwordInputRef = useRef(null);
-  const { login, user, loading: userLoading, isOnline, checkConnection } = useUser();
+  const { login, user, loading: userLoading, isOnline, checkConnection, logout } = useUser();
   const { palette } = useColors();
 
   useEffect(() => {
@@ -91,13 +91,24 @@ export default function LoginScreen() {
       console.error('Login error:', error);
       
       let errorMessage = 'An error occurred during login';
-      if (error.response?.data?.error) {
+      let errorTitle = 'Login Failed';
+      
+      // Handle specific error responses
+      if (error.response?.status === 401) {
+        errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+        errorTitle = 'Authentication Failed';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
+      } else if (error.message?.includes('Network Error')) {
+        errorMessage = 'Unable to connect to the server. Please check your internet connection.';
+        errorTitle = 'Connection Error';
       } else if (error.message) {
         errorMessage = error.message;
       }
       
-      Alert.alert('Login Failed', errorMessage);
+      Alert.alert(errorTitle, errorMessage);
     } finally {
       setLoading(false);
     }
@@ -206,14 +217,7 @@ export default function LoginScreen() {
                   style={styles(palette).clearDataButton}
                   onPress={async () => {
                     try {
-                      await AsyncStorage.multiRemove([
-                        '@MyHours:AuthToken',
-                        '@MyHours:UserData', 
-                        '@MyHours:WorkStatus',
-                        '@MyHours:EnhancedAuthData',
-                        '@MyHours:BiometricSession',
-                        '@MyHours:DeviceId'
-                      ]);
+                      await logout(); // Use proper logout function
                       Alert.alert('Success', 'Authentication data cleared! Please login again.');
                     } catch (error) {
                       Alert.alert('Error', 'Failed to clear data');

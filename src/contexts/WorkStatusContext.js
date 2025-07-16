@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ApiService from '../api/apiService';
 import { useUser } from './UserContext';
 import { APP_CONFIG } from '../config';
+import { maskName } from '../utils/safeLogging';
 
 const WORK_STATUS_KEY = '@MyHours:WorkStatus';
 
@@ -33,17 +34,18 @@ export const WorkStatusProvider = ({ children }) => {
     try {
       const tokenExpiration = await ApiService.auth.checkTokenExpiration();
       if (tokenExpiration.isExpired || tokenExpiration.shouldRefresh) {
-        console.log('🔄 Token expired or needs refresh, attempting refresh...');
         try {
           await ApiService.auth.refreshToken();
           console.log('✅ Token refreshed successfully');
         } catch (refreshError) {
-          console.error('❌ Token refresh failed:', refreshError);
-          // Let the 401 handler deal with this
+          console.warn('⚠️ Token refresh failed, using cached data:', refreshError.message);
+          // Don't spam logs with full error objects
+          return;
         }
       }
     } catch (error) {
-      console.warn('⚠️ Could not check token expiration:', error);
+      console.warn('⚠️ Could not check token expiration, skipping API call');
+      return;
     }
 
     // Prevent too frequent updates (unless forced)
@@ -76,7 +78,7 @@ export const WorkStatusProvider = ({ children }) => {
         console.log('✅ Work status loaded:', {
           isCheckedIn,
           hasSession: !!session,
-          employeeName: response.employee_info?.employee_name
+          employeeName: response.employee_info?.employee_name ? maskName(response.employee_info.employee_name) : 'unknown'
         });
         
         if (isCheckedIn && session) {
@@ -108,12 +110,9 @@ export const WorkStatusProvider = ({ children }) => {
         setLastUpdate(Date.now());
       }
     } catch (error) {
-      console.error('❌ Error loading work status:', error);
-      
       // Handle authentication errors specifically
       if (error.response?.status === 401) {
-        console.error('🔐 Authentication error in work status - token might be invalid');
-        // The API interceptor should handle logout, but we'll set safe defaults
+        console.warn('🔐 Authentication error - using offline mode');
         setWorkStatus('off-shift');
         setShiftStartTime(null);
         setCurrentSession(null);
@@ -122,8 +121,10 @@ export const WorkStatusProvider = ({ children }) => {
       }
       
       // Don't let work status errors block the UI
-      if (error.message?.includes('timeout')) {
-        console.warn('⏰ Work status load timed out, using default state');
+      if (error.message?.includes('timeout') || error.message?.includes('Network Error')) {
+        console.warn('⚠️ Network unavailable, using cached data');
+      } else {
+        console.error('❌ Work status error:', error.message);
       }
       
       // Try to load from local storage as fallback

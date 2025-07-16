@@ -22,6 +22,7 @@ import useLocation from '../hooks/useLocation';
 import ApiService from '../src/api/apiService';
 import { APP_CONFIG } from '../src/config';
 import { Ionicons } from '@expo/vector-icons';
+import { maskName } from '../src/utils/safeLogging';
 
 export default function EmployeesScreen() {
   const [employees, setEmployees] = useState([]);
@@ -62,7 +63,15 @@ export default function EmployeesScreen() {
         page_size: 50  // Ограничиваем количество записей
       });
 
-      console.log(`⏰ Work logs for current user:`, workLogs);
+      console.log(`⏰ Work logs for current user:`, {
+        count: workLogs.count,
+        next: workLogs.next,
+        previous: workLogs.previous,
+        results: workLogs.results?.map(log => ({
+          ...log,
+          employee_name: log.employee_name ? maskName(log.employee_name) : 'unknown'
+        }))
+      });
 
       let totalMinutes = 0;
 
@@ -103,8 +112,13 @@ export default function EmployeesScreen() {
       setTodayHours(formattedTime);
       
     } catch (error) {
-      console.error('❌ Error calculating today hours:', error);
-      setTodayHours('Error');
+      if (error.message?.includes('Network Error')) {
+        console.warn('⚠️ Network unavailable, using cached hours');
+        setTodayHours('--');
+      } else {
+        console.error('❌ Error calculating today hours:', error);
+        setTodayHours('Error');
+      }
     }
   }, [user]);
 
@@ -157,7 +171,7 @@ export default function EmployeesScreen() {
     const safetyTimeout = setTimeout(() => {
       console.log('🚨 Safety timeout triggered - forcing loading to false');
       setLoading(false);
-    }, 10000); // 10 seconds max loading time
+    }, 30000); // 30 seconds max loading time (increased from 10s)
     
     return () => clearTimeout(safetyTimeout);
   }, []);
@@ -295,14 +309,11 @@ export default function EmployeesScreen() {
             try {
               // Fetch work logs for this employee for today
               // ВАЖНО: бэкенд ожидает параметр 'employee', а не 'employee_id'
-              console.log(`🔍 Fetching logs for employee ${emp.id} (${emp.first_name || 'Unknown'}) on ${today}`);
               const workLogs = await ApiService.worktime.getLogs({
                 date: today,
                 employee: emp.id,  // Изменено с employee_id на employee
                 page_size: 50  // Ограничиваем количество записей
               });
-
-              console.log(`⏰ Work logs for ${emp.first_name || 'Unknown'} ${emp.last_name || ''}:`, workLogs);
 
               let todayHours = '0h 0m';
               let status = 'off-shift';
@@ -322,7 +333,7 @@ export default function EmployeesScreen() {
                                            log.employee_name === `${emp.first_name || ''} ${emp.last_name || ''}`.trim();
                   
                   if (!isForThisEmployee) {
-                    console.log(`🚫 Skipping log for different employee: ${log.employee_name} (expected: ${emp.first_name || ''} ${emp.last_name || ''})`);
+                    console.log(`🚫 Skipping log for different employee: ${log.employee_name ? maskName(log.employee_name) : 'unknown'} (expected: ${emp.first_name || emp.last_name ? maskName(`${emp.first_name || ''} ${emp.last_name || ''}`.trim()) : 'unknown'})`);
                     return false;
                   }
                   
@@ -566,17 +577,17 @@ export default function EmployeesScreen() {
     );
   };
 
-  // Debug render conditions
-  console.log('🎨 EmployeesScreen render conditions:', {
-    hasUser: !!user,
-    loading,
-    userLoading,
-    workStatusLoading,
-    shouldShowLoader: userLoading || loading || workStatusLoading || (!user && userLoading)
-  });
+  // Debug logging disabled to reduce console noise
+  // console.log('🎨 EmployeesScreen render conditions:', {
+  //   hasUser: !!user,
+  //   loading,
+  //   userLoading,
+  //   workStatusLoading,
+  //   shouldShowLoader: userLoading || loading || workStatusLoading || (!user && userLoading)
+  // });
 
   if (userLoading || loading || workStatusLoading || (!user && userLoading)) {
-    console.log('⏳ Showing loader screen');
+    // console.log('⏳ Showing loader screen');
     return (
       <SafeAreaView style={styles(palette).container}>
         <View style={styles(palette).loader}>
