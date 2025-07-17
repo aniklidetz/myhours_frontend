@@ -26,8 +26,89 @@ export default function AddEmployeeScreen() {
     phone: '',
     employment_type: 'hourly',
     hourly_rate: '',
+    monthly_salary: '',
     role: 'employee',
   });
+
+  const [hourlyRateInput, setHourlyRateInput] = useState('');
+  const [hourlyRateConfirmed, setHourlyRateConfirmed] = useState(false);
+  const [monthlySalaryInput, setMonthlySalaryInput] = useState('');
+  const [monthlySalaryConfirmed, setMonthlySalaryConfirmed] = useState(false);
+
+  const handleHourlyRateConfirm = () => {
+    if (hourlyRateInput.trim() === '') {
+      Alert.alert('Error', 'Please enter an hourly rate');
+      return;
+    }
+    
+    const rate = parseFloat(hourlyRateInput);
+    if (isNaN(rate) || rate <= 0) {
+      Alert.alert('Error', 'Please enter a valid hourly rate');
+      return;
+    }
+    
+    setFormData({ ...formData, hourly_rate: hourlyRateInput });
+    setHourlyRateConfirmed(true);
+  };
+
+  const handleHourlyRateEdit = () => {
+    setHourlyRateConfirmed(false);
+    setHourlyRateInput(formData.hourly_rate);
+  };
+
+  const handleMonthlySalaryConfirm = () => {
+    if (monthlySalaryInput.trim() === '') {
+      Alert.alert('Error', 'Please enter a monthly salary');
+      return;
+    }
+    
+    const salary = parseFloat(monthlySalaryInput);
+    if (isNaN(salary) || salary <= 0) {
+      Alert.alert('Error', 'Please enter a valid monthly salary');
+      return;
+    }
+    
+    setFormData({ ...formData, monthly_salary: monthlySalaryInput });
+    setMonthlySalaryConfirmed(true);
+  };
+
+  const handleMonthlySalaryEdit = () => {
+    setMonthlySalaryConfirmed(false);
+    setMonthlySalaryInput(formData.monthly_salary);
+  };
+
+  const handleEmploymentTypeChange = (value) => {
+    if (value === 'full_time') {
+      // Reset hourly rate when switching to full_time
+      setFormData({ ...formData, employment_type: value, hourly_rate: '', monthly_salary: '' });
+      setHourlyRateInput('');
+      setHourlyRateConfirmed(false);
+      setMonthlySalaryInput('');
+      setMonthlySalaryConfirmed(false);
+    } else {
+      // Reset monthly salary when switching to hourly
+      setFormData({ ...formData, employment_type: value, monthly_salary: '' });
+      setMonthlySalaryInput('');
+      setMonthlySalaryConfirmed(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      first_name: '',
+      last_name: '',
+      email: '',
+      phone: '',
+      employment_type: 'hourly',
+      hourly_rate: '',
+      monthly_salary: '',
+      role: 'employee',
+    });
+    setHourlyRateInput('');
+    setHourlyRateConfirmed(false);
+    setMonthlySalaryInput('');
+    setMonthlySalaryConfirmed(false);
+  };
 
   const validateForm = () => {
     if (!formData.first_name.trim()) {
@@ -48,8 +129,12 @@ export default function AddEmployeeScreen() {
       Alert.alert('Error', 'Please enter a valid email address');
       return false;
     }
-    if (formData.employment_type === 'hourly' && !formData.hourly_rate) {
-      Alert.alert('Error', 'Hourly rate is required for hourly employees');
+    if (formData.employment_type === 'hourly' && (!formData.hourly_rate || !hourlyRateConfirmed)) {
+      Alert.alert('Error', 'Please confirm the hourly rate for hourly employees');
+      return false;
+    }
+    if (formData.employment_type === 'full_time' && (!formData.monthly_salary || !monthlySalaryConfirmed)) {
+      Alert.alert('Error', 'Please confirm the monthly salary for full-time employees');
       return false;
     }
     return true;
@@ -63,13 +148,18 @@ export default function AddEmployeeScreen() {
       // Create employee
       const employeeData = {
         ...formData,
-        hourly_rate: formData.hourly_rate ? parseFloat(formData.hourly_rate) : 0,
+        hourly_rate: formData.employment_type === 'hourly' && formData.hourly_rate 
+          ? parseFloat(formData.hourly_rate) 
+          : null,
+        monthly_salary: formData.employment_type === 'full_time' && formData.monthly_salary 
+          ? parseFloat(formData.monthly_salary) 
+          : null,
       };
       
-      console.log('Creating employee:', employeeData);
+      // Creating employee...
       const employee = await ApiService.employees.create(employeeData);
       
-      console.log('Employee created:', employee);
+      // Employee created successfully
       
       // Send invitation
       Alert.alert(
@@ -79,27 +169,36 @@ export default function AddEmployeeScreen() {
           {
             text: 'Not Now',
             style: 'cancel',
-            onPress: () => router.push('/employees'),
+            onPress: () => {
+              resetForm();
+              router.push('/employees');
+            },
           },
           {
             text: 'Send Invitation',
             onPress: async () => {
               try {
-                console.log('Sending invitation to employee:', employee.id);
+                // Sending invitation...
                 const invitation = await ApiService.employees.sendInvitation(employee.id);
-                console.log('Invitation sent:', invitation);
+                // Invitation sent successfully
                 
                 Alert.alert(
                   'Success',
                   `Invitation sent to ${employee.email}. They will receive an email with instructions to set up their account.`,
-                  [{ text: 'OK', onPress: () => router.push('/employees') }]
+                  [{ text: 'OK', onPress: () => {
+                    resetForm();
+                    router.push('/employees');
+                  } }]
                 );
               } catch (error) {
                 console.error('Error sending invitation:', error);
                 Alert.alert(
                   'Invitation Failed',
                   'Employee created but invitation could not be sent. You can resend it later from the employee list.',
-                  [{ text: 'OK', onPress: () => router.push('/employees') }]
+                  [{ text: 'OK', onPress: () => {
+                    resetForm();
+                    router.push('/employees');
+                  } }]
                 );
               }
             },
@@ -108,91 +207,145 @@ export default function AddEmployeeScreen() {
       );
     } catch (error) {
       console.error('Error creating employee:', error);
-      Alert.alert(
-        'Error',
-        error.response?.data?.error || 
-        error.response?.data?.email?.[0] || 
-        'Failed to create employee. Please try again.'
-      );
+      let errorMessage = 'Failed to create employee. Please try again.';
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.email?.[0]) {
+        errorMessage = error.response.data.email[0];
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: palette.background.primary,
-    },
-    scrollContainer: {
-      padding: 20,
-    },
-    header: {
-      marginBottom: 30,
-      alignItems: 'center',
-    },
-    title: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: palette.text.primary,
-      marginBottom: 8,
-    },
-    subtitle: {
-      fontSize: 16,
-      color: palette.text.secondary,
-      textAlign: 'center',
-    },
-    form: {
-      marginBottom: 30,
-    },
-    inputGroup: {
-      marginBottom: 20,
-    },
-    label: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: palette.text.primary,
-      marginBottom: 8,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: palette.border,
-      borderRadius: 8,
-      padding: 12,
-      fontSize: 16,
-      backgroundColor: palette.background.secondary,
-      color: palette.text.primary,
-    },
-    pickerContainer: {
-      borderWidth: 1,
-      borderColor: palette.border,
-      borderRadius: 8,
-      backgroundColor: palette.background.secondary,
-    },
-    picker: {
-      color: palette.text.primary,
-    },
     button: {
-      padding: 16,
-      borderRadius: 8,
       alignItems: 'center',
+      borderRadius: 8,
       marginBottom: 12,
+      padding: 16,
     },
-    primaryButton: {
+    buttonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    confirmButton: {
+      alignItems: 'center',
       backgroundColor: palette.primary,
+      borderRadius: 8,
+      height: 44,
+      justifyContent: 'center',
+      padding: 12,
+      width: 44,
     },
-    secondaryButton: {
-      backgroundColor: 'transparent',
+    confirmButtonText: {
+      color: 'white',
+      fontSize: 18,
+      fontWeight: 'bold',
+    },
+    confirmedInput: {
+      alignItems: 'center',
+      backgroundColor: palette.background.secondary,
+      borderColor: palette.success || palette.primary,
+      borderRadius: 8,
       borderWidth: 1,
-      borderColor: palette.primary,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      padding: 12,
+    },
+    confirmedText: {
+      color: palette.text.primary,
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    container: {
+      backgroundColor: palette.background.primary,
+      flex: 1,
     },
     disabledButton: {
       opacity: 0.6,
     },
-    buttonText: {
+    editButton: {
+      backgroundColor: 'transparent',
+      borderColor: palette.primary,
+      borderRadius: 6,
+      borderWidth: 1,
+      padding: 8,
+    },
+    editButtonText: {
+      color: palette.primary,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    form: {
+      marginBottom: 30,
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: 30,
+    },
+    input: {
+      backgroundColor: palette.background.secondary,
+      borderColor: palette.border,
+      borderRadius: 8,
+      borderWidth: 1,
+      color: palette.text.primary,
       fontSize: 16,
+      padding: 12,
+    },
+    inputGroup: {
+      marginBottom: 20,
+    },
+    inputWithButton: {
+      alignItems: 'center',
+      flexDirection: 'row',
+    },
+    inputWithButtonText: {
+      flex: 1,
+      marginRight: 8,
+    },
+    label: {
+      color: palette.text.primary,
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 8,
+    },
+    picker: {
+      color: palette.text.primary,
+    },
+    pickerContainer: {
+      backgroundColor: palette.background.secondary,
+      borderColor: palette.border,
+      borderRadius: 8,
+      borderWidth: 1,
+    },
+    primaryButton: {
+      backgroundColor: palette.primary,
+    },
+    scrollContainer: {
+      padding: 20,
+    },
+    secondaryButton: {
+      backgroundColor: 'transparent',
+      borderColor: palette.primary,
+      borderWidth: 1,
+    },
+    subtitle: {
+      color: palette.text.secondary,
+      fontSize: 16,
+      textAlign: 'center',
+    },
+    title: {
+      color: palette.text.primary,
+      fontSize: 24,
       fontWeight: 'bold',
-      color: 'white',
+      marginBottom: 8,
     },
   });
 
@@ -269,13 +422,11 @@ export default function AddEmployeeScreen() {
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={formData.employment_type}
-                onValueChange={(value) => setFormData({ ...formData, employment_type: value })}
+                onValueChange={handleEmploymentTypeChange}
                 style={styles.picker}
               >
                 <Picker.Item label="Hourly" value="hourly" />
                 <Picker.Item label="Full Time" value="full_time" />
-                <Picker.Item label="Part Time" value="part_time" />
-                <Picker.Item label="Contract" value="contract" />
               </Picker>
             </View>
           </View>
@@ -284,14 +435,69 @@ export default function AddEmployeeScreen() {
           {formData.employment_type === 'hourly' && (
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Hourly Rate *</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.hourly_rate}
-                onChangeText={(text) => setFormData({ ...formData, hourly_rate: text })}
-                placeholder="50.00"
-                keyboardType="decimal-pad"
-                placeholderTextColor={palette.text.secondary}
-              />
+              {!hourlyRateConfirmed ? (
+                <View style={styles.inputWithButton}>
+                  <TextInput
+                    style={[styles.input, styles.inputWithButtonText]}
+                    value={hourlyRateInput}
+                    onChangeText={setHourlyRateInput}
+                    placeholder="50.00"
+                    keyboardType="decimal-pad"
+                    placeholderTextColor={palette.text.secondary}
+                  />
+                  <TouchableOpacity
+                    style={styles.confirmButton}
+                    onPress={handleHourlyRateConfirm}
+                  >
+                    <Text style={styles.confirmButtonText}>✓</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.confirmedInput}>
+                  <Text style={styles.confirmedText}>₪{formData.hourly_rate}</Text>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={handleHourlyRateEdit}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Monthly Salary (conditional) */}
+          {formData.employment_type === 'full_time' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Monthly Salary *</Text>
+              {!monthlySalaryConfirmed ? (
+                <View style={styles.inputWithButton}>
+                  <TextInput
+                    style={[styles.input, styles.inputWithButtonText]}
+                    value={monthlySalaryInput}
+                    onChangeText={setMonthlySalaryInput}
+                    placeholder="5000.00"
+                    keyboardType="decimal-pad"
+                    placeholderTextColor={palette.text.secondary}
+                  />
+                  <TouchableOpacity
+                    style={styles.confirmButton}
+                    onPress={handleMonthlySalaryConfirm}
+                  >
+                    <Text style={styles.confirmButtonText}>✓</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.confirmedInput}>
+                  <Text style={styles.confirmedText}>₪{formData.monthly_salary}</Text>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={handleMonthlySalaryEdit}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
 

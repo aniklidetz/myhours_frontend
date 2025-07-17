@@ -327,6 +327,65 @@ export const safeLogApiResponse = (apiResponse, endpoint = 'unknown_api') => {
 };
 
 /**
+ * Создаёт безопасное представление списка сотрудников для логирования
+ * @param {Object} employeesResponse - Ответ API со списком сотрудников
+ * @returns {Object} Безопасные данные для логирования
+ */
+export const safeLogEmployeesList = (employeesResponse) => {
+  if (!employeesResponse) {
+    return { employees: 'no_response' };
+  }
+  
+  const safeData = {
+    count: employeesResponse.count || 0,
+    has_next: !!employeesResponse.next,
+    has_previous: !!employeesResponse.previous,
+    result_count: employeesResponse.results?.length || 0,
+  };
+  
+  if (employeesResponse.results && employeesResponse.results.length > 0) {
+    // Статистика по ролям
+    const roleStats = {};
+    const statusStats = {};
+    const employmentStats = {};
+    
+    employeesResponse.results.forEach(emp => {
+      const role = emp.role || 'unknown';
+      const status = emp.is_active ? 'active' : 'inactive';
+      const empType = emp.employment_type || 'unknown';
+      
+      roleStats[role] = (roleStats[role] || 0) + 1;
+      statusStats[status] = (statusStats[status] || 0) + 1;
+      employmentStats[empType] = (employmentStats[empType] || 0) + 1;
+    });
+    
+    safeData.role_distribution = roleStats;
+    safeData.status_distribution = statusStats;
+    safeData.employment_type_distribution = employmentStats;
+    
+    // Биометрические данные (только статистика)
+    const biometricStats = {
+      has_biometric: 0,
+      no_biometric: 0,
+      pending_invites: 0,
+      registered: 0
+    };
+    
+    employeesResponse.results.forEach(emp => {
+      if (emp.has_biometric) biometricStats.has_biometric++;
+      else biometricStats.no_biometric++;
+      
+      if (emp.has_pending_invitation) biometricStats.pending_invites++;
+      if (emp.is_registered) biometricStats.registered++;
+    });
+    
+    safeData.biometric_stats = biometricStats;
+  }
+  
+  return safeData;
+};
+
+/**
  * Безопасный wrapper для console.error
  * @param {string} message - Сообщение об ошибке
  * @param {Object} error - Объект ошибки

@@ -3,14 +3,11 @@ import {
     StyleSheet,
     View,
     Text,
-    FlatList,
     TouchableOpacity,
-    ActivityIndicator,
     SafeAreaView,
     Alert,
     TextInput,
     Modal,
-    Switch,
     ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
@@ -20,7 +17,6 @@ import { useOffice } from '../src/contexts/OfficeContext';
 import useColors from '../hooks/useColors';
 
 export default function AdminScreen() {
-    const [loading, setLoading] = useState(false);
     
     const { user, hasAccess } = useUser();
     const { palette } = useColors();
@@ -38,6 +34,12 @@ export default function AdminScreen() {
     const [policy, setPolicy] = useState('hybrid');
     const [gettingLocation, setGettingLocation] = useState(false);
     const [showPolicyModal, setShowPolicyModal] = useState(false);
+    
+    // Confirmation state for number inputs
+    const [locationInput, setLocationInput] = useState('');
+    const [locationConfirmed, setLocationConfirmed] = useState(false);
+    const [radiusInput, setRadiusInput] = useState('');
+    const [radiusConfirmed, setRadiusConfirmed] = useState(false);
 
     // Строгая проверка прав доступа
     useEffect(() => {
@@ -52,12 +54,18 @@ export default function AdminScreen() {
     useEffect(() => {
         if (!officeLoading && officeSettings) {
             const { latitude, longitude } = officeSettings.location;
-            setLocationStr(
-                latitude != null && longitude != null
-                    ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-                    : ''
-            );
-            setRadiusStr(officeSettings.checkRadius.toString());
+            const locationValue = latitude != null && longitude != null
+                ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+                : '';
+            setLocationStr(locationValue);
+            setLocationInput(locationValue);
+            setLocationConfirmed(!!locationValue);
+            
+            const radiusValue = officeSettings.checkRadius.toString();
+            setRadiusStr(radiusValue);
+            setRadiusInput(radiusValue);
+            setRadiusConfirmed(!!radiusValue);
+            
             setPolicy(officeSettings.remotePolicy);
         }
     }, [officeLoading, officeSettings]);
@@ -106,7 +114,87 @@ export default function AdminScreen() {
         }
     };
 
+    // Helper functions for confirmation
+    const handleLocationConfirm = () => {
+        if (locationInput.trim() === '') {
+            Alert.alert('Error', 'Please enter location coordinates');
+            return;
+        }
+        
+        const parts = locationInput.split(',').map(s => s.trim());
+        if (parts.length !== 2) {
+            Alert.alert('Error', 'Enter coordinates as "latitude, longitude"');
+            return;
+        }
+        
+        const [lat, lon] = parts.map(Number);
+        if (isNaN(lat) || isNaN(lon)) {
+            Alert.alert('Error', 'Coordinates must be valid numbers');
+            return;
+        }
+        
+        if (lat < -90 || lat > 90) {
+            Alert.alert('Error', 'Latitude must be between -90 and 90');
+            return;
+        }
+        
+        if (lon < -180 || lon > 180) {
+            Alert.alert('Error', 'Longitude must be between -180 and 180');
+            return;
+        }
+        
+        setLocationStr(locationInput);
+        setLocationConfirmed(true);
+    };
+
+    const handleLocationEdit = () => {
+        setLocationConfirmed(false);
+        setLocationInput(locationStr);
+    };
+
+    const handleRadiusConfirm = () => {
+        if (radiusInput.trim() === '') {
+            Alert.alert('Error', 'Please enter a radius value');
+            return;
+        }
+        
+        const rad = parseInt(radiusInput, 10);
+        if (isNaN(rad) || rad <= 0) {
+            Alert.alert('Error', 'Radius must be a positive number');
+            return;
+        }
+        
+        if (rad < 10) {
+            Alert.alert('Error', 'Minimum radius is 10 meters for practical use');
+            return;
+        }
+        
+        if (rad > 10000) {
+            Alert.alert('Error', 'Maximum radius is 10,000 meters (10km)');
+            return;
+        }
+        
+        setRadiusStr(radiusInput);
+        setRadiusConfirmed(true);
+    };
+
+    const handleRadiusEdit = () => {
+        setRadiusConfirmed(false);
+        setRadiusInput(radiusStr);
+    };
+
     const handleSaveOfficeSettings = async () => {
+        // Validate confirmations
+        if (!locationConfirmed) {
+            Alert.alert('Error', 'Please confirm the location coordinates');
+            return;
+        }
+        
+        if (!radiusConfirmed) {
+            Alert.alert('Error', 'Please confirm the check-in radius');
+            return;
+        }
+        
         // Validate location
         const parts = locationStr.split(',').map(s => s.trim());
         if (parts.length !== 2) {
@@ -195,14 +283,34 @@ export default function AdminScreen() {
                     <Text style={styles(palette).sectionDescription}>
                         Set the GPS coordinates of your office for location-based check-ins
                     </Text>
-                    <TextInput
-                        style={styles(palette).input}
-                        placeholder="latitude, longitude (e.g., 32.0853, 34.7818)"
-                        value={locationStr}
-                        onChangeText={setLocationStr}
-                        keyboardType="decimal-pad"
-                        placeholderTextColor={palette.text.secondary}
-                    />
+                    {!locationConfirmed ? (
+                        <View style={styles(palette).inputWithButton}>
+                            <TextInput
+                                style={[styles(palette).input, styles(palette).inputWithButtonText]}
+                                placeholder="latitude, longitude (e.g., 32.0853, 34.7818)"
+                                value={locationInput}
+                                onChangeText={setLocationInput}
+                                keyboardType="decimal-pad"
+                                placeholderTextColor={palette.text.secondary}
+                            />
+                            <TouchableOpacity
+                                style={styles(palette).confirmButton}
+                                onPress={handleLocationConfirm}
+                            >
+                                <Text style={styles(palette).confirmButtonText}>✓</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <View style={styles(palette).confirmedInput}>
+                            <Text style={styles(palette).confirmedText}>{locationStr}</Text>
+                            <TouchableOpacity
+                                style={styles(palette).editButton}
+                                onPress={handleLocationEdit}
+                            >
+                                <Text style={styles(palette).editButtonText}>Edit</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                     <TouchableOpacity
                         style={styles(palette).locationButton}
                         onPress={handleGetLocation}
@@ -220,14 +328,34 @@ export default function AdminScreen() {
                     <Text style={styles(palette).sectionDescription}>
                         Maximum distance (in meters) from office to allow office check-ins
                     </Text>
-                    <TextInput
-                        style={styles(palette).input}
-                        placeholder="100"
-                        value={radiusStr}
-                        onChangeText={setRadiusStr}
-                        keyboardType="numeric"
-                        placeholderTextColor={palette.text.secondary}
-                    />
+                    {!radiusConfirmed ? (
+                        <View style={styles(palette).inputWithButton}>
+                            <TextInput
+                                style={[styles(palette).input, styles(palette).inputWithButtonText]}
+                                placeholder="100"
+                                value={radiusInput}
+                                onChangeText={setRadiusInput}
+                                keyboardType="numeric"
+                                placeholderTextColor={palette.text.secondary}
+                            />
+                            <TouchableOpacity
+                                style={styles(palette).confirmButton}
+                                onPress={handleRadiusConfirm}
+                            >
+                                <Text style={styles(palette).confirmButtonText}>✓</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <View style={styles(palette).confirmedInput}>
+                            <Text style={styles(palette).confirmedText}>{radiusStr} meters</Text>
+                            <TouchableOpacity
+                                style={styles(palette).editButton}
+                                onPress={handleRadiusEdit}
+                            >
+                                <Text style={styles(palette).editButtonText}>Edit</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
 
                 {/* Work Policy */}
@@ -486,13 +614,13 @@ const styles = (palette) => StyleSheet.create({
         color: palette.danger,
         marginBottom: 8,
     },
-    editButton: {
+    cardEditButton: {
         backgroundColor: palette.primary,
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 4,
     },
-    editButtonText: {
+    cardEditButtonText: {
         color: palette.text.light,
         fontWeight: 'bold',
         fontSize: 12,
@@ -740,5 +868,58 @@ const styles = (palette) => StyleSheet.create({
         fontSize: 12,
         color: palette.text.secondary,
         textAlign: 'center',
+    },
+    
+    // Confirmation UI styles
+    inputWithButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    inputWithButtonText: {
+        flex: 1,
+        marginRight: 8,
+        marginBottom: 0,
+    },
+    confirmButton: {
+        backgroundColor: palette.primary,
+        padding: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 44,
+        height: 44,
+    },
+    confirmButtonText: {
+        color: palette.text.light,
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    confirmedInput: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 12,
+        borderWidth: 1,
+        borderColor: palette.success || palette.primary,
+        borderRadius: 8,
+        backgroundColor: palette.background.secondary,
+        marginBottom: 12,
+    },
+    confirmedText: {
+        fontSize: 16,
+        color: palette.text.primary,
+        fontWeight: '500',
+    },
+    editButton: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: palette.primary,
+        padding: 8,
+        borderRadius: 6,
+    },
+    editButtonText: {
+        color: palette.primary,
+        fontSize: 14,
+        fontWeight: '500',
     },
 });

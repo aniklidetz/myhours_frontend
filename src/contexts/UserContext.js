@@ -31,7 +31,7 @@ export const UserProvider = ({ children }) => {
   // Handle user state changes (including logout)
   useEffect(() => {
     if (!user && !loading) {
-      console.log('🔍 User is null and not loading - user logged out');
+      safeLog('🔍 User is null and not loading - user logged out');
       setIsLoggingOut(false); // Reset logout flag when user is cleared
     }
   }, [user, loading]);
@@ -41,9 +41,9 @@ export const UserProvider = ({ children }) => {
     try {
       await apiService.testConnection();
       setIsOnline(true);
-      console.log('✅ API is online');
+      safeLog('✅ API is online');
     } catch (error) {
-      console.warn('⚠️ API is offline, using cached data');
+      safeLog('⚠️ API is offline, using cached data');
       setIsOnline(false);
     }
   };
@@ -60,29 +60,29 @@ export const UserProvider = ({ children }) => {
         // Only check auth state if online
         if (isOnline) {
           try {
-            console.log('🔍 Checking auth state...');
+            safeLog('🔍 Checking auth state...');
             // Temporarily disable auth debug check to see if it's blocking
             // const authDebug = await apiService.auth.debugAuthState();
-            // console.log('🔍 Auth debug response:', authDebug);
+            // safeLog('🔍 Auth debug response:', authDebug);
             
             // Check if token might be expired
             // if (authDebug.enhancedAuth?.isExpired) {
-            //   console.warn('⚠️ Token is expired, clearing authentication');
+            //   safeLog('⚠️ Token is expired, clearing authentication');
             //   await logout();
             //   return;
             // }
           } catch (error) {
-            console.warn('⚠️ Auth check failed, using cached user data:', error.message);
+            safeLog('⚠️ Auth check failed, using cached user data', { error: error.message });
           }
         }
         
         setUser(userData);
-        console.log('✅ User data loaded from storage');
+        safeLog('✅ User data loaded from storage');
       } else {
-        console.log('❌ No user data found in storage');
+        safeLog('❌ No user data found in storage');
       }
     } catch (error) {
-      console.error('❌ Error loading user data:', error);
+      safeLog('❌ Error loading user data', { error: error.message });
     } finally {
       setLoading(false);
     }
@@ -91,7 +91,7 @@ export const UserProvider = ({ children }) => {
   // Login function
   const login = async (email, password) => {
     try {
-      console.log('🔐 Attempting login...');
+      safeLog('🔐 Attempting login...');
       
       if (!email || !password) {
         throw new Error('Email and password are required');
@@ -99,7 +99,7 @@ export const UserProvider = ({ children }) => {
 
       // Check if we're online
       if (!isOnline) {
-        console.warn('⚠️ API is offline, using mock login');
+        safeLog('⚠️ API is offline, using mock login');
         // Mock login for offline mode
         const mockUser = {
           id: 1,
@@ -120,14 +120,14 @@ export const UserProvider = ({ children }) => {
           'mock-token-' + Date.now()
         );
         
-        console.log('✅ Mock login successful');
+        safeLog('✅ Mock login successful');
         return true;
       }
 
       // Real API login
       const response = await apiService.auth.login(email, password);
       
-      console.log('🔍 API LOGIN RESPONSE:', {
+      safeLog('🔍 API LOGIN RESPONSE:', {
         success: response.success,
         hasUser: !!response.user,
         hasToken: !!response.token
@@ -135,16 +135,13 @@ export const UserProvider = ({ children }) => {
       
       if (response.success && response.user && response.token) {
         setUser(response.user);
-        console.log('✅ Login successful:', maskEmail(response.user.email));
-        console.log('🔍 User role from API response:', response.user.role);
-        console.log('🔍 User is_superuser from API response:', response.user.is_superuser);
-        console.log('🔍 User login data:', safeLogUser(response.user, 'login'));
+        safeLog('✅ Login successful:', safeLogUser(response.user, 'login'));
         return true;
       } else {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
-      console.error('❌ Login failed:', error.message);
+      safeLog('❌ Login failed', { error: error.message });
       throw error;
     }
   };
@@ -153,61 +150,89 @@ export const UserProvider = ({ children }) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const logout = async () => {
     if (isLoggingOut) {
-      console.log('🚪 Logout already in progress, skipping...');
+      safeLog('🚪 Logout already in progress, skipping...');
       return;
     }
     
     setIsLoggingOut(true);
     
     try {
-      console.log('🚪 Logging out...');
+      safeLog('🚪 Logging out...');
       
       // Always try to call logout API first (while we still have the token)
       if (!APP_CONFIG.ENABLE_MOCK_DATA) {
         try {
           await apiService.auth.logout();
-          console.log('✅ API logout successful');
+          safeLog('✅ API logout successful');
         } catch (logoutError) {
-          console.warn('⚠️ API logout failed, continuing with local cleanup:', logoutError.message);
+          safeLog('⚠️ API logout failed, continuing with local cleanup', { error: logoutError.message });
         }
       } else {
-        console.log('🔄 Mock logout - skipping API call');
+        safeLog('🔄 Mock logout - skipping API call');
       }
       
       // ALWAYS clear local state regardless of API status
-      console.log('🔄 Clearing user state and storage');
+      safeLog('🔄 Clearing user state and storage');
       setUser(null);
       
       // Force storage cleanup regardless of API response
-      await AsyncStorage.multiRemove([
+      // Get current token to clean user-specific caches
+      const currentToken = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+      
+      const keysToRemove = [
         APP_CONFIG.STORAGE_KEYS.USER_DATA,
         APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
         APP_CONFIG.STORAGE_KEYS.WORK_STATUS,
         APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA,
         APP_CONFIG.STORAGE_KEYS.BIOMETRIC_SESSION,
         APP_CONFIG.STORAGE_KEYS.DEVICE_ID
-      ]);
-      console.log('🧹 Local storage cleared');
+      ];
       
-      console.log('✅ Logout successful');
+      // Add user-specific cache keys if we have a token
+      if (currentToken) {
+        const tokenPrefix = currentToken.substring(0, 8);
+        keysToRemove.push(
+          `${APP_CONFIG.STORAGE_KEYS.EMPLOYEES_CACHE}_${tokenPrefix}`,
+          `${APP_CONFIG.STORAGE_KEYS.CACHE_TIMESTAMP}_${tokenPrefix}`
+        );
+      }
+      
+      await AsyncStorage.multiRemove(keysToRemove);
+      safeLog('🧹 Local storage cleared');
+      
+      safeLog('✅ Logout successful');
     } catch (error) {
-      console.error('❌ Logout error:', error);
+      safeLog('❌ Logout error', { error: error.message });
       
       // Fallback: ensure state and storage are cleared even if everything fails
-      console.log('🔄 Setting user to null in logout error handler');
+      safeLog('🔄 Setting user to null in logout error handler');
       setUser(null);
       try {
-        await AsyncStorage.multiRemove([
+        // Get current token to clean user-specific caches in fallback
+        const currentToken = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+        
+        const keysToRemove = [
           APP_CONFIG.STORAGE_KEYS.USER_DATA,
           APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
           APP_CONFIG.STORAGE_KEYS.WORK_STATUS,
           APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA,
           APP_CONFIG.STORAGE_KEYS.BIOMETRIC_SESSION,
           APP_CONFIG.STORAGE_KEYS.DEVICE_ID
-        ]);
-        console.log('🧹 Fallback storage cleanup completed');
+        ];
+        
+        // Add user-specific cache keys if we have a token
+        if (currentToken) {
+          const tokenPrefix = currentToken.substring(0, 8);
+          keysToRemove.push(
+            `${APP_CONFIG.STORAGE_KEYS.EMPLOYEES_CACHE}_${tokenPrefix}`,
+            `${APP_CONFIG.STORAGE_KEYS.CACHE_TIMESTAMP}_${tokenPrefix}`
+          );
+        }
+        
+        await AsyncStorage.multiRemove(keysToRemove);
+        safeLog('🧹 Fallback storage cleanup completed');
       } catch (storageError) {
-        console.error('❌ Storage cleanup failed:', storageError);
+        safeLog('❌ Storage cleanup failed', { error: storageError.message });
       }
     } finally {
       setIsLoggingOut(false);
@@ -267,25 +292,25 @@ export const UserProvider = ({ children }) => {
 
   // Debug and fix authentication issues
   const debugAuth = async () => {
-    console.log('🔧 Running authentication diagnostics...');
+    safeLog('🔧 Running authentication diagnostics...');
     
     // Check current auth state
     const authState = await apiService.auth.debugAuthState();
-    console.log('🔍 Current auth state:', authState);
+    safeLog('🔍 Current auth state', { hasToken: authState.hasToken, hasUserData: authState.hasUserData });
     
     // Check API connection
     const apiOnline = await checkConnection();
-    console.log('🌐 API status:', apiOnline ? 'Online' : 'Offline');
+    safeLog('🌐 API status', { online: apiOnline });
     
     // Try to refresh token if needed
     if (authState.hasToken && authState.enhancedAuth?.shouldRefresh) {
-      console.log('🔄 Attempting token refresh...');
+      safeLog('🔄 Attempting token refresh...');
       try {
         await apiService.auth.refreshToken();
-        console.log('✅ Token refreshed successfully');
+        safeLog('✅ Token refreshed successfully');
         await loadUserData(); // Reload user data
       } catch (error) {
-        console.error('❌ Token refresh failed:', error);
+        safeLog('❌ Token refresh failed', { error: error.message });
       }
     }
     

@@ -19,6 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
 import apiService from '../src/api/apiService';
+import { safeLog } from '../src/utils/safeLogging';
 
 // Dev mode flag - set to false for production
 const __DEV_MODE__ = false; // Disabled for user interface
@@ -34,7 +35,7 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (user && !userLoading) {
-      console.log('User already logged in, redirecting to check-in-out screen');
+      safeLog('User already logged in, redirecting to check-in-out screen');
       router.replace('/check-in-out'); 
     }
   }, [user, userLoading]);
@@ -43,9 +44,9 @@ export default function LoginScreen() {
   const handleTestConnection = async () => {
     try {
       setLoading(true);
-      console.log('Testing connection...');
+      safeLog('Testing connection...');
       const result = await apiService.testConnection();
-      console.log('Connection test result:', result);
+      safeLog('Connection test result:', { success: result.success, message: result.message });
       Alert.alert(
         'Success', 
         `Connected to backend!\n${result.message}`,
@@ -53,7 +54,7 @@ export default function LoginScreen() {
       );
       await checkConnection(); // Update online status
     } catch (error) {
-      console.error('Connection test failed:', error);
+      safeLog('Connection test failed', { error: error.message });
       Alert.alert(
         'Connection Failed', 
         `Unable to connect to backend server.\n\nPlease check your network connection and try again.\n\nError: ${error.message}`,
@@ -88,7 +89,7 @@ export default function LoginScreen() {
       await login(email.trim(), password);
       // Navigation is handled by useEffect when user state changes
     } catch (error) {
-      console.error('Login error:', error);
+      safeLog('Login error', { error: error.message, status: error.response?.status });
       
       let errorMessage = 'An error occurred during login';
       let errorTitle = 'Login Failed';

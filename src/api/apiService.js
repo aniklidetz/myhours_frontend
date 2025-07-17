@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { API_URL, API_ENDPOINTS, APP_CONFIG } from '../config';
-import { maskName } from '../utils/safeLogging';
+import { maskName, safeLog, safeLogUser, safeLogApiResponse } from '../utils/safeLogging';
 
 // Create axios instance
 const apiClient = axios.create({
@@ -57,10 +57,9 @@ const logUniqueError = (url, error) => {
   
   // Only log if this error wasn't logged in the last minute
   if (!lastLogged || now - lastLogged > 60000) {
-    console.error('❌ API Error:', {
+    safeLog('❌ API Error:', {
       url: error.config?.url,
       status: error.response?.status,
-      data: error.response?.data,
       message: error.message
     });
     errorTracker.set(errorKey, now);
@@ -74,14 +73,14 @@ const retryRequest = async (fn, retries = APP_CONFIG.RETRY_ATTEMPTS, signal = nu
   } catch (error) {
     // Don't retry if request was aborted
     if (error.name === 'CanceledError' || (signal && signal.aborted)) {
-      console.log('🔄 Request was aborted by user');
+      safeLog('🔄 Request was aborted by user');
       throw error;
     }
     
     if (retries > 0 && error.response && error.response.status >= 500) {
       const attemptNumber = APP_CONFIG.RETRY_ATTEMPTS - retries + 1;
-      console.log(`🔄 Retrying request... (attempt ${attemptNumber}/${APP_CONFIG.RETRY_ATTEMPTS})`);
-      console.log('Retry reason:', {
+      safeLog(`🔄 Retrying request... (attempt ${attemptNumber}/${APP_CONFIG.RETRY_ATTEMPTS})`);
+      safeLog('Retry reason:', {
         status: error.response.status,
         statusText: error.response.statusText,
         url: error.config?.url
@@ -118,7 +117,7 @@ const getUniqueDeviceId = async () => {
     }
     return deviceId;
   } catch (error) {
-    console.error('Error generating device ID:', error);
+    safeLog('Error generating device ID', { error: error.message });
     return `${Platform.OS}_fallback_${Date.now()}`;
   }
 };
@@ -139,13 +138,13 @@ const addAuthInterceptors = (client) => {
             const authData = JSON.parse(enhancedAuthData);
             // Verify the stored token matches
             if (authData.token !== token) {
-              console.warn('⚠️ Token mismatch detected, using stored token');
+              safeLog('⚠️ Token mismatch detected, using stored token');
               await AsyncStorage.setItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN, authData.token);
             }
             // Use DeviceToken for all API calls when we have enhanced auth
             config.headers.Authorization = `DeviceToken ${authData.token || token}`;
           } catch (parseError) {
-            console.error('❌ Error parsing enhanced auth data:', parseError);
+            safeLog('❌ Error parsing enhanced auth data', { error: parseError.message });
             // Fallback to basic token
             config.headers.Authorization = `Token ${token}`;
           }
@@ -158,29 +157,29 @@ const addAuthInterceptors = (client) => {
         const publicEndpoints = ['/api/health/', '/api/v1/users/auth/login/', '/api/v1/users/auth/enhanced-login/'];
         const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
         if (!isPublicEndpoint) {
-          console.warn('⚠️ No auth token found for protected endpoint:', config.url);
+          safeLog('⚠️ No auth token found for protected endpoint', { url: config.url });
         }
       }
       
       // Log request in development
       if (APP_CONFIG.ENABLE_DEBUG_LOGS) {
-        console.log('📤 API Request:', {
+        safeLog('📤 API Request:', {
           url: config.url,
           method: config.method,
-          headers: { ...config.headers, Authorization: config.headers.Authorization ? '[REDACTED]' : undefined },
-          data: config.data ? { ...config.data, password: config.data.password ? '[REDACTED]' : config.data.password } : undefined
+          hasAuth: !!config.headers.Authorization,
+          hasData: !!config.data
         });
         
         // Debug token details
         const enhancedAuthDataForDebug = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA);
-        console.log('🔍 Auth Debug:', {
+        safeLog('🔍 Auth Debug:', {
           hasToken: !!token,
           hasEnhancedAuth: !!enhancedAuthDataForDebug,
-          authHeader: config.headers.Authorization ? config.headers.Authorization.substring(0, 20) + '...' : 'NONE'
+          authType: config.headers.Authorization ? config.headers.Authorization.substring(0, 11) : 'NONE'
         });
       }
     } catch (error) {
-      console.error('Error adding auth token:', error);
+      safeLog('Error adding auth token', { error: error.message });
     }
     return config;
   },
@@ -193,10 +192,10 @@ const addAuthInterceptors = (client) => {
   client.interceptors.response.use(
   (response) => {
     if (APP_CONFIG.ENABLE_DEBUG_LOGS) {
-      console.log('📥 API Response:', {
+      safeLog('📥 API Response:', {
         url: response.config.url,
         status: response.status,
-        data: response.data
+        hasData: !!response.data
       });
     }
     return response;
@@ -208,11 +207,11 @@ const addAuthInterceptors = (client) => {
 
     // Handle 401 Unauthorized - clear token and redirect to login
     if (error.response?.status === 401) {
-      console.error('🔐 401 Unauthorized - clearing authentication data');
-      console.error('Failed request:', {
+      safeLog('🔐 401 Unauthorized - clearing authentication data');
+      safeLog('Failed request:', {
         url: error.config?.url,
         method: error.config?.method,
-        authHeader: error.config?.headers?.Authorization ? 'Present' : 'Missing'
+        hasAuth: !!error.config?.headers?.Authorization
       });
       
       await AsyncStorage.multiRemove([
@@ -241,7 +240,7 @@ const apiService = {
   // Test connection
   testConnection: async () => {
     try {
-      console.log('🔍 Testing API connection to:', `${API_URL}/api/health/`);
+      safeLog('🔍 Testing API connection to health endpoint');
       const response = await apiClient.get('/api/health/', {
         // Bypass authentication for health check
         headers: {
@@ -249,20 +248,19 @@ const apiService = {
         },
         timeout: 5000 // Increase timeout for health check
       });
-      console.log('✅ API health check response:', response.data);
+      safeLog('✅ API health check response:', { success: response.data.success, message: response.data.message });
       return response.data;
     } catch (error) {
-      console.error('❌ API health check failed:', {
-        url: `${API_URL}/api/health/`,
+      safeLog('❌ API health check failed:', {
         code: error.code,
         message: error.message,
-        response: error.response?.data
+        hasResponse: !!error.response?.data
       });
       
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        console.warn('⚠️ API health check timeout');
+        safeLog('⚠️ API health check timeout');
       } else if (error.message?.includes('Network Error')) {
-        console.warn('⚠️ Network error during health check');
+        safeLog('⚠️ Network error during health check');
       }
       throw error;
     }
@@ -276,8 +274,8 @@ const apiService = {
         const deviceInfo = await getDeviceInfo();
         const deviceId = deviceInfo.device_id;
         
-        console.log('🔐 Enhanced login attempt:', {
-          email,
+        safeLog('🔐 Enhanced login attempt:', {
+          hasEmail: !!email,
           deviceId: deviceId.substring(0, 8) + '...',
           platform: deviceInfo.platform
         });
@@ -306,21 +304,15 @@ const apiService = {
             [APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA, JSON.stringify(authData)]
           ]);
           
-          console.log('✅ Enhanced login successful:', {
-            userId: response.data.user.id,
-            userName: maskName(response.data.user.first_name + ' ' + response.data.user.last_name),
-            role: response.data.user.role,
-            biometricRegistered: response.data.biometric_registered,
-            requiresBiometric: response.data.security_info?.requires_biometric_verification
-          });
+          safeLog('✅ Enhanced login successful:', safeLogUser(response.data.user, 'enhanced_login'));
         }
         
         return response.data;
       } catch (error) {
-        console.error('❌ Enhanced login failed:', {
-          email,
+        safeLog('❌ Enhanced login failed:', {
+          hasEmail: !!email,
           errorMessage: error.message,
-          errorResponse: error.response?.data
+          hasResponse: !!error.response?.data
         });
         throw error;
       }
@@ -620,15 +612,20 @@ const apiService = {
       // Check cache if enabled and no specific params
       if (useCache && Object.keys(params).length === 0) {
         try {
-          const cachedData = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.EMPLOYEES_CACHE);
-          const cacheTimestamp = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.CACHE_TIMESTAMP);
+          // Get current user token to make cache user-specific
+          const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+          const userCacheKey = `${APP_CONFIG.STORAGE_KEYS.EMPLOYEES_CACHE}_${token?.substring(0, 8) || 'anonymous'}`;
+          const userTimestampKey = `${APP_CONFIG.STORAGE_KEYS.CACHE_TIMESTAMP}_${token?.substring(0, 8) || 'anonymous'}`;
+          
+          const cachedData = await AsyncStorage.getItem(userCacheKey);
+          const cacheTimestamp = await AsyncStorage.getItem(userTimestampKey);
           
           if (cachedData && cacheTimestamp) {
             const now = Date.now();
             const lastCache = parseInt(cacheTimestamp);
             
             if (now - lastCache < APP_CONFIG.CACHE_DURATION) {
-              console.log('📱 Using cached employees data');
+              console.log('📱 Using cached employees data for current user');
               return JSON.parse(cachedData);
             }
           }
@@ -642,11 +639,16 @@ const apiService = {
       // Cache the response if no specific params
       if (Object.keys(params).length === 0) {
         try {
+          // Make cache user-specific
+          const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+          const userCacheKey = `${APP_CONFIG.STORAGE_KEYS.EMPLOYEES_CACHE}_${token?.substring(0, 8) || 'anonymous'}`;
+          const userTimestampKey = `${APP_CONFIG.STORAGE_KEYS.CACHE_TIMESTAMP}_${token?.substring(0, 8) || 'anonymous'}`;
+          
           await AsyncStorage.multiSet([
-            [APP_CONFIG.STORAGE_KEYS.EMPLOYEES_CACHE, JSON.stringify(response.data)],
-            [APP_CONFIG.STORAGE_KEYS.CACHE_TIMESTAMP, Date.now().toString()]
+            [userCacheKey, JSON.stringify(response.data)],
+            [userTimestampKey, Date.now().toString()]
           ]);
-          console.log('💾 Cached employees data');
+          console.log('💾 Cached employees data for current user');
         } catch (error) {
           console.warn('❌ Cache write error:', error);
         }
@@ -661,7 +663,7 @@ const apiService = {
     },
 
     create: async (employeeData) => {
-      const response = await apiClient.post(API_ENDPOINTS.EMPLOYEES, employeeData);
+      const response = await apiClientHeavy.post(API_ENDPOINTS.EMPLOYEES, employeeData);
       return response.data;
     },
 

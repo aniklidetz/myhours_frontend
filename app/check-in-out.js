@@ -16,6 +16,7 @@ import { useWorkStatus } from '../src/contexts/WorkStatusContext';
 import useColors from '../hooks/useColors';
 import HeaderBackButton from '../src/components/HeaderBackButton';
 import useLocation from '../hooks/useLocation';
+import { safeLog, safeLogUser, maskEmail, safeLogLocation } from '../src/utils/safeLogging';
 
 export default function CheckInOutScreen() {
   const [refreshing, setRefreshing] = useState(false);
@@ -46,7 +47,7 @@ export default function CheckInOutScreen() {
       
       // Prevent rapid refreshes - minimum 2 seconds between refreshes
       if (user && user.id && !refreshing && timeSinceLastFocus > 2000) {
-        console.log('📱 Check-in/out screen focused, refreshing status...');
+        safeLog('📱 Check-in/out screen focused, refreshing status');
         lastFocusTime.current = now;
         setRefreshing(true);
         loadWorkStatus(true).finally(() => {
@@ -56,14 +57,14 @@ export default function CheckInOutScreen() {
       
       // Return cleanup function
       return () => {
-        console.log('📱 Check-in/out screen unfocused');
+        safeLog('📱 Check-in/out screen unfocused');
       };
     }, [user?.id, refreshing, loadWorkStatus]) // Include all dependencies
   );
 
 
   const handleCheckIn = () => {
-    console.log('🔐 Navigating to check-in...');
+    safeLog('🔐 Navigating to check-in');
     router.push({
       pathname: '/biometric-check',
       params: { mode: 'check-in' }
@@ -80,7 +81,7 @@ export default function CheckInOutScreen() {
           {
             text: 'Try Biometric Again',
             onPress: () => {
-              console.log('🔓 Navigating to biometric check-out...');
+              safeLog('🔓 Navigating to biometric check-out');
               router.push({
                 pathname: '/biometric-check',
                 params: { mode: 'check-out' }
@@ -98,7 +99,7 @@ export default function CheckInOutScreen() {
         ]
       );
     } else {
-      console.log('🔓 Navigating to check-out...');
+      safeLog('🔓 Navigating to check-out');
       router.push({
         pathname: '/biometric-check',
         params: { mode: 'check-out' }
@@ -109,7 +110,7 @@ export default function CheckInOutScreen() {
   const handleManualCheckOut = async () => {
     try {
       setManualOperation(true);
-      console.log('🖐️ Performing manual check-out for:', user?.email);
+      safeLog('🖐️ Performing manual check-out', safeLogUser(user, 'manual_checkout'));
       
       Alert.alert(
         'Manual Check-out',
@@ -122,11 +123,11 @@ export default function CheckInOutScreen() {
                 // Call manual check-out API endpoint
                 const ApiService = (await import('../src/api/apiService')).default;
                 const locationString = location ? 
-                  `Manual (${location.coords.latitude.toFixed(6)}, ${location.coords.longitude.toFixed(6)})` :
+                  `Manual (${safeLogLocation(location.coords.latitude, location.coords.longitude)})` :
                   'Manual (Location unavailable)';
                 
                 // For now, we'll simulate manual check-out
-                console.log('🔄 Simulating manual check-out...');
+                safeLog('🔄 Simulating manual check-out');
                 Alert.alert(
                   'Manual Check-out Complete',
                   'You have been checked out manually. Please contact your administrator if you continue to have biometric issues.',
@@ -134,7 +135,7 @@ export default function CheckInOutScreen() {
                 );
                 
               } catch (error) {
-                console.error('❌ Manual check-out failed:', error);
+                safeLog('❌ Manual check-out failed', { error: error.message });
                 Alert.alert(
                   'Manual Check-out Failed',
                   'Unable to complete manual check-out. Please contact your administrator.',
@@ -150,7 +151,7 @@ export default function CheckInOutScreen() {
         ]
       );
     } catch (error) {
-      console.error('❌ Manual check-out error:', error);
+      safeLog('❌ Manual check-out error', { error: error.message });
     } finally {
       setManualOperation(false);
     }

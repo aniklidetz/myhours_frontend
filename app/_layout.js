@@ -76,6 +76,7 @@ function TabsNavigator() {
   const isEmployee = user?.role === ROLES.EMPLOYEE;
   const _canManagePayroll = hasAccess(ROLES.ACCOUNTANT);
   const canAdministrate = hasAccess(ROLES.ADMIN);
+  const canManageTeam = hasAccess(ROLES.ACCOUNTANT) || hasAccess(ROLES.ADMIN);
 
   return (
     <Tabs
@@ -161,6 +162,19 @@ function TabsNavigator() {
         }}
       />
 
+      {/* Team Management - for accountants and admins */}
+      <Tabs.Screen
+        name="team-management"
+        options={{
+          title: 'Team Management',
+          tabBarLabel: 'Team',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="people" size={24} color={color} />
+          ),
+          tabBarButton: (!user || !canManageTeam) ? () => null : undefined,
+        }}
+      />
+
       {/* Administration - only for admins */}
       <Tabs.Screen
         name="admin"
@@ -221,6 +235,14 @@ function TabsNavigator() {
         name="add-employee"
         options={{
           title: 'Add Employee',
+          href: null, // Completely hide from routing
+        }}
+      />
+      
+      <Tabs.Screen
+        name="edit-employee"
+        options={{
+          title: 'Edit Employee',
           href: null, // Completely hide from routing
         }}
       />
