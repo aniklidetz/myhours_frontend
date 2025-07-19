@@ -91,3 +91,8 @@ temp/
 # .env.example is intentionally tracked
 
 app-example
+
+# README PLAN
+README_GLASS_MODAL_INTEGRATION.md
+README_TOAST_INTEGRATION.md
+docs/*.md

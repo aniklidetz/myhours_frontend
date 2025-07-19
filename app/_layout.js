@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -7,11 +7,16 @@ import { router } from 'expo-router';
 import { UserProvider, useUser, ROLES } from '../src/contexts/UserContext';
 import { OfficeProvider } from '../src/contexts/OfficeContext';
 import { WorkStatusProvider } from '../src/contexts/WorkStatusContext';
+import { ToastProvider, useToast } from '../contexts/ToastContext';
 import useColors from '../hooks/useColors';
+import useGlobalGlassModal, { showGlassConfirm } from '../hooks/useGlobalGlassModal';
+import { setupSilentLogging } from '../utils/silentLogger';
 
+// Logout button component - now available inside ToastProvider
 function LogoutButton() {
   const { logout } = useUser();
   const { palette } = useColors();
+  const { showError } = useToast();
 
   const handleLogout = async () => {
     console.log('🚪 Logout button clicked');
@@ -27,37 +32,30 @@ function LogoutButton() {
           router.replace('/');
         } catch (error) {
           console.error('❌ Logout error:', error);
-          window.alert('Failed to logout: ' + error.message);
+          showError('Failed to logout: ' + error.message);
         }
       }
     } else {
-      // Mobile version uses Alert.alert
-      Alert.alert(
+      // Mobile version uses GlassModal
+      showGlassConfirm(
         'Logout',
         'Are you sure you want to logout?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Logout', 
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                console.log('🚪 Logout button clicked');
-                console.log('🚪 Starting logout process...');
-                await logout();
-                console.log('✅ Logout successful, redirecting...');
-                
-                // Force navigation to login screen
-                setTimeout(() => {
-                  router.replace('/');
-                }, 100);
-              } catch (error) {
-                console.error('❌ Logout error:', error);
-                Alert.alert('Logout Error', 'Failed to logout. You may need to restart the app.');
-              }
-            }
+        async () => {
+          try {
+            console.log('🚪 Logout button clicked');
+            console.log('🚪 Starting logout process...');
+            await logout();
+            console.log('✅ Logout successful, redirecting...');
+            
+            // Force navigation to login screen
+            setTimeout(() => {
+              router.replace('/');
+            }, 100);
+          } catch (error) {
+            console.error('❌ Logout error:', error);
+            showError('Failed to logout. You may need to restart the app.');
           }
-        ]
+        }
       );
     }
   };
@@ -72,6 +70,7 @@ function LogoutButton() {
 function TabsNavigator() {
   const { user, hasAccess } = useUser();
   const { palette } = useColors();
+  const { modalState, GlassModal } = useGlobalGlassModal();
 
   const isEmployee = user?.role === ROLES.EMPLOYEE;
   const _canManagePayroll = hasAccess(ROLES.ACCOUNTANT);
@@ -79,23 +78,24 @@ function TabsNavigator() {
   const canManageTeam = hasAccess(ROLES.ACCOUNTANT) || hasAccess(ROLES.ADMIN);
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: palette.primary,
-        tabBarInactiveTintColor: palette.text.secondary,
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: palette.background.primary,
-        },
-        headerTintColor: palette.text.primary,
-        headerBackVisible: true,
-        headerRight: user ? () => <LogoutButton /> : undefined,
-        tabBarStyle: user ? {
-          backgroundColor: palette.background.primary,
-          borderTopColor: palette.border,
-        } : { display: 'none' },
-      }}
-    >
+    <>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: palette.primary,
+          tabBarInactiveTintColor: palette.text.secondary,
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: palette.background.primary,
+          },
+          headerTintColor: palette.text.primary,
+          headerBackVisible: true,
+          headerRight: user ? () => <LogoutButton /> : undefined,
+          tabBarStyle: user ? {
+            backgroundColor: palette.background.primary,
+            borderTopColor: palette.border,
+          } : { display: 'none' },
+        }}
+      >
       {/* Login screen - show only if user is not authenticated */}
       <Tabs.Screen
         name="index"
@@ -254,19 +254,54 @@ function TabsNavigator() {
           href: null, // Completely hide from routing
         }}
       />
-    </Tabs>
+      
+      <Tabs.Screen
+        name="toast-demo"
+        options={{
+          title: 'Toast Demo',
+          href: null, // Completely hide from routing
+        }}
+      />
+      
+      <Tabs.Screen
+        name="modal-demo"
+        options={{
+          title: 'Modal Demo',
+          href: null, // Completely hide from routing
+        }}
+      />
+      </Tabs>
+      
+      {/* Global Glass Modal */}
+      <GlassModal
+        visible={modalState.visible}
+        title={modalState.title}
+        message={modalState.message}
+        buttons={modalState.buttons}
+        onClose={modalState.onClose}
+        closeOnBackdrop={modalState.closeOnBackdrop}
+        closeOnBackButton={modalState.closeOnBackButton}
+      />
+    </>
   );
 }
 
-// Main Layout component with WorkStatusProvider
+// Main Layout component with all providers
 export default function Layout() {
+  // Set up silent logging on app start
+  useEffect(() => {
+    setupSilentLogging();
+  }, []);
+
   return (
     <UserProvider>
       <OfficeProvider>
         <WorkStatusProvider>
-          <SafeAreaProvider>
-            <TabsNavigator />
-          </SafeAreaProvider>
+          <ToastProvider>
+            <SafeAreaProvider>
+              <TabsNavigator />
+            </SafeAreaProvider>
+          </ToastProvider>
         </WorkStatusProvider>
       </OfficeProvider>
     </UserProvider>

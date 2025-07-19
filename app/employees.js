@@ -6,11 +6,10 @@ import {
   Text, 
   TouchableOpacity, 
   ActivityIndicator,
-  Alert,
-  SafeAreaView,
   ScrollView,
   Platform
 } from 'react-native';
+import { showGlassAlert } from '../hooks/useGlobalGlassModal';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser, ROLES } from '../src/contexts/UserContext';
@@ -22,6 +21,10 @@ import ApiService from '../src/api/apiService';
 import { APP_CONFIG } from '../src/config';
 import { Ionicons } from '@expo/vector-icons';
 import { maskName, safeLog, safeLogUser } from '../src/utils/safeLogging';
+import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassCard from '../components/LiquidGlassCard';
+import LiquidGlassButton from '../components/LiquidGlassButton';
+import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 
 export default function EmployeesScreen() {
   const [loading, setLoading] = useState(true);
@@ -33,9 +36,21 @@ export default function EmployeesScreen() {
   
   const { user, hasAccess, logout, loading: userLoading } = useUser();
   const { palette } = useColors();
+  const theme = useLiquidGlassTheme();
   const { officeSettings } = useOffice();
   const { location, isUserInRadius } = useLocation({ watchPosition: false });
   const { workStatus, loading: workStatusLoading, loadWorkStatus, getCurrentDuration } = useWorkStatus();
+
+  // Ensure theme is loaded before using it
+  if (!theme) {
+    return (
+      <LiquidGlassLayout>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </View>
+      </LiquidGlassLayout>
+    );
+  }
 
   // Определяем роли
   const isEmployee = user?.role === ROLES.EMPLOYEE;
@@ -106,11 +121,14 @@ export default function EmployeesScreen() {
       setTodayHours(formattedTime);
       
     } catch (error) {
-      if (error.message?.includes('Network Error')) {
-        console.warn('⚠️ Network unavailable, using cached hours');
+      if (error.message?.includes('Network Error') || error.message?.includes('timeout')) {
+        console.warn('⚠️ Network unavailable or timeout, using cached hours');
+        setTodayHours('--');
+      } else if (error.code === 'ECONNABORTED' || error.message?.includes('exceeded')) {
+        console.warn('⚠️ Request timeout exceeded, retrying with cached data');
         setTodayHours('--');
       } else {
-        console.error('❌ Error calculating today hours:', error);
+        console.error('❌ Error calculating today hours:', error.message || error);
         setTodayHours('Error');
       }
     }
@@ -268,7 +286,7 @@ export default function EmployeesScreen() {
   // Handle self-service biometric registration
   const handleSelfBiometricRegistration = () => {
     if (!user || !user.id) {
-      Alert.alert('Error', 'User information not available');
+      showGlassAlert({ title: 'Error', message: 'User information not available' });
       return;
     }
 
@@ -301,15 +319,15 @@ export default function EmployeesScreen() {
   };
 
   const getRoleBadgeStyle = () => {
-    if (!user?.role) return styles(palette).employeeBadge;
+    if (!user?.role) return styles(theme).employeeBadge;
     
     switch (user.role) {
       case ROLES.ADMIN:
-        return styles(palette).adminBadge;
+        return styles(theme).adminBadge;
       case ROLES.ACCOUNTANT:
-        return styles(palette).accountantBadge;
+        return styles(theme).accountantBadge;
       default:
-        return styles(palette).employeeBadge;
+        return styles(theme).employeeBadge;
     }
   };
 
@@ -326,38 +344,38 @@ export default function EmployeesScreen() {
   if (userLoading || loading || workStatusLoading || (!user && userLoading)) {
     // console.log('⏳ Showing loader screen');
     return (
-      <SafeAreaView style={styles(palette).container}>
-        <View style={styles(palette).loader}>
-          <ActivityIndicator size="large" color={palette.primary} />
-          <Text style={{ color: palette.text.primary, marginTop: 10 }}>
+      <LiquidGlassLayout>
+        <View style={styles(theme).loader}>
+          <ActivityIndicator size="large" color={theme.colors.text.primary} />
+          <Text style={styles(theme).loaderText}>
             {userLoading ? 'Loading user...' : loading ? 'Loading...' : 'Loading work status...'}
           </Text>
         </View>
-      </SafeAreaView>
+      </LiquidGlassLayout>
     );
   }
 
   console.log('✅ Rendering main dashboard content');
 
   return (
-    <SafeAreaView style={styles(palette).container}>
+    <LiquidGlassLayout>
       {/* Header */}
-      <View style={styles(palette).header}>
-        <Text style={styles(palette).headerTitle}>
+      <View style={styles(theme).header}>
+        <Text style={styles(theme).headerTitle}>
           Dashboard
         </Text>
-        <Text style={styles(palette).headerSubtitle}>
+        <Text style={styles(theme).headerSubtitle}>
           Welcome, {user?.first_name || user?.email || 'User'}
         </Text>
       </View>
 
-      {/* Control Bar - без красной рамки */}
-      <View style={styles(palette).controlBar}>
-        <View style={styles(palette).controlBarLeft}>
+      {/* Control Bar */}
+      <View style={styles(theme).controlBar}>
+        <View style={styles(theme).controlBarLeft}>
           {/* Role Badge - только если роль определена */}
           {user?.role && (
-            <View style={[styles(palette).roleBadge, getRoleBadgeStyle()]}>
-              <Text style={styles(palette).roleBadgeText}>
+            <View style={[styles(theme).roleBadge, getRoleBadgeStyle()]}>
+              <Text style={styles(theme).roleBadgeText}>
                 {getRoleDisplayName(user.role)}
               </Text>
             </View>
@@ -366,76 +384,80 @@ export default function EmployeesScreen() {
       </View>
 
       {/* Content */}
-      <ScrollView style={styles(palette).personalDashboard}>
+      <ScrollView style={styles(theme).personalDashboard}>
           {/* Status Card */}
-          <TouchableOpacity 
-            style={styles(palette).statusCard}
+          <LiquidGlassCard 
+            variant="elevated" 
+            padding="lg"
             onPress={() => router.push('/check-in-out')}
-            activeOpacity={0.8}
           >
-            <View style={styles(palette).statusHeader}>
-              <Ionicons name="time-outline" size={24} color={palette.text.secondary} />
-              <Text style={styles(palette).statusTitle}>Current Status</Text>
+            <View style={styles(theme).statusHeader}>
+              <Ionicons name="time-outline" size={24} color={theme.colors.text.secondary} />
+              <Text style={styles(theme).statusTitle}>Current Status</Text>
             </View>
             <View style={[
-              styles(palette).currentStatusBadge,
-              workStatus === 'on-shift' ? styles(palette).onShiftBadge : styles(palette).offShiftBadge
+              styles(theme).currentStatusBadge,
+              workStatus === 'on-shift' ? styles(theme).onShiftBadge : styles(theme).offShiftBadge
             ]}>
-              <Text style={styles(palette).currentStatusText}>
+              <Text style={styles(theme).currentStatusText}>
                 {workStatus === 'on-shift' ? 'On Shift' : 'Not on shift'}
               </Text>
             </View>
             {workStatus === 'on-shift' && (
-              <Text style={styles(palette).shiftTimeText}>
+              <Text style={styles(theme).shiftTimeText}>
                 Shift in progress
               </Text>
             )}
-          </TouchableOpacity>
+          </LiquidGlassCard>
 
           {/* Stats Grid */}
-          <View style={styles(palette).statsGrid}>
-            <View style={styles(palette).statCard}>
-              <Text style={styles(palette).statIcon}>📊</Text>
-              <Text style={styles(palette).statLabel}>Today's Hours</Text>
-              <Text style={styles(palette).statValue}>{todayHours}</Text>
-            </View>
+          <View style={styles(theme).statsGrid}>
+            <LiquidGlassCard variant="bordered" padding="md" style={styles(theme).statCard}>
+              <Text style={styles(theme).statIcon}>📊</Text>
+              <Text style={styles(theme).statLabel}>Today's Hours</Text>
+              <Text style={styles(theme).statValue}>{todayHours}</Text>
+            </LiquidGlassCard>
             
-            <View style={styles(palette).statCard}>
-              <Text style={styles(palette).statIcon}>📍</Text>
-              <Text style={styles(palette).statLabel}>Location</Text>
-              <Text style={styles(palette).statValue}>{getLocationStatus()}</Text>
-            </View>
+            <LiquidGlassCard variant="bordered" padding="md" style={styles(theme).statCard}>
+              <Text style={styles(theme).statIcon}>📍</Text>
+              <Text style={styles(theme).statLabel}>Location</Text>
+              <Text style={styles(theme).statValue}>{getLocationStatus()}</Text>
+            </LiquidGlassCard>
             
-            <View style={styles(palette).statCard}>
-              <Text style={styles(palette).statIcon}>🔐</Text>
-              <Text style={styles(palette).statLabel}>Security</Text>
-              <Text style={styles(palette).statValue}>
+            <LiquidGlassCard variant="bordered" padding="md" style={styles(theme).statCard}>
+              <Text style={styles(theme).statIcon}>🔐</Text>
+              <Text style={styles(theme).statLabel}>Security</Text>
+              <Text style={styles(theme).statValue}>
                 {biometricSessionValid ? 'Verified' : 'Standard'}
               </Text>
-            </View>
+            </LiquidGlassCard>
           </View>
 
           {/* Quick Access */}
-          <View style={styles(palette).quickAccessSection}>
-            <Text style={styles(palette).sectionTitle}>📊 My Data</Text>
-            <View style={styles(palette).quickAccessGrid}>
-              <TouchableOpacity 
-                style={styles(palette).quickAccessCard}
+          <View style={styles(theme).quickAccessSection}>
+            <Text style={styles(theme).sectionTitle}>📊 My Data</Text>
+            <View style={styles(theme).quickAccessGrid}>
+              <LiquidGlassCard 
+                variant="elevated" 
+                padding="md"
+                style={styles(theme).quickAccessCard}
                 onPress={() => router.push('/worktime')}
               >
-                <Ionicons name="time" size={24} color={palette.primary} />
-                <Text style={styles(palette).quickAccessTitle}>Work Hours</Text>
-                <Text style={styles(palette).quickAccessSubtext}>View my work logs</Text>
-              </TouchableOpacity>
+                <Ionicons name="time" size={24} color={theme.colors.text.primary} />
+                <Text style={styles(theme).quickAccessTitle}>Work Hours</Text>
+                <Text style={styles(theme).quickAccessSubtext}>View my work logs</Text>
+              </LiquidGlassCard>
               
-              <TouchableOpacity 
-                style={styles(palette).quickAccessCard}
+              <LiquidGlassCard 
+                variant="elevated" 
+                padding="md"
+                style={styles(theme).quickAccessCard}
                 onPress={() => router.push('/payroll')}
               >
-                <Ionicons name="cash" size={24} color={palette.success} />
-                <Text style={styles(palette).quickAccessTitle}>My Salary</Text>
-                <Text style={styles(palette).quickAccessSubtext}>View my payroll</Text>
-              </TouchableOpacity>
+                <Ionicons name="cash" size={24} color="#22c55e" />
+                <Text style={styles(theme).quickAccessTitle}>My Salary</Text>
+                <Text style={styles(theme).quickAccessSubtext}>View my payroll</Text>
+              </LiquidGlassCard>
               
               {/* Biometric Registration/Update Cards */}
               {userBiometricStatus && (
@@ -448,77 +470,104 @@ export default function EmployeesScreen() {
                   
                   {!userBiometricStatus.has_biometric ? (
                     // Show registration card if no biometric data
-                    <TouchableOpacity 
-                      style={[styles(palette).quickAccessCard, styles(palette).biometricCard]}
+                    <LiquidGlassCard 
+                      variant="elevated" 
+                      padding="md"
+                      style={[styles(theme).quickAccessCard, styles(theme).biometricCard]}
                       onPress={handleSelfBiometricRegistration}
                     >
-                      <Ionicons name="finger-print" size={24} color={palette.warning} />
-                      <Text style={styles(palette).quickAccessTitle}>Register Face ID</Text>
-                      <Text style={styles(palette).quickAccessSubtext}>Complete your profile</Text>
-                    </TouchableOpacity>
+                      <Ionicons name="finger-print" size={24} color="#fbbf24" />
+                      <Text style={styles(theme).quickAccessTitle}>Register Face ID</Text>
+                      <Text style={styles(theme).quickAccessSubtext}>Complete your profile</Text>
+                    </LiquidGlassCard>
                   ) : (
                     // Show completion status if biometric data exists
-                    <View style={[styles(palette).quickAccessCard, styles(palette).biometricCompleteCard]}>
-                      <Ionicons name="checkmark-circle" size={24} color={palette.success} />
-                      <Text style={styles(palette).quickAccessTitle}>Face ID Complete</Text>
-                      <Text style={styles(palette).quickAccessSubtext}>
+                    <LiquidGlassCard 
+                      variant="elevated" 
+                      padding="md"
+                      style={[styles(theme).quickAccessCard, styles(theme).biometricCompleteCard]}
+                    >
+                      <Ionicons name="checkmark-circle" size={24} color="#22c55e" />
+                      <Text style={styles(theme).quickAccessTitle}>Face ID Complete</Text>
+                      <Text style={styles(theme).quickAccessSubtext}>
                         Registered {userBiometricStatus.registration_date ? 
                           new Date(userBiometricStatus.registration_date).toLocaleDateString() : 
                           'successfully'}
                       </Text>
-                    </View>
+                    </LiquidGlassCard>
                   )}
                 </>
+              )}
+              
+              {/* Modal Demo Button - Hidden in production */}
+              {__DEV__ && (
+                <LiquidGlassCard 
+                  variant="elevated" 
+                  padding="md"
+                  style={styles(theme).quickAccessCard}
+                  onPress={() => router.push('/modal-demo')}
+                >
+                  <Ionicons name="layers" size={24} color="#f59e0b" />
+                  <Text style={styles(theme).quickAccessTitle}>Modal Demo</Text>
+                  <Text style={styles(theme).quickAccessSubtext}>Test glass modals</Text>
+                </LiquidGlassCard>
               )}
               
             </View>
           </View>
 
         </ScrollView>
-    </SafeAreaView>
+    </LiquidGlassLayout>
   );
 }
 
-const styles = (palette) => StyleSheet.create({
+const styles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.background.secondary,
+    backgroundColor: 'transparent',
   },
   loader: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loaderText: {
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing.md,
+    fontSize: theme.typography.body.fontSize,
+  },
   header: {
-    backgroundColor: palette.background.primary,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    backgroundColor: 'transparent',
+    padding: theme.spacing.lg,
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: palette.text.primary,
+    fontSize: theme.typography.title.fontSize * 0.6,
+    fontWeight: theme.typography.title.fontWeight,
+    color: theme.colors.text.primary,
+    textShadowColor: theme.shadows.text.color,
+    textShadowOffset: theme.shadows.text.offset,
+    textShadowRadius: theme.shadows.text.radius,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: palette.text.secondary,
-    marginTop: 4,
+    fontSize: theme.typography.subtitle.fontSize * 0.8,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
   },
   controlBar: {
-    backgroundColor: palette.background.primary,
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    marginBottom: theme.spacing.md,
   },
   controlBarLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: theme.spacing.sm,
   },
   roleBadge: {
     paddingHorizontal: 12,
@@ -526,41 +575,41 @@ const styles = (palette) => StyleSheet.create({
     borderRadius: 16,
   },
   employeeBadge: {
-    backgroundColor: palette.primary + '20',
+    backgroundColor: theme.colors.glass.medium,
   },
   accountantBadge: {
-    backgroundColor: palette.success + '20',
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
   },
   adminBadge: {
-    backgroundColor: palette.warning + '20',
+    backgroundColor: 'rgba(251, 191, 36, 0.2)',
   },
   roleBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: palette.text.primary,
+    color: theme.colors.text.primary,
   },
   toggleButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.primary,
+    backgroundColor: theme.colors.glass.medium,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     gap: 4,
   },
   toggleButtonText: {
-    color: palette.text.light,
+    color: theme.colors.text.primary,
     fontSize: 14,
     fontWeight: '600',
   },
   logoutButton: {
-    backgroundColor: palette.danger,
+    backgroundColor: 'rgba(239, 68, 68, 0.8)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
   logoutText: {
-    color: palette.text.light,
+    color: theme.colors.text.primary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -568,139 +617,110 @@ const styles = (palette) => StyleSheet.create({
   // Personal Dashboard
   personalDashboard: {
     flex: 1,
-  },
-  statusCard: {
-    backgroundColor: palette.background.primary,
-    margin: 16,
-    padding: 20,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: palette.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    padding: theme.spacing.lg,
   },
   statusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: theme.spacing.md,
   },
   statusTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: palette.text.primary,
-    marginLeft: 8,
+    color: theme.colors.text.primary,
+    marginLeft: theme.spacing.sm,
   },
   currentStatusBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 24,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.xl,
   },
   onShiftBadge: {
-    backgroundColor: palette.success,
+    backgroundColor: 'rgba(34, 197, 94, 0.8)',
   },
   offShiftBadge: {
-    backgroundColor: palette.text.secondary,
+    backgroundColor: 'rgba(107, 114, 128, 0.8)',
   },
   currentStatusText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: palette.text.light,
+    color: theme.colors.text.primary,
   },
   shiftTimeText: {
-    fontSize: 14,
-    color: palette.text.secondary,
-    marginTop: 8,
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.sm,
   },
   statsGrid: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 8,
-    marginBottom: 16,
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
   },
   statCard: {
     flex: 1,
-    backgroundColor: palette.background.primary,
-    padding: 16,
-    borderRadius: 12,
     alignItems: 'center',
-    elevation: 1,
-    shadowColor: palette.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
   },
   statIcon: {
     fontSize: 24,
-    marginBottom: 4,
+    marginBottom: theme.spacing.xs,
   },
   statLabel: {
-    fontSize: 12,
-    color: palette.text.secondary,
-    marginBottom: 4,
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.xs,
   },
   statValue: {
-    fontSize: 14,
+    fontSize: theme.typography.caption.fontSize,
     fontWeight: 'bold',
-    color: palette.text.primary,
+    color: theme.colors.text.primary,
     textAlign: 'center',
   },
   quickAccessSection: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: theme.spacing.md,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: palette.text.primary,
-    marginBottom: 12,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.md,
   },
   quickAccessGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: theme.spacing.md,
   },
   quickAccessCard: {
     minWidth: '48%',
     maxWidth: '48%',
-    backgroundColor: palette.background.primary,
-    padding: 16,
-    borderRadius: 12,
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: palette.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   quickAccessTitle: {
-    fontSize: 16,
+    fontSize: theme.typography.body.fontSize,
     fontWeight: 'bold',
-    color: palette.text.primary,
-    marginTop: 8,
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing.sm,
   },
   quickAccessSubtext: {
-    fontSize: 12,
-    color: palette.text.secondary,
-    marginTop: 4,
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
   },
   biometricCard: {
     borderLeftWidth: 4,
-    borderLeftColor: palette.warning,
+    borderLeftColor: '#fbbf24',
   },
   biometricUpdateCard: {
     borderLeftWidth: 4,
-    borderLeftColor: palette.success,
+    borderLeftColor: '#22c55e',
   },
   biometricCompleteCard: {
     borderLeftWidth: 4,
-    borderLeftColor: palette.success,
-    backgroundColor: palette.background.secondary,
+    borderLeftColor: '#22c55e',
     opacity: 0.8,
   },
   logoutCard: {
     borderLeftWidth: 4,
-    borderLeftColor: palette.error,
+    borderLeftColor: '#ef4444',
   },
 });

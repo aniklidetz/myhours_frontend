@@ -8,9 +8,9 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     SafeAreaView,
-    Alert,
     ScrollView
 } from 'react-native';
+import { showGlassAlert, showGlassConfirm } from '../hooks/useGlobalGlassModal';
 import { useUser, ROLES } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
 import HeaderBackButton from '../src/components/HeaderBackButton';
@@ -18,6 +18,10 @@ import ApiService from '../src/api/apiService';
 import { API_ENDPOINTS, API_URL, APP_CONFIG } from '../src/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { safeLog, safeLogPayroll, safeLogApiResponse, safeLogEmployee, safeLogError } from '../src/utils/safeLogging';
+import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassCard from '../components/LiquidGlassCard';
+import LiquidGlassButton from '../components/LiquidGlassButton';
+import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 
 export default function PayrollScreen() {
     const [payrollData, setPayrollData] = useState([]);
@@ -28,8 +32,336 @@ export default function PayrollScreen() {
     const [employees, setEmployees] = useState([]);
     const { user, hasAccess } = useUser();
     const { palette, isDark } = useColors();
+    const theme = useLiquidGlassTheme();
     const canViewAllEmployees = hasAccess(ROLES.ACCOUNTANT);
     const canExportAndConfirm = hasAccess(ROLES.ACCOUNTANT);
+
+    // Ensure theme is loaded before using it
+    if (!theme) {
+        return (
+            <LiquidGlassLayout>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#FFFFFF" />
+                </View>
+            </LiquidGlassLayout>
+        );
+    }
+
+    // Create liquid glass styles after theme is loaded
+    const stylesWithDarkMode = StyleSheet.create({
+        container: {
+            flex: 1,
+            backgroundColor: 'transparent',
+        },
+        header: {
+            backgroundColor: 'transparent',
+            padding: theme.spacing.lg,
+            alignItems: 'center',
+            marginBottom: theme.spacing.md,
+        },
+        headerRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: theme.spacing.sm,
+        },
+        title: {
+            fontSize: theme.typography.title.fontSize * 0.7,
+            fontWeight: theme.typography.title.fontWeight,
+            color: theme.colors.text.primary,
+            textShadowColor: theme.shadows.text.color,
+            textShadowOffset: theme.shadows.text.offset,
+            textShadowRadius: theme.shadows.text.radius,
+        },
+        exportButton: {
+            backgroundColor: theme.colors.status.success[0],
+            borderRadius: theme.borderRadius.md,
+            paddingHorizontal: theme.spacing.md,
+            paddingVertical: theme.spacing.sm,
+        },
+        exportButtonText: {
+            color: theme.colors.text.primary,
+            fontWeight: 'bold',
+        },
+        periodSelector: {
+            marginTop: theme.spacing.md,
+            width: '100%',
+        },
+        employeeSelector: {
+            marginTop: theme.spacing.md,
+            width: '100%',
+        },
+        selectorLabel: {
+            fontSize: theme.typography.body.fontSize,
+            color: theme.colors.text.secondary,
+            marginBottom: theme.spacing.sm,
+        },
+        selectorScroll: {
+            flexDirection: 'row',
+        },
+        selectorButton: {
+            paddingHorizontal: theme.spacing.md,
+            paddingVertical: theme.spacing.sm,
+            borderRadius: theme.borderRadius.lg,
+            borderWidth: 1,
+            borderColor: theme.colors.glass.border,
+            backgroundColor: theme.colors.glass.light,
+            marginRight: theme.spacing.sm,
+        },
+        selectorButtonActive: {
+            backgroundColor: theme.colors.glass.medium,
+            borderColor: theme.colors.glass.border,
+        },
+        selectorButtonText: {
+            fontSize: theme.typography.body.fontSize,
+            color: theme.colors.text.primary,
+            fontWeight: '500',
+        },
+        selectorButtonTextActive: {
+            color: theme.colors.text.primary,
+        },
+        content: {
+            flex: 1,
+            padding: theme.spacing.lg,
+        },
+        loader: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        card: {
+            marginBottom: theme.spacing.md,
+        },
+        cardHeader: {
+            borderBottomWidth: 1,
+            borderBottomColor: theme.colors.glass.border,
+            marginBottom: theme.spacing.sm,
+            paddingBottom: theme.spacing.sm,
+        },
+        headerText: {
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+            marginBottom: theme.spacing.xs,
+        },
+        periodText: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.secondary,
+        },
+        detailRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            marginBottom: theme.spacing.sm,
+        },
+        detailItem: {
+            alignItems: 'center',
+        },
+        detailLabel: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.secondary,
+            marginBottom: theme.spacing.xs,
+        },
+        detailValue: {
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+        },
+        totalRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            borderTopWidth: 1,
+            borderTopColor: theme.colors.glass.border,
+            paddingTop: theme.spacing.sm,
+            marginTop: theme.spacing.sm,
+        },
+        totalLabel: {
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+        },
+        totalValue: {
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+        },
+        emptyState: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: theme.spacing.xl,
+        },
+        emptyStateTitle: {
+            fontSize: theme.typography.title.fontSize * 0.8,
+            fontWeight: theme.typography.title.fontWeight,
+            color: theme.colors.text.primary,
+            marginBottom: theme.spacing.md,
+            textAlign: 'center',
+        },
+        emptyStateText: {
+            fontSize: theme.typography.body.fontSize,
+            color: theme.colors.text.secondary,
+            textAlign: 'center',
+            lineHeight: 24,
+        },
+        typeRow: {
+            marginBottom: theme.spacing.md,
+            paddingVertical: theme.spacing.sm,
+            paddingHorizontal: theme.spacing.md,
+            backgroundColor: theme.colors.glass.medium,
+            borderRadius: theme.borderRadius.sm,
+        },
+        typeLabel: {
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: '600',
+            color: theme.colors.text.primary,
+            textAlign: 'center',
+        },
+        enhancedSection: {
+            backgroundColor: theme.colors.glass.medium,
+            borderRadius: theme.borderRadius.sm,
+            padding: theme.spacing.md,
+            marginVertical: theme.spacing.sm,
+        },
+        enhancedTitle: {
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+            marginBottom: theme.spacing.sm,
+        },
+        enhancedRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            marginBottom: theme.spacing.xs,
+        },
+        enhancedLabel: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.secondary,
+        },
+        enhancedValue: {
+            fontSize: theme.typography.caption.fontSize,
+            fontWeight: '600',
+            color: theme.colors.text.primary,
+        },
+        divider: {
+            backgroundColor: theme.colors.glass.border,
+            height: 1,
+            marginVertical: theme.spacing.md,
+        },
+        summaryRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+        },
+        summaryColumn: {
+            alignItems: 'flex-end',
+        },
+        // Additional styles for current salary card
+        currentSalaryTitle: {
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+            marginBottom: theme.spacing.sm,
+        },
+        currentSalaryInfo: {
+            alignItems: 'center',
+        },
+        currentSalaryPeriod: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.secondary,
+            marginBottom: theme.spacing.xs,
+        },
+        currentSalaryAmount: {
+            fontSize: theme.typography.title.fontSize * 0.8,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+            marginBottom: theme.spacing.xs,
+        },
+        currentSalarySubtext: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.secondary,
+            textAlign: 'center',
+            marginBottom: theme.spacing.xs,
+        },
+        currentSalaryHours: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.secondary,
+            textAlign: 'center',
+        },
+        sectionTitle: {
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+            marginBottom: theme.spacing.md,
+            textAlign: 'center',
+        },
+        // Empty state styles
+        emptyContainer: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: theme.spacing.xl,
+        },
+        emptyTitle: {
+            fontSize: theme.typography.title.fontSize * 0.8,
+            fontWeight: theme.typography.title.fontWeight,
+            color: theme.colors.text.primary,
+            marginBottom: theme.spacing.md,
+            textAlign: 'center',
+        },
+        emptyText: {
+            fontSize: theme.typography.body.fontSize,
+            color: theme.colors.text.secondary,
+            textAlign: 'center',
+            lineHeight: 24,
+            marginBottom: theme.spacing.sm,
+        },
+        emptySubtext: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.secondary,
+            textAlign: 'center',
+            fontStyle: 'italic',
+        },
+        // Status badge styles
+        statusBadge: {
+            paddingHorizontal: theme.spacing.sm,
+            paddingVertical: theme.spacing.xs,
+            borderRadius: theme.borderRadius.sm,
+            alignSelf: 'flex-start',
+        },
+        statusConfirmed: {
+            backgroundColor: theme.colors.status.success[0],
+        },
+        statusPending: {
+            backgroundColor: theme.colors.status.warning[0],
+        },
+        statusDraft: {
+            backgroundColor: theme.colors.glass.medium,
+        },
+        statusText: {
+            fontSize: theme.typography.caption.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+        },
+        // Confirm button styles
+        confirmButton: {
+            backgroundColor: theme.colors.status.success[0],
+            paddingHorizontal: theme.spacing.md,
+            paddingVertical: theme.spacing.sm,
+            borderRadius: theme.borderRadius.md,
+            alignItems: 'center',
+            marginTop: theme.spacing.md,
+        },
+        confirmButtonText: {
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+        },
+        // Employee text
+        employeeText: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.secondary,
+            marginTop: theme.spacing.xs,
+        },
+    });
     
     // Debug режим только для development и когда явно не отключен
     const isDebugMode = __DEV__ && !process.env.DISABLE_PAYROLL_DEBUG;
@@ -669,12 +1001,13 @@ export default function PayrollScreen() {
             const rows = exportData.map(item => Object.values(item).join(',')).join('\n');
             const csv = `${headers}\n${rows}`;
             
-            Alert.alert(
-                'Export Payroll Report',
-                'Choose export format:',
-                [
+            showGlassAlert({
+                title: 'Export Payroll Report',
+                message: 'Choose export format:',
+                buttons: [
                     {
-                        text: 'CSV',
+                        label: 'CSV',
+                        type: 'primary',
                         onPress: () => {
                             if (isDebugMode) {
                                 safeLog('CSV Export initiated:', { 
@@ -682,50 +1015,42 @@ export default function PayrollScreen() {
                                     record_count: exportData.length
                                 });
                             }
-                            Alert.alert('Success', 'Payroll report exported as CSV');
+                            showGlassAlert({ title: 'Success', message: 'Payroll report exported as CSV' });
                         }
                     },
                     {
-                        text: 'Email',
+                        label: 'Email',
+                        type: 'secondary',
                         onPress: () => {
-                            Alert.alert('Success', 'Payroll report sent via email');
+                            showGlassAlert({ title: 'Success', message: 'Payroll report sent via email' });
                         }
                     },
                     {
-                        text: 'Cancel',
-                        style: 'cancel'
+                        label: 'Cancel',
+                        type: 'ghost',
+                        onPress: () => {}
                     }
                 ]
-            );
+            });
         } catch (error) {
             safeLogError('Export error:', error);
-            Alert.alert('Error', 'Failed to export payroll report');
+            showGlassAlert({ title: 'Error', message: 'Failed to export payroll report' });
         }
     };
 
     const handleConfirm = (id) => {
-        Alert.alert(
+        showGlassConfirm(
             'Confirm Calculation', 
             'Are you sure you want to confirm this payroll calculation?',
-            [
-                {
-                    text: 'Cancel',
-                    style: 'cancel'
-                },
-                {
-                    text: 'Confirm',
-                    onPress: () => {
-                        setPayrollData(payrollData.map(item => 
-                            item.id === id ? { ...item, status: 'Confirmed' } : item
-                        ));
-                        Alert.alert('Success', 'Payroll calculation confirmed successfully');
-                    }
-                }
-            ]
+            () => {
+                setPayrollData(payrollData.map(item => 
+                    item.id === id ? { ...item, status: 'Confirmed' } : item
+                ));
+                showGlassAlert({ title: 'Success', message: 'Payroll calculation confirmed successfully' });
+            }
         );
     };
 
-    const stylesWithDarkMode = styles(palette, isDark);
 
     const renderPayrollItem = ({ item }) => {
         // Extract additional data from enhanced breakdown and direct API data
@@ -772,7 +1097,7 @@ export default function PayrollScreen() {
         // }
         
         return (
-            <View style={stylesWithDarkMode.card}>
+            <LiquidGlassCard variant="elevated" padding="md" style={stylesWithDarkMode.card}>
                 <View style={stylesWithDarkMode.cardHeader}>
                     <Text style={stylesWithDarkMode.periodText}>{item.period}</Text>
                     {canViewAllEmployees && <Text style={stylesWithDarkMode.employeeText}>{item.employee.name}</Text>}
@@ -1142,7 +1467,7 @@ export default function PayrollScreen() {
                         <Text style={stylesWithDarkMode.confirmButtonText}>Confirm Calculation</Text>
                     </TouchableOpacity>
                 )}
-            </View>
+            </LiquidGlassCard>
         );
     };
 
@@ -1163,7 +1488,7 @@ export default function PayrollScreen() {
     );
 
     return (
-        <SafeAreaView style={stylesWithDarkMode.container}>
+        <LiquidGlassLayout scrollable={false}>
             <HeaderBackButton destination="/employees" />
             <View style={stylesWithDarkMode.header}>
                 <View style={stylesWithDarkMode.headerRow}>
@@ -1240,49 +1565,51 @@ export default function PayrollScreen() {
             </View>
 
             {loading ? (
-                <ActivityIndicator size="large" color={palette.primary} style={stylesWithDarkMode.loader} />
+                <ActivityIndicator size="large" color={theme.colors.text.primary} style={stylesWithDarkMode.loader} />
             ) : (
-                <>
-                    {/* Current Month Accumulated Salary */}
-                    {currentSalaryData && (
-                        <View style={stylesWithDarkMode.currentSalaryCard}>
-                            <Text style={stylesWithDarkMode.currentSalaryTitle}>
-                                💰 Current Month Progress
-                            </Text>
-                            <View style={stylesWithDarkMode.currentSalaryInfo}>
-                                <Text style={stylesWithDarkMode.currentSalaryPeriod}>
-                                    {currentSalaryData.period}
+                <FlatList
+                    data={payrollData}
+                    renderItem={renderPayrollItem}
+                    keyExtractor={item => item.id.toString()}
+                    contentContainerStyle={stylesWithDarkMode.listContent}
+                    ListEmptyComponent={renderEmptyComponent}
+                    ListHeaderComponent={() => (
+                        <View>
+                            {/* Current Month Accumulated Salary */}
+                            {currentSalaryData && (
+                                <LiquidGlassCard variant="bordered" padding="lg" style={{ marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md }}>
+                                    <Text style={stylesWithDarkMode.currentSalaryTitle}>
+                                        💰 Current Month Progress
+                                    </Text>
+                                    <View style={stylesWithDarkMode.currentSalaryInfo}>
+                                        <Text style={stylesWithDarkMode.currentSalaryPeriod}>
+                                            {currentSalaryData.period}
+                                        </Text>
+                                        <Text style={stylesWithDarkMode.currentSalaryAmount}>
+                                            ₪{(currentSalaryData.estimatedSalary || 0).toLocaleString()}
+                                        </Text>
+                                        <Text style={stylesWithDarkMode.currentSalarySubtext}>
+                                            Estimated based on {currentSalaryData.daysWorked}/{currentSalaryData.daysInMonth} days worked
+                                        </Text>
+                                        <Text style={stylesWithDarkMode.currentSalaryHours}>
+                                            Hours: {currentSalaryData.hoursWorkedThisMonth}h this month
+                                        </Text>
+                                    </View>
+                                </LiquidGlassCard>
+                            )}
+                            
+                            {/* Section Title */}
+                            {payrollData.length > 0 && (
+                                <Text style={stylesWithDarkMode.sectionTitle}>
+                                    📋 {selectedEmployee ? `${selectedEmployee.name} - Current Period` : 'Current Period'}
                                 </Text>
-                                <Text style={stylesWithDarkMode.currentSalaryAmount}>
-                                    ₪{(currentSalaryData.estimatedSalary || 0).toLocaleString()}
-                                </Text>
-                                <Text style={stylesWithDarkMode.currentSalarySubtext}>
-                                    Estimated based on {currentSalaryData.daysWorked}/{currentSalaryData.daysInMonth} days worked
-                                </Text>
-                                <Text style={stylesWithDarkMode.currentSalaryHours}>
-                                    Hours: {currentSalaryData.hoursWorkedThisMonth}h this month
-                                </Text>
-                            </View>
+                            )}
                         </View>
                     )}
-                    
-                    {/* Historical Payroll Data */}
-                    <FlatList
-                        data={payrollData}
-                        renderItem={renderPayrollItem}
-                        keyExtractor={item => item.id.toString()}
-                        contentContainerStyle={stylesWithDarkMode.listContent}
-                        ListEmptyComponent={renderEmptyComponent}
-                        ListHeaderComponent={() => payrollData.length > 0 ? (
-                            <Text style={stylesWithDarkMode.sectionTitle}>
-                                📋 {selectedEmployee ? `${selectedEmployee.name} - Current Period` : 'Current Period'}
-                            </Text>
-                        ) : null}
-                    />
-                </>
+                />
             )}
 
-        </SafeAreaView>
+        </LiquidGlassLayout>
     );
 }
 

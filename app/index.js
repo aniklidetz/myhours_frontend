@@ -20,6 +20,9 @@ import { useUser } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
 import apiService from '../src/api/apiService';
 import { safeLog } from '../src/utils/safeLogging';
+import LiquidGlassBackground from '../components/LiquidGlassBackground';
+import LiquidGlassButton from '../components/LiquidGlassButton';
+import LiquidGlassInput from '../components/LiquidGlassInput';
 
 // Dev mode flag - set to false for production
 const __DEV_MODE__ = false; // Disabled for user interface
@@ -32,6 +35,15 @@ export default function LoginScreen() {
   const passwordInputRef = useRef(null);
   const { login, user, loading: userLoading, isOnline, checkConnection, logout } = useUser();
   const { palette } = useColors();
+  
+  // Safety check for theme loading
+  if (!palette) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#FFFFFF" />
+      </View>
+    );
+  }
 
   useEffect(() => {
     if (user && !userLoading) {
@@ -125,16 +137,17 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles(palette).container}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles(palette).keyboardView}
-      >
-        <ScrollView 
-          contentContainerStyle={styles(palette).scrollContent}
-          showsVerticalScrollIndicator={false}
+    <LiquidGlassBackground>
+      <SafeAreaView style={styles(palette).container}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles(palette).keyboardView}
         >
-          <View style={styles(palette).content}>
+          <ScrollView 
+            contentContainerStyle={styles(palette).scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles(palette).content}>
             <Text style={styles(palette).title}>MyHours</Text>
             <Text style={styles(palette).subtitle}>Time Tracking System</Text>
             
@@ -152,65 +165,50 @@ export default function LoginScreen() {
             )}
 
             <View style={styles(palette).form}>
-              <TextInput
-                style={styles(palette).input}
+              <LiquidGlassInput
                 placeholder="Email"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                placeholderTextColor={palette.text.secondary}
                 returnKeyType="next"
                 onSubmitEditing={() => passwordInputRef.current?.focus()}
                 blurOnSubmit={false}
               />
 
-              <View style={styles(palette).passwordContainer}>
-                <TextInput
-                  ref={passwordInputRef}
-                  style={styles(palette).passwordInput}
-                  placeholder="Password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  placeholderTextColor={palette.text.secondary}
-                  returnKeyType="go"
-                  onSubmitEditing={handleLogin}
-                />
-                <TouchableOpacity
-                  style={styles(palette).passwordToggle}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Ionicons
-                    name={showPassword ? 'eye-off' : 'eye'}
-                    size={20}
-                    color={palette.text.secondary}
-                  />
-                </TouchableOpacity>
-              </View>
+              <LiquidGlassInput
+                inputRef={passwordInputRef}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="go"
+                onSubmitEditing={handleLogin}
+                rightIcon={
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={{ padding: 10 }}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off' : 'eye'}
+                      size={20}
+                      color="rgba(255,255,255,0.7)"
+                    />
+                  </TouchableOpacity>
+                }
+              />
 
-              <TouchableOpacity
-                style={[
-                  styles(palette).loginButton,
-                  (!email.trim() || !password.trim() || loading) && styles(palette).loginButtonDisabled
-                ]}
+              <LiquidGlassButton
+                title="Login"
                 onPress={handleLogin}
-                disabled={!email.trim() || !password.trim() || loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color={palette.text.light} />
-                ) : (
-                  <Text style={[
-                    styles(palette).loginButtonText,
-                    (!email.trim() || !password.trim()) && styles(palette).loginButtonTextDisabled
-                  ]}>
-                    Login
-                  </Text>
-                )}
-              </TouchableOpacity>
+                disabled={!email.trim() || !password.trim()}
+                loading={loading}
+                variant="primary"
+                style={{ marginTop: 20 }}
+              />
 
               {/* Clear Auth Data button (for debugging) - only in dev mode */}
               {__DEV_MODE__ && (
@@ -267,13 +265,14 @@ export default function LoginScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </LiquidGlassBackground>
   );
 }
 
 // Styles function that accepts color palette
 const styles = (palette) => StyleSheet.create({
   container: {
-    backgroundColor: palette.background.secondary,
+    backgroundColor: 'transparent',
     flex: 1,
   },
   keyboardView: {
@@ -298,8 +297,10 @@ const styles = (palette) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
     padding: 10,
-    backgroundColor: palette.background.primary,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   statusDot: {
     width: 8,
@@ -314,7 +315,7 @@ const styles = (palette) => StyleSheet.create({
     backgroundColor: palette.danger,
   },
   statusText: {
-    color: palette.text.secondary,
+    color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
   },
   input: {
@@ -329,12 +330,12 @@ const styles = (palette) => StyleSheet.create({
   },
   loadingContainer: {
     alignItems: 'center',
-    backgroundColor: palette.background.secondary,
+    backgroundColor: '#1a1a2e',
     flex: 1,
     justifyContent: 'center',
   },
   loadingText: {
-    color: palette.text.secondary,
+    color: 'rgba(255,255,255,0.8)',
     fontSize: 16,
     marginTop: 10,
   },
@@ -407,15 +408,19 @@ const styles = (palette) => StyleSheet.create({
     marginBottom: 5,
   },
   subtitle: {
-    color: palette.text.secondary,
+    color: 'rgba(255,255,255,0.8)',
     fontSize: 18,
-    marginBottom: 20,
+    marginBottom: 40,
+    letterSpacing: 1,
   },
   title: {
-    color: palette.primary,
-    fontSize: 42,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 48,
+    fontWeight: '800',
     marginBottom: 10,
+    textShadowColor: 'rgba(233,69,96,0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
   },
   quickLoginButton: {
     backgroundColor: palette.warning,

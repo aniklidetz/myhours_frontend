@@ -9,11 +9,9 @@
      StyleSheet,
      TextInput,
      TouchableOpacity,
-     Alert,
      ScrollView,
      SafeAreaView,
-     ActivityIndicator,
-     Modal
+     ActivityIndicator
    } from 'react-native';
    import { router } from 'expo-router';
    import * as Location from 'expo-location';
@@ -21,6 +19,8 @@
    import { useUser, ROLES } from '../src/contexts/UserContext';
    import { useOffice } from '../src/contexts/OfficeContext';
    import useColors from '../hooks/useColors';
+   import GlassModal from '../components/GlassModal';
+   import useGlassModal from '../hooks/useGlassModal';
    
    /* ---------------------------------------------------------------- */
    /*  Screen Component                                                */
@@ -36,6 +36,7 @@
        updateRemotePolicy
      } = useOffice();
      const { palette } = useColors();
+     const { modalState, showModal, showConfirm, showAlert, showError, hideModal } = useGlassModal();
    
      /* ------------- Local state ------------------------------------- */
      const [locationStr, setLocationStr] = useState('');
@@ -43,7 +44,6 @@
      const [policy, setPolicy]           = useState('hybrid');
      const [gettingLocation, setGettingLocation] = useState(false);
      const [saving, setSaving]           = useState(false);
-     const [showPolicyModal, setShowPolicyModal] = useState(false);
     
     // Confirmation state for number inputs
     const [locationInput, setLocationInput] = useState('');
@@ -72,8 +72,11 @@
      /* ------------- Guard – non-admins are bounced ------------------ */
      useEffect(() => {
        if (!user || !hasAccess(ROLES.ADMIN)) {
-         Alert.alert('Access Denied', 'You do not have permission to access office settings');
-         router.replace('/employees');
+         showAlert({
+           title: 'Access Denied',
+           message: 'You do not have permission to access office settings',
+           onPress: () => router.replace('/employees')
+         });
        }
      }, [user]);
    
@@ -93,13 +96,13 @@
      /** Confirm location coordinates */
      const handleLocationConfirm = () => {
        if (locationInput.trim() === '') {
-         Alert.alert('Error', 'Please enter location coordinates');
+         showError({ message: 'Please enter location coordinates' });
          return;
        }
        
        const coords = splitCoords(locationInput);
        if (!coords) {
-         Alert.alert('Error', 'Enter coordinates as "latitude, longitude"');
+         showError({ message: 'Enter coordinates as "latitude, longitude"' });
          return;
        }
        
@@ -116,13 +119,13 @@
      /** Confirm radius */
      const handleRadiusConfirm = () => {
        if (radiusInput.trim() === '') {
-         Alert.alert('Error', 'Please enter a radius value');
+         showError({ message: 'Please enter a radius value' });
          return;
        }
        
        const rad = parseFloat(radiusInput.replace(',', '.'));
        if (Number.isNaN(rad) || rad <= 0) {
-         Alert.alert('Error', 'Radius must be a positive number');
+         showError({ message: 'Radius must be a positive number' });
          return;
        }
        
@@ -145,7 +148,10 @@
        const { status } = await Location.requestForegroundPermissionsAsync();
    
        if (status !== 'granted') {
-         Alert.alert('Permission Required', 'Please allow location access in your device settings');
+         showAlert({
+           title: 'Permission Required',
+           message: 'Please allow location access in your device settings'
+         });
          setGettingLocation(false);
          return;
        }
@@ -159,28 +165,23 @@
    
          console.log(`📍 Location obtained: lat=${latitude}, lon=${longitude}, accuracy=${accuracy}m`);
    
-         Alert.alert(
-           'Location Retrieved',
-           `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}\nAccuracy: ${accuracy.toFixed(0)} m`,
-           [
-             { text: 'Cancel', style: 'cancel' },
-             {
-               text: 'Set as Office Location',
-               onPress: async () => {
-                 try {
-                   await updateOfficeLocation({ latitude, longitude });
-                   setLocationStr(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
-                 } catch (err) {
-                   console.error('Save location failed:', err);
-                   Alert.alert('Error', 'Could not save office location');
-                 }
-               }
+         showConfirm({
+           title: 'Location Retrieved',
+           message: `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}\nAccuracy: ${accuracy.toFixed(0)} m`,
+           confirmText: 'Set as Office Location',
+           onConfirm: async () => {
+             try {
+               await updateOfficeLocation({ latitude, longitude });
+               setLocationStr(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+             } catch (err) {
+               console.error('Save location failed:', err);
+               showError({ message: 'Could not save office location' });
              }
-           ]
-         );
+           }
+         });
        } catch (error) {
          console.error('Location error:', error);
-         Alert.alert('Error', 'Failed to retrieve current location');
+         showError({ message: 'Failed to retrieve current location' });
        } finally {
          setGettingLocation(false);
        }
@@ -192,26 +193,26 @@
      const handleSave = async () => {
        /* ---- Validate confirmations --------------------------------- */
        if (!locationConfirmed) {
-         Alert.alert('Error', 'Please confirm the location coordinates');
+         showError({ message: 'Please confirm the location coordinates' });
          return;
        }
        
        if (!radiusConfirmed) {
-         Alert.alert('Error', 'Please confirm the check-in radius');
+         showError({ message: 'Please confirm the check-in radius' });
          return;
        }
        
        /* ---- Validate coordinates ----------------------------------- */
        const coords = splitCoords(locationStr);
        if (!coords) {
-         Alert.alert('Error', 'Enter coordinates as "latitude, longitude"');
+         showError({ message: 'Enter coordinates as "latitude, longitude"' });
          return;
        }
    
        /* ---- Validate radius ---------------------------------------- */
        const rad = parseFloat(radiusStr.replace(',', '.'));
        if (Number.isNaN(rad) || rad <= 0) {
-         Alert.alert('Error', 'Radius must be a positive number');
+         showError({ message: 'Radius must be a positive number' });
          return;
        }
    
@@ -222,10 +223,13 @@
          await updateCheckRadius(rad);
          await updateRemotePolicy(policy);
    
-         Alert.alert('Success', 'Office settings have been saved');
+         showAlert({
+           title: 'Success',
+           message: 'Office settings have been saved'
+         });
        } catch (err) {
          console.error('Save failed:', err);
-         Alert.alert('Error', 'Failed to save one or more settings');
+         showError({ message: 'Failed to save one or more settings' });
        } finally {
          setSaving(false);
        }
@@ -347,7 +351,43 @@
              </Text>
              <TouchableOpacity
                style={styles(palette).policySelector}
-               onPress={() => setShowPolicyModal(true)}
+               onPress={() => {
+                 showModal({
+                   title: 'Select Work Policy',
+                   message: 'Choose your company\'s remote work policy:',
+                   buttons: [
+                     {
+                       label: 'Cancel',
+                       type: 'secondary',
+                       onPress: () => hideModal()
+                     },
+                     {
+                       label: '🏢 Office Only',
+                       type: policy === 'office-only' ? 'primary' : 'secondary',
+                       onPress: () => {
+                         setPolicy('office-only');
+                         hideModal();
+                       }
+                     },
+                     {
+                       label: '🏠 Remote Only',
+                       type: policy === 'remote-only' ? 'primary' : 'secondary',
+                       onPress: () => {
+                         setPolicy('remote-only');
+                         hideModal();
+                       }
+                     },
+                     {
+                       label: '🔄 Hybrid',
+                       type: policy === 'hybrid' ? 'primary' : 'secondary',
+                       onPress: () => {
+                         setPolicy('hybrid');
+                         hideModal();
+                       }
+                     }
+                   ]
+                 });
+               }}
              >
                <Text style={styles(palette).policySelectorText}>
                  {policy === 'office-only'
@@ -411,59 +451,16 @@
            </TouchableOpacity>
          </ScrollView>
    
-         {/* Policy Modal */}
-         <Modal
-           transparent
-           visible={showPolicyModal}
-           animationType="slide"
-           onRequestClose={() => setShowPolicyModal(false)}
-         >
-           <View style={styles(palette).modalOverlay}>
-             <View style={styles(palette).modalContent}>
-               <Text style={styles(palette).modalTitle}>Select Work Policy</Text>
-   
-               {[
-                 {
-                   id: 'office-only',
-                   title: '🏢 Office Only',
-                   desc: 'All employees must work from the office. Location verification required.'
-                 },
-                 {
-                   id: 'remote-only',
-                   title: '🏠 Remote Only',
-                   desc: 'All employees work remotely. Location verification not required.'
-                 },
-                 {
-                   id: 'hybrid',
-                   title: '🔄 Hybrid',
-                   desc: 'Flexible: employees can work from the office or remotely.'
-                 }
-               ].map(opt => (
-                 <TouchableOpacity
-                   key={opt.id}
-                   style={[
-                     styles(palette).policyOption,
-                     policy === opt.id && styles(palette).selectedOption
-                   ]}
-                   onPress={() => {
-                     setPolicy(opt.id);
-                     setShowPolicyModal(false);
-                   }}
-                 >
-                   <Text style={styles(palette).policyOptionText}>{opt.title}</Text>
-                   <Text style={styles(palette).policyOptionDesc}>{opt.desc}</Text>
-                 </TouchableOpacity>
-               ))}
-   
-               <TouchableOpacity
-                 style={styles(palette).cancelButton}
-                 onPress={() => setShowPolicyModal(false)}
-               >
-                 <Text style={styles(palette).cancelButtonText}>Cancel</Text>
-               </TouchableOpacity>
-             </View>
-           </View>
-         </Modal>
+         {/* Glass Modal */}
+         <GlassModal
+           visible={modalState.visible}
+           title={modalState.title}
+           message={modalState.message}
+           buttons={modalState.buttons}
+           onClose={modalState.onClose}
+           closeOnBackdrop={modalState.closeOnBackdrop}
+           closeOnBackButton={modalState.closeOnBackButton}
+         />
        </SafeAreaView>
      );
    }
@@ -639,70 +636,6 @@
        },
        backButtonText: {
          color: p.text.light,
-         fontWeight: 'bold'
-       },
-       /* Modal */
-       modalOverlay: {
-         flex: 1,
-         justifyContent: 'center',
-         alignItems: 'center',
-         backgroundColor: 'rgba(0,0,0,0.5)'
-       },
-       modalContent: {
-         width: '90%',
-         maxWidth: 400,
-         backgroundColor: p.background.primary,
-         borderRadius: 12,
-         padding: 24,
-         elevation: 5,
-         shadowColor: p.shadow,
-         shadowOffset: { width: 0, height: 2 },
-         shadowOpacity: 0.25,
-         shadowRadius: 4
-       },
-       modalTitle: {
-         fontSize: 20,
-         fontWeight: 'bold',
-         marginBottom: 20,
-         textAlign: 'center',
-         color: p.text.primary
-       },
-       policyOption: {
-         backgroundColor: p.background.secondary,
-         borderColor: p.border,
-         borderWidth: 1,
-         borderRadius: 8,
-         padding: 16,
-         marginBottom: 12,
-         alignItems: 'center'
-       },
-       selectedOption: {
-         backgroundColor: p.primary,
-         borderColor: p.primary
-       },
-       policyOptionText: {
-         fontSize: 16,
-         fontWeight: 'bold',
-         color: p.text.primary,
-         marginBottom: 8
-       },
-       policyOptionDesc: {
-         fontSize: 12,
-         color: p.text.secondary,
-         textAlign: 'center',
-         lineHeight: 16
-       },
-       cancelButton: {
-         backgroundColor: p.background.secondary,
-         borderColor: p.border,
-         borderWidth: 1,
-         marginTop: 12,
-         padding: 12,
-         borderRadius: 8,
-         alignItems: 'center'
-       },
-       cancelButtonText: {
-         color: p.text.secondary,
          fontWeight: 'bold'
        },
        /* Confirmation UI styles */

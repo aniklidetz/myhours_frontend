@@ -5,10 +5,9 @@ import {
   View, 
   Text, 
   TouchableOpacity, 
-  ActivityIndicator,
-  SafeAreaView,
-  Alert
+  ActivityIndicator
 } from 'react-native';
+import { showGlassAlert, showGlassConfirm } from '../hooks/useGlobalGlassModal';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useUser } from '../src/contexts/UserContext';
 import { useOffice } from '../src/contexts/OfficeContext';
@@ -17,6 +16,10 @@ import useColors from '../hooks/useColors';
 import HeaderBackButton from '../src/components/HeaderBackButton';
 import useLocation from '../hooks/useLocation';
 import { safeLog, safeLogUser, maskEmail, safeLogLocation } from '../src/utils/safeLogging';
+import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassCard from '../components/LiquidGlassCard';
+import LiquidGlassButton from '../components/LiquidGlassButton';
+import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 
 export default function CheckInOutScreen() {
   const [refreshing, setRefreshing] = useState(false);
@@ -29,6 +32,7 @@ export default function CheckInOutScreen() {
   
   const { user } = useUser();
   const { palette } = useColors();
+  const theme = useLiquidGlassTheme();
   const { officeSettings } = useOffice();
   const { location, isUserInRadius } = useLocation({ watchPosition: false });
   const { 
@@ -38,6 +42,157 @@ export default function CheckInOutScreen() {
     getCurrentDuration,
     shiftStartTime 
   } = useWorkStatus();
+
+  // Ensure theme is loaded before using it
+  if (!theme) {
+    return (
+      <LiquidGlassLayout>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </View>
+      </LiquidGlassLayout>
+    );
+  }
+
+  // Create styles after theme is loaded
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: 'transparent',
+    },
+    loadingContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    loadingText: {
+      marginTop: theme.spacing.md,
+      fontSize: theme.typography.body.fontSize,
+      color: theme.colors.text.secondary,
+    },
+    header: {
+      backgroundColor: 'transparent',
+      padding: theme.spacing.lg,
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    title: {
+      fontSize: theme.typography.title.fontSize * 0.7,
+      fontWeight: theme.typography.title.fontWeight,
+      color: theme.colors.text.primary,
+      textShadowColor: theme.shadows.text.color,
+      textShadowOffset: theme.shadows.text.offset,
+      textShadowRadius: theme.shadows.text.radius,
+    },
+    subtitle: {
+      fontSize: theme.typography.subtitle.fontSize,
+      color: theme.colors.text.secondary,
+      marginTop: theme.spacing.xs,
+    },
+    content: {
+      flex: 1,
+      padding: theme.spacing.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    refreshIndicator: {
+      position: 'absolute',
+      top: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.colors.glass.medium,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.glass.border,
+    },
+    refreshText: {
+      marginLeft: theme.spacing.sm,
+      color: theme.colors.text.secondary,
+      fontSize: theme.typography.caption.fontSize,
+    },
+    manualModeIndicator: {
+      position: 'absolute',
+      top: 50,
+      backgroundColor: 'rgba(251, 191, 36, 0.9)',
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.lg,
+      borderWidth: 1,
+      borderColor: 'rgba(251, 191, 36, 0.5)',
+    },
+    manualModeText: {
+      color: theme.colors.text.primary,
+      fontSize: theme.typography.caption.fontSize,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    statusTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.md,
+    },
+    statusHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    statusTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.colors.text.primary,
+      marginLeft: theme.spacing.sm,
+    },
+    currentStatusBadge: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.xl,
+    },
+    onShiftBadge: {
+      backgroundColor: 'rgba(34, 197, 94, 0.8)',
+    },
+    offShiftBadge: {
+      backgroundColor: 'rgba(107, 114, 128, 0.8)',
+    },
+    currentStatusText: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: theme.colors.text.primary,
+    },
+    shiftTimeText: {
+      fontSize: theme.typography.caption.fontSize,
+      color: theme.colors.text.secondary,
+      marginTop: theme.spacing.sm,
+    },
+    shiftInfo: {
+      marginTop: theme.spacing.md,
+      alignItems: 'center',
+    },
+    shiftInfoText: {
+      fontSize: theme.typography.caption.fontSize,
+      color: theme.colors.text.secondary,
+      marginVertical: theme.spacing.xs / 2,
+    },
+    locationTitle: {
+      fontSize: theme.typography.body.fontSize,
+      fontWeight: '600',
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.sm,
+    },
+    locationText: {
+      fontSize: 18,
+      color: theme.colors.text.primary,
+    },
+    infoText: {
+      fontSize: theme.typography.caption.fontSize,
+      color: theme.colors.text.secondary,
+      marginTop: theme.spacing.md,
+      textAlign: 'center',
+    },
+  });
 
   // Reload when screen comes into focus with debounce
   useFocusEffect(
@@ -168,35 +323,38 @@ export default function CheckInOutScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles(palette).container}>
-        <ActivityIndicator size="large" color={palette.primary} />
-      </SafeAreaView>
+      <LiquidGlassLayout>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.text.primary} />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </LiquidGlassLayout>
     );
   }
 
   return (
-    <SafeAreaView style={styles(palette).container}>
+    <LiquidGlassLayout>
       <HeaderBackButton destination="/employees" />
-      <View style={styles(palette).header}>
-        <Text style={styles(palette).title}>Check In/Out</Text>
-        <Text style={styles(palette).subtitle}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Check In/Out</Text>
+        <Text style={styles.subtitle}>
           {user?.first_name || user?.email}'s Work Status
         </Text>
       </View>
 
-      <View style={styles(palette).content}>
+      <View style={styles.content}>
         {/* Refresh indicator */}
         {refreshing && (
-          <View style={styles(palette).refreshIndicator}>
-            <ActivityIndicator size="small" color={palette.primary} />
-            <Text style={styles(palette).refreshText}>Updating status...</Text>
+          <View style={styles.refreshIndicator}>
+            <ActivityIndicator size="small" color={theme.colors.text.primary} />
+            <Text style={styles.refreshText}>Updating status...</Text>
           </View>
         )}
 
         {/* Manual mode indicator */}
         {isManualMode && user?.email === 'mikhail.plotnik@gmail.com' && (
-          <View style={styles(palette).manualModeIndicator}>
-            <Text style={styles(palette).manualModeText}>
+          <View style={styles.manualModeIndicator}>
+            <Text style={styles.manualModeText}>
               🔧 Manual mode enabled - alternative check-out available
             </Text>
           </View>
@@ -204,58 +362,53 @@ export default function CheckInOutScreen() {
 
         {/* Manual operation indicator */}
         {manualOperation && (
-          <View style={styles(palette).refreshIndicator}>
-            <ActivityIndicator size="small" color={palette.warning} />
-            <Text style={styles(palette).refreshText}>Processing manual check-out...</Text>
+          <View style={styles.refreshIndicator}>
+            <ActivityIndicator size="small" color="rgba(251, 191, 36, 1)" />
+            <Text style={styles.refreshText}>Processing manual check-out...</Text>
           </View>
         )}
 
         {/* Current Status Card */}
-        <View style={styles(palette).statusCard}>
-          <Text style={styles(palette).statusTitle}>Current Status</Text>
+        <LiquidGlassCard variant="elevated" padding="lg">
+          <Text style={styles.statusTitle}>Current Status</Text>
           <View style={[
-            styles(palette).statusBadge,
-            workStatus === 'on-shift' ? styles(palette).onShiftBadge : styles(palette).offShiftBadge
+            styles.currentStatusBadge,
+            workStatus === 'on-shift' ? styles.onShiftBadge : styles.offShiftBadge
           ]}>
-            <Text style={styles(palette).statusText}>
+            <Text style={styles.currentStatusText}>
               {workStatus === 'on-shift' ? '🟢 On Shift' : '🔴 Off Shift'}
             </Text>
           </View>
           
           {workStatus === 'on-shift' && shiftStartTime && (
-            <View style={styles(palette).shiftInfo}>
-              <Text style={styles(palette).shiftInfoText}>
+            <View style={styles.shiftInfo}>
+              <Text style={styles.shiftInfoText}>
                 Started at: {new Date(shiftStartTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
               </Text>
-              <Text style={styles(palette).shiftInfoText}>
+              <Text style={styles.shiftInfoText}>
                 Duration: {getCurrentDuration()}
               </Text>
             </View>
           )}
-        </View>
+        </LiquidGlassCard>
 
         {/* Location Status */}
-        <View style={styles(palette).locationCard}>
-          <Text style={styles(palette).locationTitle}>Location Status</Text>
-          <Text style={styles(palette).locationText}>{getLocationStatus()}</Text>
-        </View>
+        <LiquidGlassCard variant="bordered" padding="md">
+          <Text style={styles.locationTitle}>Location Status</Text>
+          <Text style={styles.locationText}>{getLocationStatus()}</Text>
+        </LiquidGlassCard>
 
         {/* Action Button */}
-        <TouchableOpacity
-          style={[
-            styles(palette).actionButton,
-            workStatus === 'on-shift' ? styles(palette).checkOutButton : styles(palette).checkInButton
-          ]}
+        <LiquidGlassButton
+          title={workStatus === 'on-shift' ? '🔓 Check Out' : '🔐 Check In'}
           onPress={workStatus === 'on-shift' ? handleCheckOut : handleCheckIn}
           disabled={refreshing || manualOperation}
-        >
-          <Text style={styles(palette).actionButtonText}>
-            {workStatus === 'on-shift' ? '🔓 Check Out' : '🔐 Check In'}
-          </Text>
-        </TouchableOpacity>
+          variant={workStatus === 'on-shift' ? 'secondary' : 'primary'}
+          style={{ width: '100%', marginVertical: theme.spacing.lg }}
+        />
 
         {/* Info Text */}
-        <Text style={styles(palette).infoText}>
+        <Text style={styles.infoText}>
           {workStatus === 'on-shift' 
             ? 'Tap to end your work shift'
             : 'Tap to start your work shift'
@@ -263,199 +416,18 @@ export default function CheckInOutScreen() {
         </Text>
 
         {/* Manual Refresh Button */}
-        <TouchableOpacity
-          style={styles(palette).refreshButton}
+        <LiquidGlassButton
+          title="🔄 Refresh Status"
           onPress={() => {
             setRefreshing(true);
             loadWorkStatus(true).finally(() => setRefreshing(false));
           }}
           disabled={refreshing}
-        >
-          <Text style={styles(palette).refreshButtonText}>
-            🔄 Refresh Status
-          </Text>
-        </TouchableOpacity>
+          variant="ghost"
+          style={{ marginTop: theme.spacing.md }}
+        />
       </View>
-
-    </SafeAreaView>
+    </LiquidGlassLayout>
   );
 }
 
-const styles = (palette) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: palette.background.secondary,
-  },
-  header: {
-    backgroundColor: palette.background.primary,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: palette.text.primary,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: palette.text.secondary,
-    marginTop: 4,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  refreshIndicator: {
-    position: 'absolute',
-    top: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.background.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    elevation: 2,
-    shadowColor: palette.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  refreshText: {
-    marginLeft: 8,
-    color: palette.text.secondary,
-    fontSize: 12,
-  },
-  manualModeIndicator: {
-    position: 'absolute',
-    top: 50,
-    backgroundColor: palette.warning || '#FFA500',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    elevation: 2,
-    shadowColor: palette.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  manualModeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  statusCard: {
-    backgroundColor: palette.background.primary,
-    padding: 24,
-    borderRadius: 16,
-    width: '100%',
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: palette.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    marginBottom: 20,
-  },
-  statusTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: palette.text.primary,
-    marginBottom: 12,
-  },
-  statusBadge: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-  },
-  onShiftBadge: {
-    backgroundColor: palette.success + '20',
-  },
-  offShiftBadge: {
-    backgroundColor: palette.danger + '20',
-  },
-  statusText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: palette.text.primary,
-  },
-  shiftInfo: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  shiftInfoText: {
-    fontSize: 14,
-    color: palette.text.secondary,
-    marginVertical: 2,
-  },
-  locationCard: {
-    backgroundColor: palette.background.primary,
-    padding: 16,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  locationTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: palette.text.primary,
-    marginBottom: 8,
-  },
-  locationText: {
-    fontSize: 18,
-    color: palette.text.primary,
-  },
-  actionButton: {
-    width: '100%',
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: palette.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  checkInButton: {
-    backgroundColor: palette.success,
-  },
-  checkOutButton: {
-    backgroundColor: palette.danger,
-  },
-  actionButtonText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: palette.text.light,
-  },
-  infoText: {
-    fontSize: 14,
-    color: palette.text.secondary,
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  refreshButton: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: palette.background.primary,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  refreshButtonText: {
-    fontSize: 14,
-    color: palette.primary,
-    fontWeight: '600',
-  },
-  footer: {
-    backgroundColor: palette.background.primary,
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-    padding: 16,
-  },
-});

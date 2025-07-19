@@ -61,9 +61,9 @@ export const WorkStatusProvider = ({ children }) => {
       setLoading(true);
       console.log('🔄 Loading work status from backend...');
       
-      // Add timeout to prevent hanging
+      // Add timeout to prevent hanging - increased timeout for better reliability
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Work status load timeout')), 8000);
+        setTimeout(() => reject(new Error('Work status load timeout')), 20000);
       });
       
       const response = await Promise.race([
@@ -121,10 +121,12 @@ export const WorkStatusProvider = ({ children }) => {
       }
       
       // Don't let work status errors block the UI
-      if (error.message?.includes('timeout') || error.message?.includes('Network Error')) {
-        console.warn('⚠️ Network unavailable, using cached data');
+      if (error.message?.includes('timeout') || error.message?.includes('Network Error') || error.message?.includes('exceeded')) {
+        console.warn('⚠️ Network unavailable or timeout, using cached data');
+      } else if (error.code === 'ECONNABORTED') {
+        console.warn('⚠️ Request timeout exceeded, using cached data');
       } else {
-        console.error('❌ Work status error:', error.message);
+        console.error('❌ Work status error:', error.message || error);
       }
       
       // Try to load from local storage as fallback

@@ -23,6 +23,12 @@ import ApiService from '../src/api/apiService';
 import { APP_CONFIG } from '../src/config';
 import { Ionicons } from '@expo/vector-icons';
 import { maskName, safeLog, safeLogUser, safeLogEmployeesList } from '../src/utils/safeLogging';
+import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassCard from '../components/LiquidGlassCard';
+import LiquidGlassButton from '../components/LiquidGlassButton';
+import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
+import GlassModal from '../components/GlassModal';
+import useGlassModal from '../hooks/useGlassModal';
 
 export default function TeamManagementScreen() {
   const [employees, setEmployees] = useState([]);
@@ -30,9 +36,150 @@ export default function TeamManagementScreen() {
   
   const { user, hasAccess, logout, loading: userLoading } = useUser();
   const { palette } = useColors();
+  const theme = useLiquidGlassTheme();
   const { officeSettings } = useOffice();
   const { location, isUserInRadius } = useLocation({ watchPosition: false });
   const { workStatus, loading: workStatusLoading, loadWorkStatus, getCurrentDuration } = useWorkStatus();
+  const { modalState, showModal, hideModal, showConfirm, showAlert, showError } = useGlassModal();
+
+  // Ensure theme is loaded before using it
+  if (!theme) {
+    return (
+      <LiquidGlassLayout>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </View>
+      </LiquidGlassLayout>
+    );
+  }
+
+  // Create liquid glass styles after theme is loaded
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: 'transparent',
+    },
+    loader: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    listContent: {
+      padding: theme.spacing.lg,
+    },
+    listHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    listHeaderText: {
+      fontSize: theme.typography.title.fontSize * 0.7,
+      fontWeight: theme.typography.title.fontWeight,
+      color: theme.colors.text.primary,
+      textShadowColor: theme.shadows.text.color,
+      textShadowOffset: theme.shadows.text.offset,
+      textShadowRadius: theme.shadows.text.radius,
+    },
+    addButton: {
+      backgroundColor: theme.colors.status.success[0],
+      borderRadius: theme.borderRadius.md,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+    },
+    addButtonText: {
+      color: theme.colors.text.primary,
+      fontSize: theme.typography.body.fontSize,
+      fontWeight: 'bold',
+    },
+    employeeCard: {
+      marginBottom: theme.spacing.md,
+    },
+    employeeHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    employeeName: {
+      fontSize: theme.typography.body.fontSize,
+      fontWeight: 'bold',
+      color: theme.colors.text.primary,
+    },
+    employeeRole: {
+      fontSize: theme.typography.caption.fontSize,
+      color: theme.colors.text.secondary,
+      marginTop: theme.spacing.xs,
+    },
+    employeeEmail: {
+      fontSize: theme.typography.caption.fontSize,
+      color: theme.colors.text.secondary,
+      marginTop: theme.spacing.xs,
+    },
+    employeeStats: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: theme.spacing.sm,
+    },
+    statItem: {
+      alignItems: 'center',
+    },
+    statLabel: {
+      fontSize: theme.typography.caption.fontSize,
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.xs,
+    },
+    statValue: {
+      fontSize: theme.typography.body.fontSize,
+      fontWeight: 'bold',
+      color: theme.colors.text.primary,
+    },
+    statusBadge: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.borderRadius.sm,
+      alignSelf: 'flex-start',
+    },
+    statusActive: {
+      backgroundColor: theme.colors.status.success[0],
+    },
+    statusInactive: {
+      backgroundColor: theme.colors.glass.medium,
+    },
+    statusText: {
+      fontSize: theme.typography.caption.fontSize,
+      fontWeight: 'bold',
+      color: theme.colors.text.primary,
+    },
+    actionButtons: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: theme.spacing.md,
+    },
+    actionButton: {
+      flex: 1,
+      marginHorizontal: theme.spacing.xs,
+    },
+    emptyState: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: theme.spacing.xl,
+    },
+    emptyStateTitle: {
+      fontSize: theme.typography.title.fontSize * 0.8,
+      fontWeight: theme.typography.title.fontWeight,
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.md,
+      textAlign: 'center',
+    },
+    emptyStateText: {
+      fontSize: theme.typography.body.fontSize,
+      color: theme.colors.text.secondary,
+      textAlign: 'center',
+      lineHeight: 24,
+    },
+  });
 
   // Определяем роли
   const isEmployee = user?.role === ROLES.EMPLOYEE;
@@ -76,24 +223,111 @@ export default function TeamManagementScreen() {
       safeLog('👥 Team management employees response:', safeLogEmployeesList(response));
       
       if (response && response.results) {
-        // Get today's date for filtering work logs
-        const today = new Date().toISOString().split('T')[0];
+        // Initially load employees without hours for faster loading
+        const employeesWithBasicInfo = response.results.map(emp => ({
+          ...emp,
+          status: 'loading',
+          todayHours: '...'
+        }));
         
-        // Fetch employees with their today's hours
-        const employeesWithHours = [];
-        for (let i = 0; i < response.results.length; i++) {
-          const emp = response.results[i];
-          
-          // Add delay between requests to prevent rate limiting
-          if (i > 0) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+        setEmployees(employeesWithBasicInfo);
+        
+        // Load hours in background for better UX
+        setTimeout(() => {
+          fetchEmployeesWithHours(employeesWithBasicInfo);
+        }, 100);
+        
+      } else {
+        setEmployees([]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading employees for team management:', error);
+      setEmployees([]);
+    }
+  };
+
+  const fetchEmployeesWithHours = async (employeesBasic) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const updatedEmployees = [...employeesBasic];
+      
+      console.log('🔄 Starting optimized team hours fetch:', {
+        employeeCount: updatedEmployees.length,
+        date: today
+      });
+      
+      // Extract employee IDs for bulk fetch
+      const employeeIds = updatedEmployees.map(emp => emp.id);
+      
+      try {
+        // Use new bulk API method instead of individual calls
+        const teamWorkLogs = await ApiService.worktime.getTeamHours(employeeIds, today);
+        
+        // Process the bulk results
+        updatedEmployees.forEach((emp, index) => {
+          let todayHours = '0h 0m';
+          let status = 'off-shift';
+
+          if (teamWorkLogs && teamWorkLogs.results && teamWorkLogs.results.length > 0) {
+            let totalMinutes = 0;
+            let hasActiveSession = false;
+
+            // Filter logs for this specific employee
+            const employeeLogs = teamWorkLogs.results.filter(log => {
+              if (!log.check_in) return false;
+              const isForThisEmployee = log.employee === emp.id || 
+                                       log.employee_id === emp.id ||
+                                       log.employee_name === `${emp.first_name || ''} ${emp.last_name || ''}`.trim();
+              
+              if (!isForThisEmployee) return false;
+              
+              const logDate = new Date(log.check_in).toISOString().split('T')[0];
+              const todayDate = new Date().toISOString().split('T')[0];
+              
+              return logDate === todayDate;
+            });
+
+            employeeLogs.forEach((log) => {
+              if (log.check_in && !log.check_out) {
+                hasActiveSession = true;
+                status = 'on-shift';
+              } else {
+                const hoursWorked = log.total_hours || log.hours_worked;
+                if (hoursWorked && hoursWorked > 0) {
+                  const minutesToAdd = Math.round(hoursWorked * 60);
+                  totalMinutes += minutesToAdd;
+                }
+              }
+            });
+
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            todayHours = `${hours}h ${minutes}m`;
           }
+
+          updatedEmployees[index] = {
+            ...emp,
+            status,
+            todayHours
+          };
+        });
+        
+        // Single update instead of progressive updates
+        setEmployees(updatedEmployees);
+        safeLog(`✅ Loaded hours for ${updatedEmployees.length} employees (bulk fetch)`);
+        
+      } catch (bulkError) {
+        console.warn('⚠️ Bulk fetch failed, falling back to individual requests:', bulkError);
+        
+        // Fallback to original individual fetch method
+        for (let i = 0; i < updatedEmployees.length; i++) {
+          const emp = updatedEmployees[i];
           
           try {
             const workLogs = await ApiService.worktime.getLogs({
               date: today,
               employee: emp.id,
-              page_size: 50
+              page_size: 20
             });
 
             let todayHours = '0h 0m';
@@ -135,31 +369,38 @@ export default function TeamManagementScreen() {
               todayHours = `${hours}h ${minutes}m`;
             }
 
-            const empWithHours = {
+            updatedEmployees[i] = {
               ...emp,
               status,
               todayHours
             };
-            employeesWithHours.push(empWithHours);
+            
+            // Update employees progressively for better UX
+            if (i % 3 === 0 || i === updatedEmployees.length - 1) {
+              setEmployees([...updatedEmployees]);
+            }
+            
           } catch (error) {
             console.error(`❌ Error fetching hours for employee ${emp.id}:`, error);
-            const empWithHours = {
+            updatedEmployees[i] = {
               ...emp,
               status: 'off-shift',
               todayHours: '0h 0m'
             };
-            employeesWithHours.push(empWithHours);
+          }
+          
+          // Small delay for fallback method
+          if (i < updatedEmployees.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 50));
           }
         }
-
-        safeLog(`✅ Loaded ${employeesWithHours.length} employees for team management`);
-        setEmployees(employeesWithHours);
-      } else {
-        setEmployees([]);
+        
+        setEmployees(updatedEmployees);
+        safeLog(`✅ Loaded hours for ${updatedEmployees.length} employees (fallback)`);
       }
+      
     } catch (error) {
-      console.error('❌ Error loading employees for team management:', error);
-      setEmployees([]);
+      console.error('❌ Error loading employee hours:', error);
     }
   };
 
@@ -174,28 +415,29 @@ export default function TeamManagementScreen() {
   };
 
   const handleSendInvitation = async (employee) => {
-    Alert.alert(
-      'Send Invitation',
-      `Send invitation email to ${employee.email}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Send',
-          onPress: async () => {
-            try {
-              safeLog('📧 Sending invitation to employee:', employee.id);
-              const result = await ApiService.employees.sendInvitation(employee.id);
-              safeLog('📧 Invitation sent successfully');
-              Alert.alert('Success', `Invitation sent to ${employee.email}`);
-              fetchEmployees(false);
-            } catch (error) {
-              console.error('❌ Error sending invitation:', error);
-              Alert.alert('Error', error.response?.data?.error || 'Failed to send invitation');
-            }
-          }
+    showConfirm({
+      title: 'Send Invitation',
+      message: `Send invitation email to ${employee.email}?`,
+      confirmText: 'Send',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          safeLog('📧 Sending invitation to employee:', employee.id);
+          const result = await ApiService.employees.sendInvitation(employee.id);
+          safeLog('📧 Invitation sent successfully');
+          showAlert({
+            title: 'Success',
+            message: `Invitation sent to ${employee.email}`,
+          });
+          fetchEmployees(false);
+        } catch (error) {
+          console.error('❌ Error sending invitation:', error);
+          showError({
+            message: error.response?.data?.error || 'Failed to send invitation',
+          });
         }
-      ]
-    );
+      },
+    });
   };
 
   const handleEditEmployee = (employee) => {
@@ -217,332 +459,291 @@ export default function TeamManagementScreen() {
     });
   };
 
+  const handleDeactivateEmployee = async (employee) => {
+    showConfirm({
+      title: 'Deactivate Employee',
+      message: `Are you sure you want to deactivate ${employee.first_name} ${employee.last_name}?`,
+      confirmText: 'Deactivate',
+      confirmType: 'danger',
+      onConfirm: async () => {
+        try {
+          safeLog('🔒 Deactivating employee:', employee.id);
+          await ApiService.employees.deactivate(employee.id);
+          safeLog('✅ Employee deactivated successfully');
+          showAlert({
+            title: 'Success',
+            message: 'Employee deactivated successfully',
+          });
+          fetchEmployees(false);
+        } catch (error) {
+          console.error('❌ Error deactivating employee:', error);
+          showError({
+            message: 'Failed to deactivate employee',
+          });
+        }
+      },
+    });
+  };
+
   const handleDeleteEmployee = async (employee) => {
-    Alert.alert(
-      'Delete Employee',
-      `Are you sure you want to delete ${employee.first_name} ${employee.last_name}? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              safeLog('🗑️ Deleting employee:', employee.id);
-              await ApiService.employees.delete(employee.id);
-              safeLog('✅ Employee deleted successfully');
-              Alert.alert('Success', 'Employee deleted successfully');
-              fetchEmployees(false);
-            } catch (error) {
-              console.error('❌ Error deleting employee:', error);
-              Alert.alert('Error', 'Failed to delete employee');
-            }
+    showConfirm({
+      title: 'Permanent Delete',
+      message: `Are you absolutely sure you want to permanently delete ${employee.first_name} ${employee.last_name}? This action cannot be undone and will remove all employee data.`,
+      confirmText: 'Delete Permanently',
+      confirmType: 'danger',
+      onConfirm: async () => {
+        try {
+          safeLog('🗑️ Attempting to delete employee:', employee.id);
+          await ApiService.employees.delete(employee.id);
+          safeLog('✅ Employee deleted successfully');
+          showAlert({
+            title: 'Success',
+            message: 'Employee deleted permanently',
+          });
+          fetchEmployees(false);
+        } catch (error) {
+          console.error('❌ Error deleting employee:', error);
+          
+          // Check if it's a 404 or 405 error (method not allowed)
+          if (error.response?.status === 405 || error.response?.status === 404) {
+            showAlert({
+              title: 'Not Available',
+              message: 'Permanent deletion is not available on this server. Employee has been deactivated instead for data safety.',
+              onPress: async () => {
+                try {
+                  await ApiService.employees.deactivate(employee.id);
+                  safeLog('✅ Employee deactivated as fallback');
+                  fetchEmployees(false);
+                } catch (deactivateError) {
+                  console.error('❌ Error deactivating employee:', deactivateError);
+                  showError({
+                    message: 'Failed to deactivate employee',
+                  });
+                }
+              },
+            });
+          } else {
+            showError({
+              message: `Failed to delete employee: ${error.message}`,
+            });
           }
         }
-      ]
-    );
+      },
+    });
+  };
+
+  const handleManageEmployee = async (employee) => {
+    showModal({
+      title: 'Manage Employee',
+      message: `What would you like to do with ${employee.first_name} ${employee.last_name}?`,
+      buttons: [
+        {
+          label: 'Cancel',
+          type: 'secondary',
+          onPress: () => {
+            hideModal(); // Close modal
+          },
+        },
+        {
+          label: 'Edit Details',
+          type: 'primary',
+          onPress: () => {
+            hideModal(); // Close modal first
+            handleEditEmployee(employee);
+          },
+        },
+        {
+          label: 'Deactivate',
+          type: 'danger',
+          onPress: () => {
+            hideModal(); // Close modal first
+            handleDeactivateEmployee(employee);
+          },
+        },
+        {
+          label: 'Delete (Permanent)',
+          type: 'danger',
+          onPress: () => {
+            hideModal(); // Close modal first
+            handleDeleteEmployee(employee);
+          },
+        },
+      ],
+    });
   };
 
   const handleActivateEmployee = async (employee) => {
-    Alert.alert(
-      'Activate Employee',
-      `Are you sure you want to activate ${employee.first_name} ${employee.last_name}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Activate',
-          onPress: async () => {
-            try {
-              safeLog('✅ Activating employee:', employee.id);
-              await ApiService.employees.activate(employee.id);
-              safeLog('✅ Employee activated successfully');
-              Alert.alert('Success', 'Employee activated successfully');
-              fetchEmployees(false);
-            } catch (error) {
-              console.error('❌ Error activating employee:', error);
-              Alert.alert('Error', 'Failed to activate employee');
-            }
-          }
+    showConfirm({
+      title: 'Activate Employee',
+      message: `Are you sure you want to activate ${employee.first_name} ${employee.last_name}?`,
+      confirmText: 'Activate',
+      onConfirm: async () => {
+        try {
+          safeLog('✅ Activating employee:', employee.id);
+          await ApiService.employees.activate(employee.id);
+          safeLog('✅ Employee activated successfully');
+          showAlert({
+            title: 'Success',
+            message: 'Employee activated successfully',
+          });
+          fetchEmployees(false);
+        } catch (error) {
+          console.error('❌ Error activating employee:', error);
+          showError({
+            message: 'Failed to activate employee',
+          });
         }
-      ]
-    );
+      },
+    });
   };
 
   const renderEmployeeItem = ({ item }) => {
     const getEmployeeStatus = () => {
       if (!item.is_registered) {
         if (item.has_pending_invitation) {
-          return { text: '📧 Invited', color: palette.warning };
+          return { text: '📧 Invited', color: theme.colors.status.warning[0] };
         }
-        return { text: '⏳ Not Registered', color: palette.danger };
+        return { text: '⏳ Not Registered', color: theme.colors.status.error[0] };
       }
       if (!item.has_biometric) {
-        return { text: '🔐 No Biometric', color: palette.warning };
+        return { text: '🔐 No Biometric', color: theme.colors.status.warning[0] };
       }
-      return { text: '✅ Active', color: palette.success };
+      return { text: '✅ Active', color: theme.colors.status.success[0] };
     };
 
     const status = getEmployeeStatus();
 
     return (
-      <View style={styles(palette).employeeCard}>
-        <View style={styles(palette).employeeInfo}>
-          <Text style={styles(palette).employeeName}>{item.first_name} {item.last_name}</Text>
-          <Text style={styles(palette).employeeEmail}>{item.email}</Text>
-          <View style={styles(palette).statusRow}>
-            <View style={[styles(palette).employeeStatusBadge, { backgroundColor: status.color + '20' }]}>
-              <Text style={[styles(palette).employeeStatusText, { color: status.color }]}>
-                {status.text}
-              </Text>
+      <LiquidGlassCard variant="bordered" padding="md" style={styles.employeeCard}>
+        <View style={styles.employeeHeader}>
+          <View>
+            <Text style={styles.employeeName}>{item.first_name} {item.last_name}</Text>
+            <Text style={styles.employeeEmail}>{item.email}</Text>
+            <Text style={styles.employeeRole}>{item.role || 'Employee'}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: status.color + '20' }]}>
+            <Text style={[styles.statusText, { color: status.color }]}>
+              {status.text}
+            </Text>
+          </View>
+        </View>
+        
+        {item.is_registered && (
+          <View style={styles.employeeStats}>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Today's Hours</Text>
+              <Text style={styles.statValue}>{item.todayHours || '0h'}</Text>
             </View>
-            {item.is_registered && (
-              <Text style={styles(palette).hoursText}>Today: {item.todayHours}</Text>
-            )}
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Status</Text>
+              <Text style={styles.statValue}>{item.is_active ? 'Active' : 'Inactive'}</Text>
+            </View>
           </View>
-        </View>
-        <View style={styles(palette).employeeActions}>
+        )}
+        
+        <View style={styles.actionButtons}>
           {!item.is_registered ? (
-            <TouchableOpacity 
-              style={styles(palette).inviteButton}
+            <LiquidGlassButton
+              title={item.has_pending_invitation ? 'Resend' : 'Invite'}
               onPress={() => handleSendInvitation(item)}
-            >
-              <Text style={styles(palette).inviteButtonText}>
-                {item.has_pending_invitation ? 'Resend' : 'Invite'}
-              </Text>
-            </TouchableOpacity>
+              variant="primary"
+              style={styles.actionButton}
+            />
           ) : !item.has_biometric ? (
-            <TouchableOpacity 
-              style={styles(palette).registerButton}
+            <LiquidGlassButton
+              title="Register Face"
               onPress={() => handleBiometricRegistration(item)}
-            >
-              <Text style={styles(palette).registerButtonText}>Register Face</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={styles(palette).completeText}>✓ Complete</Text>
-          )}
+              variant="secondary"
+              style={styles.actionButton}
+            />
+          ) : null}
           
-          <View style={styles(palette).managementActions}>
-            <TouchableOpacity 
-              style={styles(palette).editButton}
-              onPress={() => handleEditEmployee(item)}
-            >
-              <Ionicons name="pencil" size={16} color={palette.primary} />
-            </TouchableOpacity>
-            
-            {item.is_active ? (
-              <TouchableOpacity 
-                style={styles(palette).deleteButton}
-                onPress={() => handleDeleteEmployee(item)}
-              >
-                <Ionicons name="trash-outline" size={16} color={palette.danger} />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity 
-                style={styles(palette).activateButton}
-                onPress={() => handleActivateEmployee(item)}
-              >
-                <Ionicons name="checkmark-circle-outline" size={16} color={palette.success} />
-              </TouchableOpacity>
-            )}
-          </View>
+          {item.is_active ? (
+            <LiquidGlassButton
+              title="Manage"
+              onPress={() => handleManageEmployee(item)}
+              variant="secondary"
+              style={styles.actionButton}
+            />
+          ) : (
+            <LiquidGlassButton
+              title="Activate"
+              onPress={() => handleActivateEmployee(item)}
+              variant="primary"
+              style={styles.actionButton}
+            />
+          )}
         </View>
-      </View>
+      </LiquidGlassCard>
     );
   };
 
   if (userLoading || loading) {
     return (
-      <SafeAreaView style={styles(palette).container}>
-        <View style={styles(palette).loader}>
-          <ActivityIndicator size="large" color={palette.primary} />
-          <Text style={{ color: palette.text.primary, marginTop: 10 }}>
+      <LiquidGlassLayout>
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color={theme.colors.text.primary} />
+          <Text style={{ color: theme.colors.text.primary, marginTop: 10 }}>
             Loading team data...
           </Text>
         </View>
-      </SafeAreaView>
+      </LiquidGlassLayout>
     );
   }
 
   if (!canManageEmployees) {
     return (
-      <SafeAreaView style={styles(palette).container}>
-        <View style={styles(palette).loader}>
-          <Text style={{ color: palette.text.primary, textAlign: 'center' }}>
-            You don't have permission to manage employees
+      <LiquidGlassLayout>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateTitle}>🚫 Access Denied</Text>
+          <Text style={styles.emptyStateText}>
+            You don't have permission to manage team members.
           </Text>
         </View>
-      </SafeAreaView>
+      </LiquidGlassLayout>
     );
   }
 
   return (
-    <SafeAreaView style={styles(palette).container}>
+    <LiquidGlassLayout scrollable={false}>
       <FlatList
         data={employees}
         renderItem={renderEmployeeItem}
         keyExtractor={item => item.id.toString()}
-        contentContainerStyle={styles(palette).listContent}
+        contentContainerStyle={styles.listContent}
         ListHeaderComponent={() => (
-          <View style={styles(palette).listHeader}>
-            <Text style={styles(palette).listHeaderText}>
+          <View style={styles.listHeader}>
+            <Text style={styles.listHeaderText}>
               Team Members ({employees.length})
             </Text>
             <TouchableOpacity
-              style={styles(palette).addButton}
+              style={styles.addButton}
               onPress={() => router.push('/add-employee')}
             >
-              <Text style={styles(palette).addButtonText}>+ Add</Text>
+              <Text style={styles.addButtonText}>+ Add</Text>
             </TouchableOpacity>
           </View>
         )}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>👥 No Team Members</Text>
+            <Text style={styles.emptyStateText}>
+              Add your first team member to get started with team management.
+            </Text>
+          </View>
+        )}
       />
-    </SafeAreaView>
+      
+      {/* Glass Modal */}
+      <GlassModal
+        visible={modalState.visible}
+        title={modalState.title}
+        message={modalState.message}
+        buttons={modalState.buttons}
+        onClose={modalState.onClose}
+        closeOnBackdrop={modalState.closeOnBackdrop}
+        closeOnBackButton={modalState.closeOnBackButton}
+      />
+    </LiquidGlassLayout>
   );
 }
-
-const styles = (palette) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: palette.background.secondary,
-  },
-  loader: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  listContent: {
-    padding: 16,
-  },
-  listHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  listHeaderText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: palette.text.primary,
-  },
-  addButton: {
-    backgroundColor: palette.success,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  addButtonText: {
-    color: palette.text.light,
-    fontWeight: '600',
-  },
-  employeeCard: {
-    backgroundColor: palette.background.primary,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    elevation: 2,
-    shadowColor: palette.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  employeeInfo: {
-    flex: 1,
-  },
-  employeeName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: palette.text.primary,
-    marginBottom: 4,
-  },
-  employeeEmail: {
-    fontSize: 14,
-    color: palette.text.secondary,
-    marginBottom: 8,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  employeeStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  employeeStatusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  hoursText: {
-    fontSize: 12,
-    color: palette.text.secondary,
-  },
-  employeeActions: {
-    marginLeft: 12,
-  },
-  inviteButton: {
-    backgroundColor: palette.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  inviteButtonText: {
-    color: palette.text.light,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  registerButton: {
-    backgroundColor: palette.success,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  registerButtonText: {
-    color: palette.text.light,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  completeText: {
-    color: palette.success,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  managementActions: {
-    flexDirection: 'row',
-    marginTop: 8,
-    gap: 8,
-  },
-  editButton: {
-    backgroundColor: palette.background.secondary,
-    borderColor: palette.primary,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteButton: {
-    backgroundColor: palette.background.secondary,
-    borderColor: palette.danger,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activateButton: {
-    backgroundColor: palette.background.secondary,
-    borderColor: palette.success,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

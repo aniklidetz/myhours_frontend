@@ -5,21 +5,29 @@ import {
     Text,
     TouchableOpacity,
     SafeAreaView,
-    Alert,
     TextInput,
-    Modal,
-    ScrollView
+    ScrollView,
+    ActivityIndicator
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { useUser, ROLES } from '../src/contexts/UserContext';
 import { useOffice } from '../src/contexts/OfficeContext';
 import useColors from '../hooks/useColors';
+import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassCard from '../components/LiquidGlassCard';
+import LiquidGlassButton from '../components/LiquidGlassButton';
+import LiquidGlassInput from '../components/LiquidGlassInput';
+import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
+import GlassModal from '../components/GlassModal';
+import useGlassModal from '../hooks/useGlassModal';
 
 export default function AdminScreen() {
     
     const { user, hasAccess } = useUser();
     const { palette } = useColors();
+    const theme = useLiquidGlassTheme();
+    const { modalState, showModal, showConfirm, showAlert, showError, hideModal } = useGlassModal();
     const {
         officeSettings,
         loading: officeLoading,
@@ -28,12 +36,123 @@ export default function AdminScreen() {
         reloadSettings
     } = useOffice();
 
+    // Ensure theme is loaded before using it
+    if (!theme) {
+        return (
+            <LiquidGlassLayout>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#FFFFFF" />
+                </View>
+            </LiquidGlassLayout>
+        );
+    }
+
+    // Create liquid glass styles after theme is loaded
+    const styles = StyleSheet.create({
+        container: {
+            flex: 1,
+            backgroundColor: 'transparent',
+        },
+        header: {
+            backgroundColor: 'transparent',
+            padding: theme.spacing.lg,
+            alignItems: 'center',
+            marginBottom: theme.spacing.md,
+        },
+        headerTitle: {
+            fontSize: theme.typography.title.fontSize * 0.7,
+            fontWeight: theme.typography.title.fontWeight,
+            color: theme.colors.text.primary,
+            textShadowColor: theme.shadows.text.color,
+            textShadowOffset: theme.shadows.text.offset,
+            textShadowRadius: theme.shadows.text.radius,
+        },
+        headerSubtitle: {
+            fontSize: theme.typography.subtitle.fontSize * 0.8,
+            color: theme.colors.text.secondary,
+            marginTop: theme.spacing.xs,
+            textAlign: 'center',
+        },
+        content: {
+            flex: 1,
+            padding: theme.spacing.lg,
+        },
+        settingsCard: {
+            marginBottom: theme.spacing.md,
+        },
+        sectionTitle: {
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+            marginBottom: theme.spacing.sm,
+        },
+        inputContainer: {
+            marginBottom: theme.spacing.md,
+        },
+        inputLabel: {
+            fontSize: theme.typography.body.fontSize,
+            color: theme.colors.text.secondary,
+            marginBottom: theme.spacing.sm,
+        },
+        inputRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: theme.spacing.sm,
+        },
+        input: {
+            flex: 1,
+            marginRight: theme.spacing.sm,
+        },
+        confirmButton: {
+            minWidth: 80,
+        },
+        statusText: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.secondary,
+            marginTop: theme.spacing.xs,
+        },
+        successText: {
+            color: theme.colors.status.success[0],
+        },
+        errorText: {
+            color: theme.colors.status.error[0],
+        },
+        currentLocationText: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.secondary,
+            marginTop: theme.spacing.xs,
+        },
+        policyContainer: {
+            marginBottom: theme.spacing.md,
+        },
+        policyButton: {
+            backgroundColor: theme.colors.glass.medium,
+            borderRadius: theme.borderRadius.md,
+            padding: theme.spacing.md,
+            borderWidth: 1,
+            borderColor: theme.colors.glass.border,
+        },
+        policyText: {
+            fontSize: theme.typography.body.fontSize,
+            color: theme.colors.text.primary,
+            textAlign: 'center',
+        },
+        actionButtons: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            marginTop: theme.spacing.lg,
+        },
+        actionButton: {
+            flex: 1,
+            marginHorizontal: theme.spacing.xs,
+        },
+    });
+
     // Office settings state
     const [locationStr, setLocationStr] = useState('');
     const [radiusStr, setRadiusStr] = useState('');
     const [policy, setPolicy] = useState('hybrid');
     const [gettingLocation, setGettingLocation] = useState(false);
-    const [showPolicyModal, setShowPolicyModal] = useState(false);
     
     // Confirmation state for number inputs
     const [locationInput, setLocationInput] = useState('');
@@ -44,8 +163,11 @@ export default function AdminScreen() {
     // Строгая проверка прав доступа
     useEffect(() => {
         if (!user || !hasAccess(ROLES.ADMIN)) {
-            Alert.alert('Access Denied', 'You do not have permission to access this screen');
-            router.replace('/employees');
+            showAlert({
+                title: 'Access Denied',
+                message: 'You do not have permission to access this screen',
+                onPress: () => router.replace('/employees')
+            });
             return;
         }
     }, [user, hasAccess]);
@@ -77,7 +199,10 @@ export default function AdminScreen() {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert('Permission Required', 'Please allow location access in your device settings');
+                showAlert({
+                    title: 'Permission Required',
+                    message: 'Please allow location access in your device settings'
+                });
                 return;
             }
             
@@ -88,27 +213,29 @@ export default function AdminScreen() {
             const coordString = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
             setLocationStr(coordString);
             
-            Alert.alert(
-                'Location Retrieved',
-                `Current coordinates:\n${coordString}\n\nWould you like to set this as your office location?`,
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    { 
-                        text: 'Set as Office Location', 
-                        onPress: async () => {
-                            const success = await updateOfficeLocation({ latitude, longitude });
-                            if (success) {
-                                Alert.alert('Success', 'Office location updated successfully!');
-                            } else {
-                                Alert.alert('Error', 'Failed to save office location');
-                            }
-                        }
+            showConfirm({
+                title: 'Location Retrieved',
+                message: `Current coordinates:\n${coordString}\n\nWould you like to set this as your office location?`,
+                confirmText: 'Set as Office Location',
+                onConfirm: async () => {
+                    const success = await updateOfficeLocation({ latitude, longitude });
+                    if (success) {
+                        showAlert({
+                            title: 'Success',
+                            message: 'Office location updated successfully!'
+                        });
+                    } else {
+                        showError({
+                            message: 'Failed to save office location'
+                        });
                     }
-                ]
-            );
+                }
+            });
         } catch (error) {
             console.error('Location error:', error);
-            Alert.alert('Error', 'Failed to retrieve current location. Please try again.');
+            showError({
+                message: 'Failed to retrieve current location. Please try again.'
+            });
         } finally {
             setGettingLocation(false);
         }
@@ -117,29 +244,29 @@ export default function AdminScreen() {
     // Helper functions for confirmation
     const handleLocationConfirm = () => {
         if (locationInput.trim() === '') {
-            Alert.alert('Error', 'Please enter location coordinates');
+            showError({ message: 'Please enter location coordinates' });
             return;
         }
         
         const parts = locationInput.split(',').map(s => s.trim());
         if (parts.length !== 2) {
-            Alert.alert('Error', 'Enter coordinates as "latitude, longitude"');
+            showError({ message: 'Enter coordinates as "latitude, longitude"' });
             return;
         }
         
         const [lat, lon] = parts.map(Number);
         if (isNaN(lat) || isNaN(lon)) {
-            Alert.alert('Error', 'Coordinates must be valid numbers');
+            showError({ message: 'Coordinates must be valid numbers' });
             return;
         }
         
         if (lat < -90 || lat > 90) {
-            Alert.alert('Error', 'Latitude must be between -90 and 90');
+            showError({ message: 'Latitude must be between -90 and 90' });
             return;
         }
         
         if (lon < -180 || lon > 180) {
-            Alert.alert('Error', 'Longitude must be between -180 and 180');
+            showError({ message: 'Longitude must be between -180 and 180' });
             return;
         }
         
@@ -154,23 +281,23 @@ export default function AdminScreen() {
 
     const handleRadiusConfirm = () => {
         if (radiusInput.trim() === '') {
-            Alert.alert('Error', 'Please enter a radius value');
+            showError({ message: 'Please enter a radius value' });
             return;
         }
         
         const rad = parseInt(radiusInput, 10);
         if (isNaN(rad) || rad <= 0) {
-            Alert.alert('Error', 'Radius must be a positive number');
+            showError({ message: 'Radius must be a positive number' });
             return;
         }
         
         if (rad < 10) {
-            Alert.alert('Error', 'Minimum radius is 10 meters for practical use');
+            showError({ message: 'Minimum radius is 10 meters for practical use' });
             return;
         }
         
         if (rad > 10000) {
-            Alert.alert('Error', 'Maximum radius is 10,000 meters (10km)');
+            showError({ message: 'Maximum radius is 10,000 meters (10km)' });
             return;
         }
         
@@ -186,52 +313,73 @@ export default function AdminScreen() {
     const handleSaveOfficeSettings = async () => {
         // Validate confirmations
         if (!locationConfirmed) {
-            Alert.alert('Error', 'Please confirm the location coordinates');
+            showError({ message: 'Please confirm the location coordinates' });
             return;
         }
         
         if (!radiusConfirmed) {
-            Alert.alert('Error', 'Please confirm the check-in radius');
+            showError({ message: 'Please confirm the check-in radius' });
             return;
         }
         
         // Validate location
         const parts = locationStr.split(',').map(s => s.trim());
         if (parts.length !== 2) {
-            Alert.alert('Invalid Location', 'Please enter coordinates as: latitude, longitude\nExample: 32.0853, 34.7818');
+            showError({
+                title: 'Invalid Location',
+                message: 'Please enter coordinates as: latitude, longitude\nExample: 32.0853, 34.7818'
+            });
             return;
         }
         
         const [lat, lon] = parts.map(Number);
         if (isNaN(lat) || isNaN(lon)) {
-            Alert.alert('Invalid Coordinates', 'Coordinates must be valid numbers');
+            showError({
+                title: 'Invalid Coordinates',
+                message: 'Coordinates must be valid numbers'
+            });
             return;
         }
         
         if (lat < -90 || lat > 90) {
-            Alert.alert('Invalid Latitude', 'Latitude must be between -90 and 90');
+            showError({
+                title: 'Invalid Latitude',
+                message: 'Latitude must be between -90 and 90'
+            });
             return;
         }
         
         if (lon < -180 || lon > 180) {
-            Alert.alert('Invalid Longitude', 'Longitude must be between -180 and 180');
+            showError({
+                title: 'Invalid Longitude',
+                message: 'Longitude must be between -180 and 180'
+            });
             return;
         }
         
         // Validate radius
         const rad = parseInt(radiusStr, 10);
         if (isNaN(rad) || rad <= 0) {
-            Alert.alert('Invalid Radius', 'Radius must be a positive number (minimum 10 meters)');
+            showError({
+                title: 'Invalid Radius',
+                message: 'Radius must be a positive number (minimum 10 meters)'
+            });
             return;
         }
         
         if (rad < 10) {
-            Alert.alert('Radius Too Small', 'Minimum radius is 10 meters for practical use');
+            showError({
+                title: 'Radius Too Small',
+                message: 'Minimum radius is 10 meters for practical use'
+            });
             return;
         }
         
         if (rad > 10000) {
-            Alert.alert('Radius Too Large', 'Maximum radius is 10,000 meters (10km)');
+            showError({
+                title: 'Radius Too Large',
+                message: 'Maximum radius is 10,000 meters (10km)'
+            });
             return;
         }
         
@@ -259,149 +407,196 @@ export default function AdminScreen() {
             if (success) {
                 // Reload settings to get the updated values
                 await reloadSettings();
-                Alert.alert('Success', '✅ All office settings have been saved successfully!');
+                showAlert({
+                    title: 'Success',
+                    message: '✅ All office settings have been saved successfully!'
+                });
             } else {
                 console.error('Failed to save settings - updateAllSettings returned false');
-                Alert.alert('Error', '❌ Failed to save office settings. Please try again.');
+                showError({
+                    message: '❌ Failed to save office settings. Please try again.'
+                });
             }
         } catch (error) {
             console.error('Save settings error:', error);
-            Alert.alert('Error', `Failed to save office settings: ${error.message || 'Unknown error'}`);
+            showError({
+                message: `Failed to save office settings: ${error.message || 'Unknown error'}`
+            });
         }
     };
 
 
     const renderOfficeTab = () => (
-        <View style={styles(palette).tabContent}>
-            <View style={styles(palette).header}>
-                <Text style={styles(palette).title}>Office Settings</Text>
-            </View>
-            <ScrollView contentContainerStyle={styles(palette).scrollContent}>
-                {/* Office Location */}
-                <View style={styles(palette).section}>
-                    <Text style={styles(palette).sectionTitle}>📍 Office Location</Text>
-                    <Text style={styles(palette).sectionDescription}>
-                        Set the GPS coordinates of your office for location-based check-ins
-                    </Text>
+        <ScrollView style={styles.content}>
+            {/* Office Location */}
+            <LiquidGlassCard variant="elevated" padding="lg" style={styles.settingsCard}>
+                <Text style={styles.sectionTitle}>📍 Office Location</Text>
+                <Text style={styles.headerSubtitle}>
+                    Set the GPS coordinates of your office for location-based check-ins
+                </Text>
+                <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Coordinates (latitude, longitude)</Text>
                     {!locationConfirmed ? (
-                        <View style={styles(palette).inputWithButton}>
-                            <TextInput
-                                style={[styles(palette).input, styles(palette).inputWithButtonText]}
-                                placeholder="latitude, longitude (e.g., 32.0853, 34.7818)"
+                        <View style={styles.inputRow}>
+                            <LiquidGlassInput
+                                style={styles.input}
+                                placeholder="32.0853, 34.7818"
                                 value={locationInput}
                                 onChangeText={setLocationInput}
                                 keyboardType="decimal-pad"
-                                placeholderTextColor={palette.text.secondary}
                             />
-                            <TouchableOpacity
-                                style={styles(palette).confirmButton}
+                            <LiquidGlassButton
+                                title="✓"
                                 onPress={handleLocationConfirm}
-                            >
-                                <Text style={styles(palette).confirmButtonText}>✓</Text>
-                            </TouchableOpacity>
+                                variant="primary"
+                                style={styles.confirmButton}
+                            />
                         </View>
                     ) : (
-                        <View style={styles(palette).confirmedInput}>
-                            <Text style={styles(palette).confirmedText}>{locationStr}</Text>
-                            <TouchableOpacity
-                                style={styles(palette).editButton}
+                        <View style={styles.inputRow}>
+                            <Text style={styles.statusText}>{locationStr}</Text>
+                            <LiquidGlassButton
+                                title="Edit"
                                 onPress={handleLocationEdit}
-                            >
-                                <Text style={styles(palette).editButtonText}>Edit</Text>
-                            </TouchableOpacity>
+                                variant="ghost"
+                                style={styles.confirmButton}
+                            />
                         </View>
                     )}
-                    <TouchableOpacity
-                        style={styles(palette).locationButton}
-                        onPress={handleGetLocation}
-                        disabled={gettingLocation}
-                    >
-                        <Text style={styles(palette).buttonText}>
-                            {gettingLocation ? '📍 Getting Location...' : '📱 Use Current Location'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Check Radius */}
-                <View style={styles(palette).section}>
-                    <Text style={styles(palette).sectionTitle}>📏 Check-in Radius</Text>
-                    <Text style={styles(palette).sectionDescription}>
-                        Maximum distance (in meters) from office to allow office check-ins
+                    <Text style={[styles.currentLocationText, styles.successText]}>
+                        {locationStr ? 'Location configured' : 'No location set'}
                     </Text>
+                </View>
+                <LiquidGlassButton
+                    title={gettingLocation ? '📍 Getting Location...' : '📱 Use Current Location'}
+                    onPress={handleGetLocation}
+                    disabled={gettingLocation}
+                    variant="secondary"
+                />
+            </LiquidGlassCard>
+
+            {/* Check Radius */}
+            <LiquidGlassCard variant="elevated" padding="lg" style={styles.settingsCard}>
+                <Text style={styles.sectionTitle}>📏 Check-in Radius</Text>
+                <Text style={styles.headerSubtitle}>
+                    Maximum distance (in meters) from office to allow office check-ins
+                </Text>
+                <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Radius (meters)</Text>
                     {!radiusConfirmed ? (
-                        <View style={styles(palette).inputWithButton}>
-                            <TextInput
-                                style={[styles(palette).input, styles(palette).inputWithButtonText]}
+                        <View style={styles.inputRow}>
+                            <LiquidGlassInput
+                                style={styles.input}
                                 placeholder="100"
                                 value={radiusInput}
                                 onChangeText={setRadiusInput}
                                 keyboardType="numeric"
-                                placeholderTextColor={palette.text.secondary}
                             />
-                            <TouchableOpacity
-                                style={styles(palette).confirmButton}
+                            <LiquidGlassButton
+                                title="✓"
                                 onPress={handleRadiusConfirm}
-                            >
-                                <Text style={styles(palette).confirmButtonText}>✓</Text>
-                            </TouchableOpacity>
+                                variant="primary"
+                                style={styles.confirmButton}
+                            />
                         </View>
                     ) : (
-                        <View style={styles(palette).confirmedInput}>
-                            <Text style={styles(palette).confirmedText}>{radiusStr} meters</Text>
-                            <TouchableOpacity
-                                style={styles(palette).editButton}
+                        <View style={styles.inputRow}>
+                            <Text style={styles.statusText}>{radiusStr} meters</Text>
+                            <LiquidGlassButton
+                                title="Edit"
                                 onPress={handleRadiusEdit}
-                            >
-                                <Text style={styles(palette).editButtonText}>Edit</Text>
-                            </TouchableOpacity>
+                                variant="ghost"
+                                style={styles.confirmButton}
+                            />
                         </View>
                     )}
                 </View>
+            </LiquidGlassCard>
 
-                {/* Work Policy */}
-                <View style={styles(palette).section}>
-                    <Text style={styles(palette).sectionTitle}>🏢 Work Policy</Text>
-                    <Text style={styles(palette).sectionDescription}>
-                        Choose your company's remote work policy
-                    </Text>
+            {/* Work Policy */}
+            <LiquidGlassCard variant="elevated" padding="lg" style={styles.settingsCard}>
+                <Text style={styles.sectionTitle}>🏢 Work Policy</Text>
+                <Text style={styles.headerSubtitle}>
+                    Choose your company's remote work policy
+                </Text>
+                <View style={styles.policyContainer}>
                     <TouchableOpacity 
-                        style={styles(palette).policySelector}
-                        onPress={() => setShowPolicyModal(true)}
+                        style={styles.policyButton}
+                        onPress={() => {
+                            showModal({
+                                title: 'Select Work Policy',
+                                message: 'Choose your company\'s remote work policy:',
+                                buttons: [
+                                    {
+                                        label: 'Cancel',
+                                        type: 'secondary',
+                                        onPress: () => hideModal()
+                                    },
+                                    {
+                                        label: '🏢 Office Only',
+                                        type: policy === 'office-only' ? 'primary' : 'secondary',
+                                        onPress: () => {
+                                            setPolicy('office-only');
+                                            hideModal();
+                                        }
+                                    },
+                                    {
+                                        label: '🏠 Remote Only',
+                                        type: policy === 'remote-only' ? 'primary' : 'secondary',
+                                        onPress: () => {
+                                            setPolicy('remote-only');
+                                            hideModal();
+                                        }
+                                    },
+                                    {
+                                        label: '🔄 Hybrid',
+                                        type: policy === 'hybrid' ? 'primary' : 'secondary',
+                                        onPress: () => {
+                                            setPolicy('hybrid');
+                                            hideModal();
+                                        }
+                                    }
+                                ]
+                            });
+                        }}
                     >
-                        <Text style={styles(palette).policySelectorText}>
+                        <Text style={styles.policyText}>
                             {policy === 'office-only' ? '🏢 Office Only' : 
                              policy === 'remote-only' ? '🏠 Remote Only' : '🔄 Hybrid'}
                         </Text>
                     </TouchableOpacity>
                 </View>
+            </LiquidGlassCard>
 
-                {/* Current Settings Summary */}
-                <View style={styles(palette).summarySection}>
-                    <Text style={styles(palette).summaryTitle}>📋 Current Settings</Text>
-                    <View style={styles(palette).summaryItem}>
-                        <Text style={styles(palette).summaryLabel}>Office Location:</Text>
-                        <Text style={styles(palette).summaryValue}>
-                            {locationStr || 'Not configured'}
-                        </Text>
-                    </View>
-                    <View style={styles(palette).summaryItem}>
-                        <Text style={styles(palette).summaryLabel}>Check Radius:</Text>
-                        <Text style={styles(palette).summaryValue}>{radiusStr || '100'} meters</Text>
-                    </View>
-                    <View style={styles(palette).summaryItem}>
-                        <Text style={styles(palette).summaryLabel}>Work Policy:</Text>
-                        <Text style={styles(palette).summaryValue}>
-                            {policy === 'office-only' ? 'Office Only' : 
-                             policy === 'remote-only' ? 'Remote Only' : 'Hybrid'}
-                        </Text>
-                    </View>
+            {/* Current Settings Summary */}
+            <LiquidGlassCard variant="bordered" padding="lg" style={styles.settingsCard}>
+                <Text style={styles.sectionTitle}>📋 Current Settings</Text>
+                <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Office Location:</Text>
+                    <Text style={styles.statusText}>
+                        {locationStr || 'Not configured'}
+                    </Text>
                 </View>
+                <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Check Radius:</Text>
+                    <Text style={styles.statusText}>{radiusStr || '100'} meters</Text>
+                </View>
+                <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Work Policy:</Text>
+                    <Text style={styles.statusText}>
+                        {policy === 'office-only' ? 'Office Only' : 
+                         policy === 'remote-only' ? 'Remote Only' : 'Hybrid'}
+                    </Text>
+                </View>
+            </LiquidGlassCard>
 
-                <TouchableOpacity style={styles(palette).saveButton} onPress={handleSaveOfficeSettings}>
-                    <Text style={styles(palette).saveButtonText}>💾 Save Office Settings</Text>
-                </TouchableOpacity>
-            </ScrollView>
-        </View>
+            <LiquidGlassButton
+                title="💾 Save Office Settings"
+                onPress={handleSaveOfficeSettings}
+                variant="primary"
+                style={{ marginTop: theme.spacing.lg }}
+            />
+        </ScrollView>
     );
 
     if (!user || !hasAccess(ROLES.ADMIN)) {
@@ -409,517 +604,27 @@ export default function AdminScreen() {
     }
 
     return (
-        <SafeAreaView style={styles(palette).container}>
+        <LiquidGlassLayout>
             {/* Header */}
-            <View style={styles(palette).header}>
-                <Text style={styles(palette).headerTitle}>🏢 Office Settings</Text>
-                <Text style={styles(palette).headerSubtitle}>Configure office location and work policies</Text>
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>🏢 Office Settings</Text>
+                <Text style={styles.headerSubtitle}>Configure office location and work policies</Text>
             </View>
 
             {/* Office Settings Content */}
             {renderOfficeTab()}
 
-            {/* Policy Selection Modal */}
-            <Modal
-                transparent={true}
-                visible={showPolicyModal}
-                animationType="slide"
-                onRequestClose={() => setShowPolicyModal(false)}
-            >
-                <View style={styles(palette).modalOverlay}>
-                    <View style={styles(palette).modalContent}>
-                        <Text style={styles(palette).modalTitle}>Select Work Policy</Text>
-                        
-                        <TouchableOpacity 
-                            style={[styles(palette).policyOption, policy === 'office-only' && styles(palette).selectedOption]}
-                            onPress={() => {
-                                setPolicy('office-only');
-                                setShowPolicyModal(false);
-                            }}
-                        >
-                            <Text style={styles(palette).policyOptionText}>🏢 Office Only</Text>
-                            <Text style={styles(palette).policyOptionDesc}>Employees must work from office</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                            style={[styles(palette).policyOption, policy === 'remote-only' && styles(palette).selectedOption]}
-                            onPress={() => {
-                                setPolicy('remote-only');
-                                setShowPolicyModal(false);
-                            }}
-                        >
-                            <Text style={styles(palette).policyOptionText}>🏠 Remote Only</Text>
-                            <Text style={styles(palette).policyOptionDesc}>Employees work remotely</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                            style={[styles(palette).policyOption, policy === 'hybrid' && styles(palette).selectedOption]}
-                            onPress={() => {
-                                setPolicy('hybrid');
-                                setShowPolicyModal(false);
-                            }}
-                        >
-                            <Text style={styles(palette).policyOptionText}>🔄 Hybrid</Text>
-                            <Text style={styles(palette).policyOptionDesc}>Mix of office and remote work</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                            style={styles(palette).cancelButton}
-                            onPress={() => setShowPolicyModal(false)}
-                        >
-                            <Text style={styles(palette).cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-        </SafeAreaView>
+            {/* Glass Modal */}
+            <GlassModal
+                visible={modalState.visible}
+                title={modalState.title}
+                message={modalState.message}
+                buttons={modalState.buttons}
+                onClose={modalState.onClose}
+                closeOnBackdrop={modalState.closeOnBackdrop}
+                closeOnBackButton={modalState.closeOnBackButton}
+            />
+        </LiquidGlassLayout>
     );
 }
 
-const styles = (palette) => StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: palette.background.secondary,
-    },
-    header: {
-        backgroundColor: palette.background.primary,
-        padding: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: palette.border,
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-        marginBottom: 4,
-    },
-    headerSubtitle: {
-        fontSize: 14,
-        color: palette.text.secondary,
-    },
-    tabBar: {
-        flexDirection: 'row',
-        backgroundColor: palette.background.primary,
-        borderBottomWidth: 1,
-        borderBottomColor: palette.border,
-    },
-    tab: {
-        flex: 1,
-        paddingVertical: 16,
-        alignItems: 'center',
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
-    },
-    activeTab: {
-        borderBottomColor: palette.primary,
-    },
-    tabText: {
-        fontSize: 16,
-        color: palette.text.secondary,
-    },
-    activeTabText: {
-        color: palette.primary,
-        fontWeight: 'bold',
-    },
-    tabContent: {
-        flex: 1,
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 16,
-        backgroundColor: palette.background.primary,
-        borderBottomWidth: 1,
-        borderBottomColor: palette.border,
-    },
-    title: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-    },
-    addButton: {
-        backgroundColor: palette.success,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 6,
-    },
-    addButtonText: {
-        color: palette.text.light,
-        fontWeight: 'bold',
-    },
-    loader: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    listContent: {
-        padding: 16,
-    },
-    card: {
-        backgroundColor: palette.background.primary,
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 12,
-        elevation: 2,
-        shadowColor: palette.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-    },
-    inactiveCard: {
-        opacity: 0.6,
-    },
-    cardContent: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    userName: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-        marginBottom: 4,
-    },
-    userEmail: {
-        fontSize: 14,
-        color: palette.text.secondary,
-        marginBottom: 8,
-    },
-    roleBadge: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    adminBadge: {
-        backgroundColor: palette.danger,
-    },
-    accountantBadge: {
-        backgroundColor: palette.primary,
-    },
-    employeeBadge: {
-        backgroundColor: palette.success,
-    },
-    roleText: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: palette.text.light,
-    },
-    cardActions: {
-        alignItems: 'flex-end',
-    },
-    inactiveLabel: {
-        fontSize: 12,
-        color: palette.danger,
-        marginBottom: 8,
-    },
-    cardEditButton: {
-        backgroundColor: palette.primary,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 4,
-    },
-    cardEditButtonText: {
-        color: palette.text.light,
-        fontWeight: 'bold',
-        fontSize: 12,
-    },
-    
-    // Office Settings Styles
-    scrollContent: {
-        padding: 16,
-    },
-    section: {
-        backgroundColor: palette.background.primary,
-        borderRadius: 12,
-        padding: 20,
-        marginBottom: 16,
-        elevation: 2,
-        shadowColor: palette.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-        marginBottom: 8,
-    },
-    sectionDescription: {
-        fontSize: 14,
-        color: palette.text.secondary,
-        marginBottom: 16,
-        lineHeight: 20,
-    },
-    input: {
-        backgroundColor: palette.background.secondary,
-        borderColor: palette.border,
-        borderWidth: 1,
-        borderRadius: 8,
-        padding: 12,
-        fontSize: 16,
-        color: palette.text.primary,
-        marginBottom: 12,
-    },
-    locationButton: {
-        backgroundColor: palette.primary,
-        padding: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    buttonText: {
-        color: palette.text.light,
-        fontWeight: 'bold',
-        fontSize: 16,
-    },
-    policySelector: {
-        backgroundColor: palette.background.secondary,
-        borderColor: palette.border,
-        borderWidth: 1,
-        borderRadius: 8,
-        padding: 16,
-        alignItems: 'center',
-    },
-    policySelectorText: {
-        fontSize: 16,
-        color: palette.text.primary,
-        fontWeight: '500',
-    },
-    summarySection: {
-        backgroundColor: palette.background.primary,
-        borderRadius: 12,
-        padding: 20,
-        marginBottom: 24,
-        borderWidth: 2,
-        borderColor: palette.primary,
-    },
-    summaryTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: palette.primary,
-        marginBottom: 16,
-    },
-    summaryItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 12,
-    },
-    summaryLabel: {
-        fontSize: 14,
-        color: palette.text.secondary,
-        fontWeight: '500',
-    },
-    summaryValue: {
-        fontSize: 14,
-        color: palette.text.primary,
-        fontWeight: 'bold',
-    },
-    saveButton: {
-        backgroundColor: palette.success,
-        padding: 16,
-        borderRadius: 12,
-        alignItems: 'center',
-        elevation: 3,
-        shadowColor: palette.shadow,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.2,
-        shadowRadius: 5,
-    },
-    saveButtonText: {
-        color: palette.text.light,
-        fontWeight: 'bold',
-        fontSize: 18,
-    },
-    
-    // Modal Styles
-    modalOverlay: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    },
-    modalContent: {
-        width: '90%',
-        maxWidth: 400,
-        backgroundColor: palette.background.primary,
-        borderRadius: 12,
-        padding: 24,
-        elevation: 5,
-        shadowColor: palette.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 20,
-        textAlign: 'center',
-        color: palette.text.primary,
-    },
-    inputGroup: {
-        marginBottom: 16,
-    },
-    inputLabel: {
-        color: palette.text.secondary,
-        fontSize: 14,
-        marginBottom: 8,
-        fontWeight: '500',
-    },
-    textInput: {
-        backgroundColor: palette.background.secondary,
-        borderColor: palette.border,
-        borderWidth: 1,
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        fontSize: 16,
-        color: palette.text.primary,
-    },
-    roleSelectors: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    roleSelector: {
-        flex: 1,
-        alignItems: 'center',
-        backgroundColor: palette.background.secondary,
-        borderColor: palette.border,
-        borderWidth: 1,
-        borderRadius: 8,
-        padding: 12,
-        marginHorizontal: 2,
-    },
-    selectedRole: {
-        backgroundColor: palette.primary,
-        borderColor: palette.primary,
-    },
-    roleSelectorText: {
-        fontSize: 12,
-        color: palette.text.primary,
-        fontWeight: '500',
-    },
-    statusToggle: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 8,
-    },
-    statusText: {
-        color: palette.text.primary,
-        fontSize: 14,
-    },
-    modalButtons: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 24,
-    },
-    modalButton: {
-        flex: 1,
-        alignItems: 'center',
-        borderRadius: 8,
-        marginHorizontal: 4,
-        padding: 12,
-    },
-    cancelButton: {
-        backgroundColor: palette.background.secondary,
-        borderColor: palette.border,
-        borderWidth: 1,
-        marginTop: 12,
-        padding: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    cancelButtonText: {
-        color: palette.text.secondary,
-        fontWeight: 'bold',
-    },
-    saveModalButton: {
-        backgroundColor: palette.success,
-    },
-    saveModalButtonText: {
-        color: palette.text.light,
-        fontWeight: 'bold',
-    },
-    
-    // Policy Modal Styles
-    policyOption: {
-        backgroundColor: palette.background.secondary,
-        borderColor: palette.border,
-        borderWidth: 1,
-        borderRadius: 8,
-        padding: 16,
-        marginBottom: 12,
-        alignItems: 'center',
-    },
-    selectedOption: {
-        backgroundColor: palette.primary,
-        borderColor: palette.primary,
-    },
-    policyOptionText: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-        marginBottom: 4,
-    },
-    policyOptionDesc: {
-        fontSize: 12,
-        color: palette.text.secondary,
-        textAlign: 'center',
-    },
-    
-    // Confirmation UI styles
-    inputWithButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    inputWithButtonText: {
-        flex: 1,
-        marginRight: 8,
-        marginBottom: 0,
-    },
-    confirmButton: {
-        backgroundColor: palette.primary,
-        padding: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 44,
-        height: 44,
-    },
-    confirmButtonText: {
-        color: palette.text.light,
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    confirmedInput: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 12,
-        borderWidth: 1,
-        borderColor: palette.success || palette.primary,
-        borderRadius: 8,
-        backgroundColor: palette.background.secondary,
-        marginBottom: 12,
-    },
-    confirmedText: {
-        fontSize: 16,
-        color: palette.text.primary,
-        fontWeight: '500',
-    },
-    editButton: {
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: palette.primary,
-        padding: 8,
-        borderRadius: 6,
-    },
-    editButtonText: {
-        color: palette.primary,
-        fontSize: 14,
-        fontWeight: '500',
-    },
-});

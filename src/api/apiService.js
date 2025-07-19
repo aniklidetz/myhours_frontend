@@ -697,6 +697,14 @@ const apiService = {
       return response.data;
     },
 
+    // Delete employee permanently
+    delete: async (id) => {
+      const response = await apiClient.delete(
+        `${API_ENDPOINTS.EMPLOYEES}${id}/`
+      );
+      return response.data;
+    },
+
     // Clear employees cache
     clearCache: async () => {
       try {
@@ -998,6 +1006,36 @@ const apiService = {
     getLogs: async (params = {}) => {
       const response = await apiClientHeavy.get(API_ENDPOINTS.WORKTIME.LOGS, { params });
       return response.data;
+    },
+
+    // New bulk method for fetching team hours efficiently
+    getTeamHours: async (employeeIds = [], date = null) => {
+      try {
+        const targetDate = date || new Date().toISOString().split('T')[0];
+        console.log('🌍 Fetching team hours for multiple employees:', { 
+          employeeCount: employeeIds.length, 
+          date: targetDate 
+        });
+        
+        const response = await apiClientHeavy.get(API_ENDPOINTS.WORKTIME.LOGS, { 
+          params: {
+            date: targetDate,
+            employees: employeeIds.join(','),
+            page_size: 100,
+            bulk_fetch: true
+          }
+        });
+        
+        console.log('✅ Team hours bulk fetch successful:', {
+          totalRecords: response.data.count || response.data.results?.length || 0,
+          employeesRequested: employeeIds.length
+        });
+        
+        return response.data;
+      } catch (error) {
+        console.error('❌ Team hours bulk fetch failed:', error);
+        throw error;
+      }
     },
 
     getCurrentSessions: async () => {

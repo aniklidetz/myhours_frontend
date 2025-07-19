@@ -15,6 +15,10 @@ import HeaderBackButton from '../src/components/HeaderBackButton';
 import ApiService from '../src/api/apiService';
 import { API_ENDPOINTS, API_URL, APP_CONFIG } from '../src/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassCard from '../components/LiquidGlassCard';
+import LiquidGlassButton from '../components/LiquidGlassButton';
+import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 
 const TIME_FILTERS = {
     'THIS_MONTH': { label: 'This Month', days: new Date().getDate() + 30 }, // Current month + buffer
@@ -35,7 +39,208 @@ export default function WorktimeScreen() {
     const [isExpanded, setIsExpanded] = useState(false); // Track expansion state
     const { user, hasAccess } = useUser();
     const { palette } = useColors();
+    const theme = useLiquidGlassTheme();
     const canViewAll = hasAccess(ROLES.ACCOUNTANT);
+
+    // Ensure theme is loaded before using it
+    if (!theme) {
+        return (
+            <LiquidGlassLayout>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#FFFFFF" />
+                </View>
+            </LiquidGlassLayout>
+        );
+    }
+
+    // Create styles after theme is loaded
+    const styles = StyleSheet.create({
+        container: {
+            flex: 1,
+            backgroundColor: 'transparent',
+        },
+        header: {
+            backgroundColor: 'transparent',
+            padding: theme.spacing.lg,
+            alignItems: 'center',
+            marginBottom: theme.spacing.md,
+        },
+        title: {
+            fontSize: theme.typography.title.fontSize * 0.7,
+            fontWeight: theme.typography.title.fontWeight,
+            color: theme.colors.text.primary,
+            textShadowColor: theme.shadows.text.color,
+            textShadowOffset: theme.shadows.text.offset,
+            textShadowRadius: theme.shadows.text.radius,
+        },
+        loader: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        listContent: {
+            padding: theme.spacing.lg,
+        },
+        timeFilterSection: {
+            marginTop: theme.spacing.md,
+        },
+        viewToggleSection: {
+            marginTop: theme.spacing.md,
+        },
+        selectorLabel: {
+            fontSize: theme.typography.body.fontSize,
+            color: theme.colors.text.secondary,
+            marginBottom: theme.spacing.sm,
+        },
+        selectorScroll: {
+            flexGrow: 0,
+            flexShrink: 0,
+        },
+        selectorScrollContent: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: theme.spacing.xs,
+        },
+        selectorButton: {
+            paddingHorizontal: theme.spacing.md,
+            paddingVertical: theme.spacing.sm,
+            borderRadius: theme.borderRadius.lg,
+            borderWidth: 1,
+            borderColor: theme.colors.glass.border,
+            backgroundColor: theme.colors.glass.light,
+            marginRight: theme.spacing.sm,
+            alignSelf: 'flex-start',
+            flexShrink: 0,
+        },
+        selectorButtonActive: {
+            backgroundColor: theme.colors.glass.medium,
+            borderColor: theme.colors.glass.border,
+        },
+        selectorButtonText: {
+            fontSize: theme.typography.body.fontSize,
+            color: theme.colors.text.primary,
+            fontWeight: '500',
+        },
+        selectorButtonTextActive: {
+            color: theme.colors.text.primary,
+        },
+        viewToggle: {
+            flexDirection: 'row',
+            backgroundColor: theme.colors.glass.light,
+            borderRadius: theme.borderRadius.md,
+            padding: 2,
+        },
+        toggleButton: {
+            flex: 1,
+            paddingVertical: theme.spacing.sm,
+            paddingHorizontal: theme.spacing.md,
+            borderRadius: theme.borderRadius.sm,
+            alignItems: 'center',
+        },
+        toggleButtonActive: {
+            backgroundColor: theme.colors.glass.medium,
+        },
+        toggleButtonText: {
+            fontSize: theme.typography.body.fontSize,
+            color: theme.colors.text.primary,
+            fontWeight: '500',
+        },
+        toggleButtonTextActive: {
+            color: theme.colors.text.primary,
+        },
+        emptyState: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: theme.spacing.xl,
+            minHeight: 400,
+        },
+        emptyStateTitle: {
+            fontSize: theme.typography.title.fontSize * 0.8,
+            fontWeight: theme.typography.title.fontWeight,
+            color: theme.colors.text.primary,
+            marginBottom: theme.spacing.md,
+            textAlign: 'center',
+        },
+        emptyStateText: {
+            fontSize: theme.typography.body.fontSize,
+            color: theme.colors.text.secondary,
+            textAlign: 'center',
+            lineHeight: 24,
+        },
+        showMoreContainer: {
+            padding: theme.spacing.lg,
+            alignItems: 'center',
+            backgroundColor: 'transparent',
+        },
+        showMoreButton: {
+            backgroundColor: theme.colors.glass.medium,
+            paddingHorizontal: theme.spacing.lg,
+            paddingVertical: theme.spacing.md,
+            borderRadius: theme.borderRadius.md,
+            borderWidth: 1,
+            borderColor: theme.colors.glass.border,
+        },
+        showMoreText: {
+            color: theme.colors.text.primary,
+            fontSize: theme.typography.body.fontSize,
+            fontWeight: '600',
+            textAlign: 'center',
+        },
+        // Table styles
+        tableContainer: {
+            flex: 1,
+            padding: theme.spacing.lg,
+        },
+        table: {
+            backgroundColor: theme.colors.glass.light,
+            borderRadius: theme.borderRadius.md,
+            overflow: 'hidden',
+            borderWidth: 1,
+            borderColor: theme.colors.glass.border,
+        },
+        tableHeader: {
+            flexDirection: 'row',
+            backgroundColor: theme.colors.glass.medium,
+            paddingVertical: theme.spacing.md,
+            paddingHorizontal: theme.spacing.sm,
+            borderBottomWidth: 1,
+            borderBottomColor: theme.colors.glass.border,
+        },
+        tableHeaderText: {
+            fontSize: theme.typography.caption.fontSize,
+            fontWeight: 'bold',
+            color: theme.colors.text.primary,
+            textAlign: 'center',
+        },
+        tableRow: {
+            flexDirection: 'row',
+            paddingVertical: theme.spacing.sm,
+            paddingHorizontal: theme.spacing.sm,
+            borderBottomWidth: 1,
+            borderBottomColor: theme.colors.glass.border,
+        },
+        tableRowEven: {
+            backgroundColor: theme.colors.glass.light,
+        },
+        tableCellText: {
+            fontSize: theme.typography.caption.fontSize,
+            color: theme.colors.text.primary,
+            textAlign: 'center',
+        },
+        colDate: {
+            flex: 2,
+        },
+        colEmployee: {
+            flex: 1.5,
+        },
+        colTime: {
+            flex: 1.2,
+        },
+        colHours: {
+            flex: 1.3,
+        },
+    });
 
     useEffect(() => {
         if (canViewAll) {
@@ -274,38 +479,44 @@ export default function WorktimeScreen() {
     };
 
     const renderItem = ({ item }) => (
-        <View style={styles(palette).card}>
-            <View style={styles(palette).cardHeader}>
-                <Text style={styles(palette).dateText}>{item.date}</Text>
-                {canViewAll && <Text style={styles(palette).employeeText}>{item.employee.name}</Text>}
+        <LiquidGlassCard variant="bordered" padding="md" style={{ marginBottom: theme.spacing.md }}>
+            <View style={{ borderBottomWidth: 1, borderBottomColor: theme.colors.glass.border, marginBottom: theme.spacing.sm, paddingBottom: theme.spacing.sm }}>
+                <Text style={{ fontSize: theme.typography.body.fontSize, fontWeight: 'bold', color: theme.colors.text.primary }}>
+                    {item.date}
+                </Text>
+                {canViewAll && (
+                    <Text style={{ fontSize: theme.typography.caption.fontSize, color: theme.colors.text.secondary, marginTop: theme.spacing.xs }}>
+                        {item.employee.name}
+                    </Text>
+                )}
             </View>
-            <View style={styles(palette).timeRow}>
-                <View style={styles(palette).timeItem}>
-                    <Text style={styles(palette).timeLabel}>Check-in:</Text>
-                    <Text style={styles(palette).timeValue}>{item.checkIn}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: theme.spacing.md }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: theme.colors.text.secondary, marginRight: theme.spacing.xs }}>Check-in:</Text>
+                    <Text style={{ fontWeight: 'bold', color: theme.colors.text.primary }}>{item.checkIn}</Text>
                 </View>
-                <View style={styles(palette).timeItem}>
-                    <Text style={styles(palette).timeLabel}>Check-out:</Text>
-                    <Text style={styles(palette).timeValue}>{item.checkOut}</Text>
-                </View>
-            </View>
-            <View style={styles(palette).summaryRow}>
-                <View style={styles(palette).summaryItem}>
-                    <Text style={styles(palette).summaryLabel}>Total Hours:</Text>
-                    <Text style={styles(palette).summaryValue}>{item.totalHours}</Text>
-                </View>
-                <View style={styles(palette).summaryItem}>
-                    <Text style={styles(palette).summaryLabel}>Work Mode:</Text>
-                    <Text style={styles(palette).summaryValue}>{item.workMode}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: theme.colors.text.secondary, marginRight: theme.spacing.xs }}>Check-out:</Text>
+                    <Text style={{ fontWeight: 'bold', color: theme.colors.text.primary }}>{item.checkOut}</Text>
                 </View>
             </View>
-        </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: theme.colors.glass.border, paddingTop: theme.spacing.sm }}>
+                <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontSize: theme.typography.caption.fontSize, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>Total Hours:</Text>
+                    <Text style={{ fontSize: theme.typography.body.fontSize, fontWeight: 'bold', color: theme.colors.text.primary }}>{item.totalHours}</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontSize: theme.typography.caption.fontSize, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>Work Mode:</Text>
+                    <Text style={{ fontSize: theme.typography.body.fontSize, fontWeight: 'bold', color: theme.colors.text.primary }}>{item.workMode}</Text>
+                </View>
+            </View>
+        </LiquidGlassCard>
     );
 
     const renderEmptyComponent = () => (
-        <View style={styles(palette).emptyState}>
-            <Text style={styles(palette).emptyStateTitle}>📋 No Work Records</Text>
-            <Text style={styles(palette).emptyStateText}>
+        <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>📋 No Work Records</Text>
+            <Text style={styles.emptyStateText}>
                 {canViewAll
                     ? "No work records found. Employees need to check in/out to create records."
                     : "You haven't checked in yet.\nGo to Dashboard and check in to start tracking your time."}
@@ -319,15 +530,15 @@ export default function WorktimeScreen() {
         }
 
         return (
-            <ScrollView style={styles(palette).tableContainer}>
-                <View style={styles(palette).table}>
+            <ScrollView style={styles.tableContainer}>
+                <View style={styles.table}>
                     {/* Table Header */}
-                    <View style={styles(palette).tableHeader}>
-                        <Text style={[styles(palette).tableHeaderText, styles(palette).colDate]}>Date</Text>
-                        {canViewAll && <Text style={[styles(palette).tableHeaderText, styles(palette).colEmployee]}>Employee</Text>}
-                        <Text style={[styles(palette).tableHeaderText, styles(palette).colTime]}>In</Text>
-                        <Text style={[styles(palette).tableHeaderText, styles(palette).colTime]}>Out</Text>
-                        <Text style={[styles(palette).tableHeaderText, styles(palette).colHours]}>Hours</Text>
+                    <View style={styles.tableHeader}>
+                        <Text style={[styles.tableHeaderText, styles.colDate]}>Date</Text>
+                        {canViewAll && <Text style={[styles.tableHeaderText, styles.colEmployee]}>Employee</Text>}
+                        <Text style={[styles.tableHeaderText, styles.colTime]}>In</Text>
+                        <Text style={[styles.tableHeaderText, styles.colTime]}>Out</Text>
+                        <Text style={[styles.tableHeaderText, styles.colHours]}>Hours</Text>
                     </View>
                     
                     {/* Table Rows */}
@@ -335,25 +546,25 @@ export default function WorktimeScreen() {
                         <View 
                             key={item.id} 
                             style={[
-                                styles(palette).tableRow,
-                                index % 2 === 0 && styles(palette).tableRowEven
+                                styles.tableRow,
+                                index % 2 === 0 && styles.tableRowEven
                             ]}
                         >
-                            <Text style={[styles(palette).tableCellText, styles(palette).colDate]}>
+                            <Text style={[styles.tableCellText, styles.colDate]}>
                                 {item.dateShort}
                             </Text>
                             {canViewAll && (
-                                <Text style={[styles(palette).tableCellText, styles(palette).colEmployee]}>
+                                <Text style={[styles.tableCellText, styles.colEmployee]}>
                                     {item.employee.name.split(' ').map(n => n[0]).join('')}
                                 </Text>
                             )}
-                            <Text style={[styles(palette).tableCellText, styles(palette).colTime]}>
+                            <Text style={[styles.tableCellText, styles.colTime]}>
                                 {item.checkIn}
                             </Text>
-                            <Text style={[styles(palette).tableCellText, styles(palette).colTime]}>
+                            <Text style={[styles.tableCellText, styles.colTime]}>
                                 {item.checkOut === 'Still working' ? '--' : item.checkOut}
                             </Text>
-                            <Text style={[styles(palette).tableCellText, styles(palette).colHours]}>
+                            <Text style={[styles.tableCellText, styles.colHours]}>
                                 {item.totalHours}
                             </Text>
                         </View>
@@ -362,12 +573,12 @@ export default function WorktimeScreen() {
                 
                 {/* Show More/Less Button for Table View */}
                 {worktimeData.length > 10 && (
-                    <View style={styles(palette).showMoreContainer}>
+                    <View style={styles.showMoreContainer}>
                         <TouchableOpacity
-                            style={styles(palette).showMoreButton}
+                            style={styles.showMoreButton}
                             onPress={handleShowMore}
                         >
-                            <Text style={styles(palette).showMoreText}>
+                            <Text style={styles.showMoreText}>
                                 {isExpanded 
                                     ? 'Hide' 
                                     : 'Show more'
@@ -381,27 +592,32 @@ export default function WorktimeScreen() {
     };
 
     return (
-        <SafeAreaView style={styles(palette).container}>
+        <LiquidGlassLayout scrollable={false}>
             <HeaderBackButton destination="/employees" />
-            <View style={styles(palette).header}>
-                <Text style={styles(palette).title}>Worktime Tracking</Text>
+            <View style={styles.header}>
+                <Text style={styles.title}>Worktime Tracking</Text>
                 
                 {/* Time Period Filter */}
-                <View style={styles(palette).timeFilterSection}>
-                    <Text style={styles(palette).selectorLabel}>Time Period:</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles(palette).selectorScroll}>
+                <View style={styles.timeFilterSection}>
+                    <Text style={styles.selectorLabel}>Time Period:</Text>
+                    <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false} 
+                        style={styles.selectorScroll}
+                        contentContainerStyle={styles.selectorScrollContent}
+                    >
                         {Object.entries(TIME_FILTERS).map(([key, filter]) => (
                             <TouchableOpacity
                                 key={key}
                                 style={[
-                                    styles(palette).selectorButton,
-                                    selectedTimeFilter === key && styles(palette).selectorButtonActive
+                                    styles.selectorButton,
+                                    selectedTimeFilter === key && styles.selectorButtonActive
                                 ]}
                                 onPress={() => setSelectedTimeFilter(key)}
                             >
                                 <Text style={[
-                                    styles(palette).selectorButtonText,
-                                    selectedTimeFilter === key && styles(palette).selectorButtonTextActive
+                                    styles.selectorButtonText,
+                                    selectedTimeFilter === key && styles.selectorButtonTextActive
                                 ]}>
                                     {filter.label}
                                 </Text>
@@ -412,33 +628,33 @@ export default function WorktimeScreen() {
 
                 {/* View Toggle */}
                 {worktimeData.length > 5 && (
-                    <View style={styles(palette).viewToggleSection}>
-                        <Text style={styles(palette).selectorLabel}>View:</Text>
-                        <View style={styles(palette).viewToggle}>
+                    <View style={styles.viewToggleSection}>
+                        <Text style={styles.selectorLabel}>View:</Text>
+                        <View style={styles.viewToggle}>
                             <TouchableOpacity
                                 style={[
-                                    styles(palette).toggleButton,
-                                    !isTableView && styles(palette).toggleButtonActive
+                                    styles.toggleButton,
+                                    !isTableView && styles.toggleButtonActive
                                 ]}
                                 onPress={() => setIsTableView(false)}
                             >
                                 <Text style={[
-                                    styles(palette).toggleButtonText,
-                                    !isTableView && styles(palette).toggleButtonTextActive
+                                    styles.toggleButtonText,
+                                    !isTableView && styles.toggleButtonTextActive
                                 ]}>
                                     Cards
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[
-                                    styles(palette).toggleButton,
-                                    isTableView && styles(palette).toggleButtonActive
+                                    styles.toggleButton,
+                                    isTableView && styles.toggleButtonActive
                                 ]}
                                 onPress={() => setIsTableView(true)}
                             >
                                 <Text style={[
-                                    styles(palette).toggleButtonText,
-                                    isTableView && styles(palette).toggleButtonTextActive
+                                    styles.toggleButtonText,
+                                    isTableView && styles.toggleButtonTextActive
                                 ]}>
                                     Table
                                 </Text>
@@ -448,19 +664,24 @@ export default function WorktimeScreen() {
                 )}
 
                 {canViewAll && employees.length > 0 && (
-                    <View style={styles(palette).employeeSelector}>
-                        <Text style={styles(palette).selectorLabel}>Employee:</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles(palette).selectorScroll}>
+                    <View style={styles.timeFilterSection}>
+                        <Text style={styles.selectorLabel}>Employee:</Text>
+                        <ScrollView 
+                            horizontal 
+                            showsHorizontalScrollIndicator={false} 
+                            style={styles.selectorScroll}
+                            contentContainerStyle={styles.selectorScrollContent}
+                        >
                             <TouchableOpacity
                                 style={[
-                                    styles(palette).selectorButton,
-                                    !selectedEmployee && styles(palette).selectorButtonActive
+                                    styles.selectorButton,
+                                    !selectedEmployee && styles.selectorButtonActive
                                 ]}
                                 onPress={() => setSelectedEmployee(null)}
                             >
                                 <Text style={[
-                                    styles(palette).selectorButtonText,
-                                    !selectedEmployee && styles(palette).selectorButtonTextActive
+                                    styles.selectorButtonText,
+                                    !selectedEmployee && styles.selectorButtonTextActive
                                 ]}>
                                     All Employees
                                 </Text>
@@ -469,14 +690,14 @@ export default function WorktimeScreen() {
                                 <TouchableOpacity
                                     key={emp.id}
                                     style={[
-                                        styles(palette).selectorButton,
-                                        selectedEmployee?.id === emp.id && styles(palette).selectorButtonActive
+                                        styles.selectorButton,
+                                        selectedEmployee?.id === emp.id && styles.selectorButtonActive
                                     ]}
                                     onPress={() => setSelectedEmployee(emp)}
                                 >
                                     <Text style={[
-                                        styles(palette).selectorButtonText,
-                                        selectedEmployee?.id === emp.id && styles(palette).selectorButtonTextActive
+                                        styles.selectorButtonText,
+                                        selectedEmployee?.id === emp.id && styles.selectorButtonTextActive
                                     ]}>
                                         {emp.name}
                                     </Text>
@@ -488,286 +709,87 @@ export default function WorktimeScreen() {
             </View>
 
             {loading ? (
-                <ActivityIndicator size="large" color={palette.primary} style={styles(palette).loader} />
+                <ActivityIndicator size="large" color={theme.colors.text.primary} style={styles.loader} />
             ) : isTableView ? (
-                renderTableView()
+                <FlatList
+                    data={worktimeData.slice(0, displayCount)}
+                    renderItem={({ item, index }) => (
+                        <View 
+                            style={[
+                                styles.tableRow,
+                                index % 2 === 0 && styles.tableRowEven
+                            ]}
+                        >
+                            <Text style={[styles.tableCellText, styles.colDate]}>
+                                {item.dateShort}
+                            </Text>
+                            {canViewAll && (
+                                <Text style={[styles.tableCellText, styles.colEmployee]}>
+                                    {item.employee.name.split(' ').map(n => n[0]).join('')}
+                                </Text>
+                            )}
+                            <Text style={[styles.tableCellText, styles.colTime]}>
+                                {item.checkIn}
+                            </Text>
+                            <Text style={[styles.tableCellText, styles.colTime]}>
+                                {item.checkOut === 'Still working' ? '--' : item.checkOut}
+                            </Text>
+                            <Text style={[styles.tableCellText, styles.colHours]}>
+                                {item.totalHours}
+                            </Text>
+                        </View>
+                    )}
+                    keyExtractor={item => item.id.toString()}
+                    contentContainerStyle={styles.listContent}
+                    ListEmptyComponent={renderEmptyComponent}
+                    ListHeaderComponent={() => (
+                        <View style={styles.table}>
+                            {/* Table Header */}
+                            <View style={styles.tableHeader}>
+                                <Text style={[styles.tableHeaderText, styles.colDate]}>Date</Text>
+                                {canViewAll && <Text style={[styles.tableHeaderText, styles.colEmployee]}>Employee</Text>}
+                                <Text style={[styles.tableHeaderText, styles.colTime]}>In</Text>
+                                <Text style={[styles.tableHeaderText, styles.colTime]}>Out</Text>
+                                <Text style={[styles.tableHeaderText, styles.colHours]}>Hours</Text>
+                            </View>
+                        </View>
+                    )}
+                    ListFooterComponent={
+                        worktimeData.length > 10 ? (
+                            <View style={styles.showMoreContainer}>
+                                <LiquidGlassButton
+                                    title={isExpanded ? 'Hide' : 'Show more'}
+                                    onPress={handleShowMore}
+                                    variant="ghost"
+                                    style={{ width: 'auto' }}
+                                />
+                            </View>
+                        ) : null
+                    }
+                />
             ) : (
                 <FlatList
                     data={worktimeData.slice(0, displayCount)}
                     renderItem={renderItem}
                     keyExtractor={item => item.id.toString()}
-                    contentContainerStyle={styles(palette).listContent}
+                    contentContainerStyle={styles.listContent}
                     ListEmptyComponent={renderEmptyComponent}
+                    ListFooterComponent={
+                        !loading && worktimeData.length > 10 ? (
+                            <View style={styles.showMoreContainer}>
+                                <LiquidGlassButton
+                                    title={isExpanded ? 'Hide' : 'Show more'}
+                                    onPress={handleShowMore}
+                                    variant="ghost"
+                                    style={{ width: 'auto' }}
+                                />
+                            </View>
+                        ) : null
+                    }
                 />
             )}
 
-            {/* Show More/Less Button - only for list view */}
-            {!loading && !isTableView && worktimeData.length > 10 && (
-                <View style={styles(palette).showMoreContainer}>
-                    <TouchableOpacity
-                        style={styles(palette).showMoreButton}
-                        onPress={handleShowMore}
-                    >
-                        <Text style={styles(palette).showMoreText}>
-                            {isExpanded 
-                                ? 'Hide' 
-                                : 'Show more'
-                            }
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            )}
-
-        </SafeAreaView>
+        </LiquidGlassLayout>
     );
 }
 
-const styles = palette => StyleSheet.create({
-    container: {
-        backgroundColor: palette.background.secondary,
-        flex: 1,
-    },
-    header: {
-        backgroundColor: palette.background.primary,
-        borderBottomColor: palette.border,
-        borderBottomWidth: 1,
-        padding: 16,
-    },
-    title: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-    },
-    employeeSelector: {
-        marginTop: 16,
-    },
-    selectorLabel: {
-        fontSize: 14,
-        color: palette.text.secondary,
-        marginBottom: 8,
-    },
-    selectorScroll: {
-        flexDirection: 'row',
-    },
-    selectorButton: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: palette.border,
-        backgroundColor: palette.background.secondary,
-        marginRight: 8,
-    },
-    selectorButtonActive: {
-        backgroundColor: palette.primary,
-        borderColor: palette.primary,
-    },
-    selectorButtonText: {
-        fontSize: 14,
-        color: palette.text.primary,
-        fontWeight: '500',
-    },
-    selectorButtonTextActive: {
-        color: palette.text.light,
-    },
-    listContent: {
-        padding: 16,
-    },
-    loader: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    card: {
-        backgroundColor: palette.background.primary,
-        borderRadius: 8,
-        padding: 16,
-        marginBottom: 16,
-        elevation: 2,
-        shadowColor: palette.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-    },
-    cardHeader: {
-        borderBottomColor: palette.border,
-        borderBottomWidth: 1,
-        marginBottom: 8,
-        paddingBottom: 8,
-    },
-    dateText: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-    },
-    employeeText: {
-        fontSize: 14,
-        color: palette.text.secondary,
-        marginTop: 4,
-    },
-    timeRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 16,
-    },
-    timeItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    timeLabel: {
-        color: palette.text.secondary,
-        marginRight: 4,
-    },
-    timeValue: {
-        fontWeight: 'bold',
-        color: palette.text.primary,
-    },
-    summaryRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        borderTopColor: palette.border,
-        borderTopWidth: 1,
-        paddingTop: 8,
-    },
-    summaryItem: {
-        alignItems: 'center',
-    },
-    summaryLabel: {
-        fontSize: 12,
-        color: palette.text.secondary,
-        marginBottom: 4,
-    },
-    summaryValue: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-    },
-    footer: {
-        backgroundColor: palette.background.primary,
-        borderTopColor: palette.border,
-        borderTopWidth: 1,
-        padding: 16,
-    },
-    emptyState: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 32,
-        minHeight: 400,
-    },
-    emptyStateTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-        marginBottom: 16,
-        textAlign: 'center',
-    },
-    emptyStateText: {
-        fontSize: 16,
-        color: palette.text.secondary,
-        textAlign: 'center',
-        lineHeight: 24,
-    },
-    timeFilterSection: {
-        marginTop: 16,
-    },
-    viewToggleSection: {
-        marginTop: 16,
-    },
-    viewToggle: {
-        flexDirection: 'row',
-        backgroundColor: palette.background.secondary,
-        borderRadius: 8,
-        padding: 2,
-    },
-    toggleButton: {
-        flex: 1,
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 6,
-        alignItems: 'center',
-    },
-    toggleButtonActive: {
-        backgroundColor: palette.primary,
-    },
-    toggleButtonText: {
-        fontSize: 14,
-        color: palette.text.primary,
-        fontWeight: '500',
-    },
-    toggleButtonTextActive: {
-        color: palette.text.light,
-    },
-    tableContainer: {
-        flex: 1,
-        padding: 16,
-    },
-    table: {
-        backgroundColor: palette.background.primary,
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
-    tableHeader: {
-        flexDirection: 'row',
-        backgroundColor: palette.background.secondary,
-        paddingVertical: 12,
-        paddingHorizontal: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: palette.border,
-    },
-    tableHeaderText: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: palette.text.primary,
-        textAlign: 'center',
-    },
-    tableRow: {
-        flexDirection: 'row',
-        paddingVertical: 8,
-        paddingHorizontal: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: palette.border,
-    },
-    tableRowEven: {
-        backgroundColor: palette.background.secondary,
-    },
-    tableCellText: {
-        fontSize: 11,
-        color: palette.text.primary,
-        textAlign: 'center',
-    },
-    colDate: {
-        flex: 2,
-    },
-    colEmployee: {
-        flex: 1.5,
-    },
-    colTime: {
-        flex: 1.2,
-    },
-    colHours: {
-        flex: 1.3,
-    },
-    showMoreContainer: {
-        padding: 16,
-        alignItems: 'center',
-        backgroundColor: palette.background.secondary,
-    },
-    showMoreButton: {
-        backgroundColor: palette.primary,
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderRadius: 8,
-        elevation: 2,
-        shadowColor: palette.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-    },
-    showMoreText: {
-        color: palette.text.light,
-        fontSize: 14,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
-});
