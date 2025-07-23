@@ -21,6 +21,7 @@ export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Load user data from storage on app start
   useEffect(() => {
@@ -147,7 +148,6 @@ export const UserProvider = ({ children }) => {
   };
 
   // Logout function with protection against multiple calls
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const logout = async () => {
     if (isLoggingOut) {
       safeLog('🚪 Logout already in progress, skipping...');

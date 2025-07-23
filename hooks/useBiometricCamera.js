@@ -86,7 +86,7 @@ export function useBiometricCamera(onPhotoTaken, externalCameraRef = null, exter
         if (prev <= 1) {
           clearInterval(timerRef.current);
           timerRef.current = null;
-          takePhoto();
+          takePhoto(0); // Start with retry count 0
           return null;
         }
         return prev - 1;
@@ -94,8 +94,10 @@ export function useBiometricCamera(onPhotoTaken, externalCameraRef = null, exter
     }, 1000);
   }, [isCapturing, cameraReady]);
 
-  // Take photo
-  const takePhoto = useCallback(async () => {
+  // Take photo with retry mechanism
+  const takePhoto = useCallback(async (retryCount = 0) => {
+    const maxRetries = 2;
+    
     // Clear any previous errors
     setError(null);
     
@@ -130,16 +132,32 @@ export function useBiometricCamera(onPhotoTaken, externalCameraRef = null, exter
       }
       
       // Small delay before capture for stability
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200));
       
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.5,
+      // Add timeout to prevent hanging
+      const photoPromise = cameraRef.current.takePictureAsync({
+        quality: 0.7,
         base64: true,
-        exif: false
+        exif: false,
+        skipProcessing: false
       });
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Photo capture timed out after 10 seconds')), 10000)
+      );
+      
+      const photo = await Promise.race([photoPromise, timeoutPromise]);
 
-      if (!photo || !photo.base64) {
-        throw new Error('Photo capture returned invalid data - base64 is missing');
+      if (!photo) {
+        throw new Error('Image could not be captured - photo is null');
+      }
+      
+      if (!photo.base64) {
+        throw new Error('Image could not be captured - base64 data missing');
+      }
+      
+      if (photo.base64.length < 1000) {
+        throw new Error('Image could not be captured - image too small or corrupted');
       }
 
       if (__DEV__) {
@@ -169,39 +187,89 @@ export function useBiometricCamera(onPhotoTaken, externalCameraRef = null, exter
       } else if (error.message?.includes('permission')) {
         title = '🔒 Permission Error';
         message = 'Camera permission was revoked. Please enable camera access in your device settings.';
-      } else if (error.message?.includes('base64 is missing')) {
+      } else if (error.message?.includes('timed out')) {
+        title = '⏰ Camera Timeout';
+        message = 'Camera took too long to respond. Please try again.';
+      } else if (error.message?.includes('base64') || error.message?.includes('Image could not be captured')) {
         title = '📸 Capture Error';
-        message = 'Photo could not be processed. Please try again with better lighting.';
+        message = 'Photo could not be processed. Please ensure good lighting and try again. If the problem persists, restart the app.';
       } else {
         title = '❌ Camera Error';
         message = `Something went wrong with the camera: ${error.message || 'Unknown error'}`;
       }
       
+      // Retry logic for certain errors
+      if (retryCount < maxRetries && (
+        error.message?.includes('Image could not be captured') ||
+        error.message?.includes('base64') ||
+        error.message?.includes('too small')
+      )) {
+        console.log(`🔄 Retrying photo capture (attempt ${retryCount + 1}/${maxRetries})`);
+        
+        // Wait a bit before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Reset states for retry
+        setIsCapturing(false);
+        setCountdown(null);
+        
+        // Retry
+        return takePhoto(retryCount + 1);
+      }
+      
       setError(message);
       showGlassAlert(title, message);
+      
+      // Reset countdown state
+      setCountdown(null);
     } finally {
       setIsCapturing(false);
+      
+      // Clear any remaining timers
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
   }, [cameraReady, onPhotoTaken]);
+
+  // Reset camera state - emergency cleanup
+  const resetCameraState = useCallback(() => {
+    console.log('🔄 Resetting camera state...');
+    
+    // Clear any timers
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    // Reset all states
+    setIsCapturing(false);
+    setCountdown(null);
+    setError(null);
+    
+    console.log('✅ Camera state reset complete');
+  }, []);
 
   // Handle camera ready
   const handleCameraReady = useCallback(() => {
     console.log('✅ Camera is ready');
-    setCameraReady(true);
+    resetCameraState(); // Reset state when camera becomes ready
+    // setCameraReady is not defined in this hook - camera ready state is managed externally
   }, []);
 
   // Handle camera mount error
   const handleCameraMountError = useCallback((error) => {
     console.error('❌ Camera mount error:', error);
     setError(`Camera failed to initialize: ${error.message}`);
-    setCameraReady(false);
+    // setCameraReady is not defined in this hook - camera ready state is managed externally
   }, []);
 
   // Reset camera state (useful for error recovery)
   const resetCamera = useCallback(() => {
     setError(null);
     setIsCapturing(false);
-    setCameraReady(false);
+    // setCameraReady is managed externally
     setCountdown(null);
     
     // Clear timer if running
@@ -227,9 +295,11 @@ export function useBiometricCamera(onPhotoTaken, externalCameraRef = null, exter
     // Core functionality only
     isCapturing,
     countdown,
+    error,
     
     // Actions
     startCountdown,
+    resetCameraState,
     
     // UI helpers
     getButtonText

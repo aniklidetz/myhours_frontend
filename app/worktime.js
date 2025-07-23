@@ -5,23 +5,24 @@ import {
     Text,
     FlatList,
     ActivityIndicator,
-    SafeAreaView,
     TouchableOpacity,
-    ScrollView
+    ScrollView,
+    Platform,
+    Alert
 } from 'react-native';
 import { useUser, ROLES } from '../src/contexts/UserContext';
 import useColors from '../hooks/useColors';
-import HeaderBackButton from '../src/components/HeaderBackButton';
 import ApiService from '../src/api/apiService';
 import { API_ENDPOINTS, API_URL, APP_CONFIG } from '../src/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassCard from '../components/LiquidGlassCard';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
+import { commonStyles, COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/CommonStyles';
 
 const TIME_FILTERS = {
-    'THIS_MONTH': { label: 'This Month', days: new Date().getDate() + 30 }, // Current month + buffer
+    '3_DAYS': { label: '3 Days', days: 3 },
     '7_DAYS': { label: '7 Days', days: 7 },
     '14_DAYS': { label: '14 Days', days: 14 },
     '1_MONTH': { label: '1 Month', days: 30 },
@@ -33,10 +34,11 @@ export default function WorktimeScreen() {
     const [loading, setLoading] = useState(true);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const [employees, setEmployees] = useState([]);
-    const [selectedTimeFilter, setSelectedTimeFilter] = useState('THIS_MONTH');
+    const [selectedTimeFilter, setSelectedTimeFilter] = useState('7_DAYS');
     const [isTableView, setIsTableView] = useState(false);
     const [displayCount, setDisplayCount] = useState(10); // Initially show 10 items
     const [isExpanded, setIsExpanded] = useState(false); // Track expansion state
+    const abortControllerRef = React.useRef(null); // For cancelling requests
     const { user, hasAccess } = useUser();
     const { palette } = useColors();
     const theme = useLiquidGlassTheme();
@@ -45,53 +47,62 @@ export default function WorktimeScreen() {
     // Ensure theme is loaded before using it
     if (!theme) {
         return (
-            <LiquidGlassLayout>
+            <LiquidGlassScreenLayout scrollable={false}>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                     <ActivityIndicator size="large" color="#FFFFFF" />
                 </View>
-            </LiquidGlassLayout>
+            </LiquidGlassScreenLayout>
         );
     }
 
-    // Create styles after theme is loaded
+    // Create styles after theme is loaded using CommonStyles
     const styles = StyleSheet.create({
-        container: {
-            flex: 1,
-            backgroundColor: 'transparent',
-        },
+        container: commonStyles.container,
+        // Remove excessive padding in header
         header: {
             backgroundColor: 'transparent',
-            padding: theme.spacing.lg,
-            alignItems: 'center',
-            marginBottom: theme.spacing.md,
+            paddingHorizontal: SPACING.lg, // Only side padding
+            paddingTop: SPACING.md, // Minimal top padding
+            paddingBottom: SPACING.sm, // Minimal bottom padding
         },
         title: {
-            fontSize: theme.typography.title.fontSize * 0.7,
-            fontWeight: theme.typography.title.fontWeight,
-            color: theme.colors.text.primary,
+            fontSize: TYPOGRAPHY.title.fontSize * 0.7,
+            fontWeight: TYPOGRAPHY.title.fontWeight,
+            color: COLORS.textPrimary,
             textShadowColor: theme.shadows.text.color,
             textShadowOffset: theme.shadows.text.offset,
             textShadowRadius: theme.shadows.text.radius,
         },
-        loader: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
+        loader: commonStyles.loader,
+        // Reduce bottom padding
         listContent: {
-            padding: theme.spacing.lg,
+            padding: SPACING.lg,
+            paddingBottom: Platform.OS === 'ios' ? 100 : 80, // Reduced from 120/100
+        },
+        
+        // Compact filter section organization
+        filterSection: {
+            marginBottom: SPACING.md, // Reduce spacing between sections
         },
         timeFilterSection: {
-            marginTop: theme.spacing.md,
+            marginBottom: SPACING.md, // Unified spacing
         },
         viewToggleSection: {
-            marginTop: theme.spacing.md,
+            marginBottom: SPACING.md, // Unified spacing
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
         },
+        
+        // Compact filter labels
         selectorLabel: {
-            fontSize: theme.typography.body.fontSize,
-            color: theme.colors.text.secondary,
-            marginBottom: theme.spacing.sm,
+            fontSize: TYPOGRAPHY.body.fontSize * 0.9, // Slightly smaller
+            color: COLORS.textSecondary,
+            marginBottom: SPACING.xs, // Reduced bottom margin
+            fontWeight: '600',
+            minWidth: 80, // Reduced minimum width
         },
+        
         selectorScroll: {
             flexGrow: 0,
             flexShrink: 0,
@@ -99,140 +110,175 @@ export default function WorktimeScreen() {
         selectorScrollContent: {
             flexDirection: 'row',
             alignItems: 'center',
-            paddingHorizontal: theme.spacing.xs,
+            paddingHorizontal: SPACING.xs,
+            gap: SPACING.xs, // Use gap instead of marginRight
         },
+        
+        // Compact filter buttons
         selectorButton: {
-            paddingHorizontal: theme.spacing.md,
-            paddingVertical: theme.spacing.sm,
-            borderRadius: theme.borderRadius.lg,
+            paddingHorizontal: SPACING.sm, // Reduced padding
+            paddingVertical: SPACING.xs, // Reduced padding
+            borderRadius: BORDER_RADIUS.md, // Smaller radius
             borderWidth: 1,
-            borderColor: theme.colors.glass.border,
-            backgroundColor: theme.colors.glass.light,
-            marginRight: theme.spacing.sm,
+            borderColor: COLORS.glassBorder,
+            backgroundColor: COLORS.glassLight,
             alignSelf: 'flex-start',
             flexShrink: 0,
+            minWidth: 60, // Reduced minimum width
+            height: 36, // Reduced height
+            justifyContent: 'center',
+            alignItems: 'center',
         },
         selectorButtonActive: {
-            backgroundColor: theme.colors.glass.medium,
-            borderColor: theme.colors.glass.border,
+            backgroundColor: COLORS.primary,
+            borderColor: 'rgba(255, 255, 255, 0.25)',
+            shadowColor: COLORS.primary,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+            elevation: 4,
         },
         selectorButtonText: {
-            fontSize: theme.typography.body.fontSize,
-            color: theme.colors.text.primary,
+            fontSize: TYPOGRAPHY.caption.fontSize, // Reduced text size
+            color: COLORS.textPrimary,
             fontWeight: '500',
+            textAlign: 'center',
         },
         selectorButtonTextActive: {
-            color: theme.colors.text.primary,
+            color: '#FFFFFF',
+            fontWeight: '600',
         },
+        
+        // Compact view toggle
         viewToggle: {
             flexDirection: 'row',
-            backgroundColor: theme.colors.glass.light,
-            borderRadius: theme.borderRadius.md,
+            backgroundColor: COLORS.glassLight,
+            borderRadius: BORDER_RADIUS.sm, // Smaller radius
             padding: 2,
+            borderWidth: 1,
+            borderColor: COLORS.glassBorder,
+            flexShrink: 1,
+            minWidth: 100, // Reduced minimum width
         },
         toggleButton: {
             flex: 1,
-            paddingVertical: theme.spacing.sm,
-            paddingHorizontal: theme.spacing.md,
-            borderRadius: theme.borderRadius.sm,
+            paddingVertical: SPACING.xs, // Reduced padding
+            paddingHorizontal: SPACING.sm,
+            borderRadius: BORDER_RADIUS.xs, // Smaller radius
             alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: 50, // Reduced minimum width
         },
         toggleButtonActive: {
-            backgroundColor: theme.colors.glass.medium,
+            backgroundColor: COLORS.primary,
+            shadowColor: COLORS.primary,
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.3,
+            shadowRadius: 2,
         },
         toggleButtonText: {
-            fontSize: theme.typography.body.fontSize,
-            color: theme.colors.text.primary,
+            fontSize: TYPOGRAPHY.caption.fontSize, // Reduced size
+            color: COLORS.textPrimary,
             fontWeight: '500',
+            textAlign: 'center',
         },
         toggleButtonTextActive: {
-            color: theme.colors.text.primary,
+            color: '#FFFFFF',
+            fontWeight: '600',
         },
-        emptyState: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: theme.spacing.xl,
-            minHeight: 400,
+        viewToggleDisabled: {
+            opacity: 0.5,
         },
+        toggleButtonDisabled: {
+            opacity: 0.6,
+        },
+        toggleButtonTextDisabled: {
+            opacity: 0.5,
+        },
+        
+        emptyState: commonStyles.emptyState,
         emptyStateTitle: {
-            fontSize: theme.typography.title.fontSize * 0.8,
-            fontWeight: theme.typography.title.fontWeight,
-            color: theme.colors.text.primary,
-            marginBottom: theme.spacing.md,
-            textAlign: 'center',
+            ...commonStyles.emptyStateTitle,
+            fontSize: TYPOGRAPHY.title.fontSize * 0.8,
         },
-        emptyStateText: {
-            fontSize: theme.typography.body.fontSize,
-            color: theme.colors.text.secondary,
+        emptyStateText: commonStyles.emptyStateText,
+        emptyStateHint: {
+            fontSize: TYPOGRAPHY.caption.fontSize,
+            color: COLORS.textSecondary,
             textAlign: 'center',
-            lineHeight: 24,
+            marginTop: SPACING.lg,
+            fontStyle: 'italic',
+            opacity: 0.8,
         },
+        
+        // Compact show more button
         showMoreContainer: {
-            padding: theme.spacing.lg,
+            padding: SPACING.md, // Reduced padding
             alignItems: 'center',
             backgroundColor: 'transparent',
         },
         showMoreButton: {
-            backgroundColor: theme.colors.glass.medium,
-            paddingHorizontal: theme.spacing.lg,
-            paddingVertical: theme.spacing.md,
-            borderRadius: theme.borderRadius.md,
+            backgroundColor: COLORS.glassMedium,
+            paddingHorizontal: SPACING.lg,
+            paddingVertical: SPACING.sm, // Reduced padding
+            borderRadius: BORDER_RADIUS.md,
             borderWidth: 1,
-            borderColor: theme.colors.glass.border,
+            borderColor: COLORS.glassBorder,
         },
         showMoreText: {
-            color: theme.colors.text.primary,
-            fontSize: theme.typography.body.fontSize,
+            color: COLORS.textPrimary,
+            fontSize: TYPOGRAPHY.body.fontSize,
             fontWeight: '600',
             textAlign: 'center',
         },
-        // Table styles
+        
+        // Table styles remain unchanged
         tableContainer: {
             flex: 1,
-            padding: theme.spacing.lg,
+            padding: SPACING.lg,
+            paddingBottom: Platform.OS === 'ios' ? 100 : 80, // Reduced
         },
         table: {
-            backgroundColor: theme.colors.glass.light,
-            borderRadius: theme.borderRadius.md,
+            backgroundColor: COLORS.glassLight,
+            borderRadius: BORDER_RADIUS.md,
             overflow: 'hidden',
             borderWidth: 1,
-            borderColor: theme.colors.glass.border,
+            borderColor: COLORS.glassBorder,
         },
         tableHeader: {
             flexDirection: 'row',
-            backgroundColor: theme.colors.glass.medium,
-            paddingVertical: theme.spacing.md,
-            paddingHorizontal: theme.spacing.sm,
+            backgroundColor: COLORS.glassMedium,
+            paddingVertical: SPACING.md,
+            paddingHorizontal: SPACING.sm,
             borderBottomWidth: 1,
-            borderBottomColor: theme.colors.glass.border,
+            borderBottomColor: COLORS.glassBorder,
         },
         tableHeaderText: {
-            fontSize: theme.typography.caption.fontSize,
+            fontSize: TYPOGRAPHY.caption.fontSize,
             fontWeight: 'bold',
-            color: theme.colors.text.primary,
+            color: COLORS.textPrimary,
             textAlign: 'center',
         },
         tableRow: {
             flexDirection: 'row',
-            paddingVertical: theme.spacing.sm,
-            paddingHorizontal: theme.spacing.sm,
+            paddingVertical: SPACING.sm,
+            paddingHorizontal: SPACING.sm,
             borderBottomWidth: 1,
-            borderBottomColor: theme.colors.glass.border,
+            borderBottomColor: COLORS.glassBorder,
         },
         tableRowEven: {
-            backgroundColor: theme.colors.glass.light,
+            backgroundColor: COLORS.glassLight,
         },
         tableCellText: {
-            fontSize: theme.typography.caption.fontSize,
-            color: theme.colors.text.primary,
+            fontSize: TYPOGRAPHY.caption.fontSize,
+            color: COLORS.textPrimary,
             textAlign: 'center',
         },
         colDate: {
             flex: 2,
         },
         colEmployee: {
-            flex: 1.5,
+            flex: 2,
         },
         colTime: {
             flex: 1.2,
@@ -247,6 +293,11 @@ export default function WorktimeScreen() {
             fetchEmployees();
         }
 
+        // Cancel previous request if still pending
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
         // Reset display count when filters change
         setDisplayCount(10);
         setIsExpanded(false);
@@ -255,12 +306,20 @@ export default function WorktimeScreen() {
             fetchWorktimeData();
         }, 300);
 
-        return () => clearTimeout(debounceTimer);
+        return () => {
+            clearTimeout(debounceTimer);
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
     }, [selectedEmployee, selectedTimeFilter]);
 
     const fetchWorktimeData = async () => {
         try {
             setLoading(true);
+
+            // Create new AbortController for this request
+            abortControllerRef.current = new AbortController();
 
             // Fetching worktime data
 
@@ -277,10 +336,12 @@ export default function WorktimeScreen() {
             // Fetching worktime data from ${startDateStr} to ${endDateStr}
 
             // Build parameters object for ApiService
+            // Optimize page_size based on whether filtering by employee
+            const pageSize = selectedEmployee && canViewAll ? '100' : '500';
             const apiParams = {
                 date_from: startDateStr,
                 date_to: endDateStr,
-                page_size: '500',
+                page_size: pageSize,
                 ordering: '-check_in'
             };
 
@@ -289,7 +350,33 @@ export default function WorktimeScreen() {
                 apiParams.employee = selectedEmployee.id;
             }
 
-            let responseData = await ApiService.worktime.getLogs(apiParams);
+            console.log('Starting worktime API request:', {
+                params: apiParams,
+                selectedEmployee: selectedEmployee?.name || 'All Employees',
+                requestTime: new Date().toISOString(),
+                expectedTimeout: selectedEmployee ? '45s (extended for employee filter)' : '30s (standard)'
+            });
+
+            const startTime = Date.now();
+            let responseData = await ApiService.worktime.getLogs(apiParams, {
+                signal: abortControllerRef.current.signal
+            });
+            const endTime = Date.now();
+            const requestDuration = endTime - startTime;
+
+            console.log('Worktime API request completed:', {
+                duration: `${requestDuration}ms`,
+                dataLength: responseData?.results?.length || responseData?.length || 0,
+                selectedEmployee: selectedEmployee?.name || 'All Employees'
+            });
+
+            if (requestDuration > 10000) {
+                console.warn('Slow worktime API request detected:', {
+                    duration: `${requestDuration}ms`,
+                    employee: selectedEmployee?.name || 'All Employees',
+                    timeFilter: selectedTimeFilter
+                });
+            }
             const apiData = responseData.results || responseData || [];
 
             // Transform API data
@@ -394,7 +481,7 @@ export default function WorktimeScreen() {
             }) : [];
 
             // Server already filtered by date, no need for client-side date filtering
-            console.log(`📅 Server returned ${transformedData.length} records already filtered by date`);
+            console.log(`Server returned ${transformedData.length} records already filtered by date`);
             let filtered = transformedData;
 
             // Filter by user role
@@ -405,10 +492,10 @@ export default function WorktimeScreen() {
                     item.employee.name.includes(user.first_name || '') ||
                     item.employee.name.includes(user.last_name || '')
                 );
-                console.log(`👤 After user filtering: ${filtered.length} records`);
+                console.log(`After user filtering: ${filtered.length} records`);
             } else if (selectedEmployee) {
                 filtered = filtered.filter(item => item.employee.id === selectedEmployee.id);
-                console.log(`👤 After employee filtering: ${filtered.length} records`);
+                console.log(`After employee filtering: ${filtered.length} records`);
             }
 
             // Sort by date (newest first)
@@ -417,8 +504,8 @@ export default function WorktimeScreen() {
                 return b.dateRaw - a.dateRaw;
             });
 
-            console.log(`✅ Final worktime data: ${filtered.length} records for display`);
-            console.log('📋 Sample records:', filtered.slice(0, 3).map(item => ({
+            console.log(`Final worktime data: ${filtered.length} records for display`);
+            console.log('Sample records:', filtered.slice(0, 3).map(item => ({
                 id: item.id,
                 date: item.dateShort,
                 employee: canViewAll ? item.employee.name : 'Current User',
@@ -428,11 +515,49 @@ export default function WorktimeScreen() {
             setWorktimeData(filtered);
 
         } catch (error) {
+            // Don't handle errors for aborted requests
+            if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+                console.log('Worktime request was cancelled');
+                return;
+            }
+            
             if (error.message?.includes('Network Error')) {
-                console.warn('⚠️ Worktime API unavailable, using offline mode');
+                console.warn('Worktime API unavailable, using offline mode');
+                setWorktimeData([]);
+            } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+                console.error('Worktime API timeout - server taking too long to respond:', {
+                    selectedEmployee: selectedEmployee?.name || 'All Employees',
+                    timeFilter: selectedTimeFilter,
+                    timeout: error.timeout || (selectedEmployee ? '45000ms' : '30000ms'),
+                    likelyNPlusOneProblem: !!selectedEmployee
+                });
+                console.warn('This might be caused by:');
+                console.warn('   - Heavy database queries (N+1 problem on server)');
+                console.warn('   - Large dataset for selected employee/period');
+                console.warn('   - Server performance issues');
+                
+                // Show user-friendly message
+                Alert.alert(
+                    'Loading Taking Too Long',
+                    `The server is taking longer than expected to load worktime data${selectedEmployee ? ` for ${selectedEmployee.name}` : ''}.\n\nThis might be due to:\n• Large amount of data to process\n• Server performance issues\n\nPlease try:\n• Selecting a shorter time period\n• Refreshing the page\n• Contacting support if the issue persists`,
+                    [
+                        { 
+                            text: 'Try Shorter Period', 
+                            onPress: () => setSelectedTimeFilter('7_DAYS')
+                        },
+                        { 
+                            text: 'Refresh', 
+                            onPress: () => {
+                                setWorktimeData([]);
+                                setTimeout(() => fetchWorktimeData(), 1000);
+                            }
+                        },
+                        { text: 'OK' }
+                    ]
+                );
                 setWorktimeData([]);
             } else {
-                console.error('❌ Error fetching worktime data:', error);
+                console.error('Error fetching worktime data:', error);
                 setWorktimeData([]);
             }
         } finally {
@@ -444,7 +569,7 @@ export default function WorktimeScreen() {
         if (!canViewAll) return;
 
         try {
-            console.log('🔍 Fetching employees list...');
+            console.log('Fetching employees list...');
             const response = await ApiService.employees.getAll();
 
             if (response && response.results) {
@@ -454,10 +579,10 @@ export default function WorktimeScreen() {
                     email: emp.email
                 }));
                 setEmployees(employeeList);
-                console.log('✅ Fetched', employeeList.length, 'employees');
+                console.log('Fetched', employeeList.length, 'employees');
             }
         } catch (error) {
-            console.error('❌ Error fetching employees:', error);
+            console.error('Error fetching employees:', error);
             setEmployees([{
                 id: user.id,
                 name: user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.email,
@@ -515,132 +640,76 @@ export default function WorktimeScreen() {
 
     const renderEmptyComponent = () => (
         <View style={styles.emptyState}>
-            <Text style={styles.emptyStateTitle}>📋 No Work Records</Text>
+            <Text style={styles.emptyStateTitle}>No Work Records</Text>
             <Text style={styles.emptyStateText}>
                 {canViewAll
-                    ? "No work records found. Employees need to check in/out to create records."
+                    ? "No work records found for the selected period.\nEmployees need to check in/out to create records."
                     : "You haven't checked in yet.\nGo to Dashboard and check in to start tracking your time."}
             </Text>
+            {!canViewAll && (
+                <Text style={styles.emptyStateHint}>
+                    Tip: Use the biometric check-in for accurate time tracking
+                </Text>
+            )}
         </View>
     );
 
-    const renderTableView = () => {
-        if (worktimeData.length === 0) {
-            return renderEmptyComponent();
-        }
-
-        return (
-            <ScrollView style={styles.tableContainer}>
-                <View style={styles.table}>
-                    {/* Table Header */}
-                    <View style={styles.tableHeader}>
-                        <Text style={[styles.tableHeaderText, styles.colDate]}>Date</Text>
-                        {canViewAll && <Text style={[styles.tableHeaderText, styles.colEmployee]}>Employee</Text>}
-                        <Text style={[styles.tableHeaderText, styles.colTime]}>In</Text>
-                        <Text style={[styles.tableHeaderText, styles.colTime]}>Out</Text>
-                        <Text style={[styles.tableHeaderText, styles.colHours]}>Hours</Text>
-                    </View>
-                    
-                    {/* Table Rows */}
-                    {worktimeData.slice(0, displayCount).map((item, index) => (
-                        <View 
-                            key={item.id} 
-                            style={[
-                                styles.tableRow,
-                                index % 2 === 0 && styles.tableRowEven
-                            ]}
-                        >
-                            <Text style={[styles.tableCellText, styles.colDate]}>
-                                {item.dateShort}
-                            </Text>
-                            {canViewAll && (
-                                <Text style={[styles.tableCellText, styles.colEmployee]}>
-                                    {item.employee.name.split(' ').map(n => n[0]).join('')}
-                                </Text>
-                            )}
-                            <Text style={[styles.tableCellText, styles.colTime]}>
-                                {item.checkIn}
-                            </Text>
-                            <Text style={[styles.tableCellText, styles.colTime]}>
-                                {item.checkOut === 'Still working' ? '--' : item.checkOut}
-                            </Text>
-                            <Text style={[styles.tableCellText, styles.colHours]}>
-                                {item.totalHours}
-                            </Text>
-                        </View>
-                    ))}
-                </View>
-                
-                {/* Show More/Less Button for Table View */}
-                {worktimeData.length > 10 && (
-                    <View style={styles.showMoreContainer}>
-                        <TouchableOpacity
-                            style={styles.showMoreButton}
-                            onPress={handleShowMore}
-                        >
-                            <Text style={styles.showMoreText}>
-                                {isExpanded 
-                                    ? 'Hide' 
-                                    : 'Show more'
-                                }
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-            </ScrollView>
-        );
-    };
 
     return (
-        <LiquidGlassLayout scrollable={false}>
-            <HeaderBackButton destination="/employees" />
-            <View style={styles.header}>
-                <Text style={styles.title}>Worktime Tracking</Text>
-                
-                {/* Time Period Filter */}
-                <View style={styles.timeFilterSection}>
-                    <Text style={styles.selectorLabel}>Time Period:</Text>
-                    <ScrollView 
-                        horizontal 
-                        showsHorizontalScrollIndicator={false} 
-                        style={styles.selectorScroll}
-                        contentContainerStyle={styles.selectorScrollContent}
-                    >
-                        {Object.entries(TIME_FILTERS).map(([key, filter]) => (
-                            <TouchableOpacity
-                                key={key}
-                                style={[
-                                    styles.selectorButton,
-                                    selectedTimeFilter === key && styles.selectorButtonActive
-                                ]}
-                                onPress={() => setSelectedTimeFilter(key)}
-                            >
-                                <Text style={[
-                                    styles.selectorButtonText,
-                                    selectedTimeFilter === key && styles.selectorButtonTextActive
-                                ]}>
-                                    {filter.label}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
+        <LiquidGlassScreenLayout.WithGlassHeader
+            title="Worktime Tracking"
+            backDestination="/employees"
+            showLogout={true}
+            scrollable={true}
+        >
+            <View style={{ flex: 1 }}>
+                <View style={styles.header}>
+                    {/* Time Period Filter */}
+                    <View style={styles.timeFilterSection}>
+                        <Text style={styles.selectorLabel}>Time Period:</Text>
+                        <ScrollView 
+                            horizontal 
+                            showsHorizontalScrollIndicator={false} 
+                            style={styles.selectorScroll}
+                            contentContainerStyle={styles.selectorScrollContent}
+                        >
+                            {Object.entries(TIME_FILTERS).map(([key, filter]) => (
+                                <TouchableOpacity
+                                    key={key}
+                                    style={[
+                                        styles.selectorButton,
+                                        selectedTimeFilter === key && styles.selectorButtonActive
+                                    ]}
+                                    onPress={() => setSelectedTimeFilter(key)}
+                                >
+                                    <Text style={[
+                                        styles.selectorButtonText,
+                                        selectedTimeFilter === key && styles.selectorButtonTextActive
+                                    ]}>
+                                        {filter.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
 
-                {/* View Toggle */}
-                {worktimeData.length > 5 && (
+                    {/* View Toggle */}
                     <View style={styles.viewToggleSection}>
                         <Text style={styles.selectorLabel}>View:</Text>
-                        <View style={styles.viewToggle}>
+                        <View style={[styles.viewToggle, worktimeData.length === 0 && styles.viewToggleDisabled]}>
                             <TouchableOpacity
                                 style={[
                                     styles.toggleButton,
-                                    !isTableView && styles.toggleButtonActive
+                                    !isTableView && styles.toggleButtonActive,
+                                    worktimeData.length === 0 && styles.toggleButtonDisabled
                                 ]}
-                                onPress={() => setIsTableView(false)}
+                                onPress={() => worktimeData.length > 0 && setIsTableView(false)}
+                                disabled={worktimeData.length === 0}
                             >
                                 <Text style={[
                                     styles.toggleButtonText,
-                                    !isTableView && styles.toggleButtonTextActive
+                                    !isTableView && styles.toggleButtonTextActive,
+                                    worktimeData.length === 0 && styles.toggleButtonTextDisabled
                                 ]}>
                                     Cards
                                 </Text>
@@ -648,101 +717,77 @@ export default function WorktimeScreen() {
                             <TouchableOpacity
                                 style={[
                                     styles.toggleButton,
-                                    isTableView && styles.toggleButtonActive
+                                    isTableView && styles.toggleButtonActive,
+                                    worktimeData.length === 0 && styles.toggleButtonDisabled
                                 ]}
-                                onPress={() => setIsTableView(true)}
+                                onPress={() => worktimeData.length > 0 && setIsTableView(true)}
+                                disabled={worktimeData.length === 0}
                             >
                                 <Text style={[
                                     styles.toggleButtonText,
-                                    isTableView && styles.toggleButtonTextActive
+                                    isTableView && styles.toggleButtonTextActive,
+                                    worktimeData.length === 0 && styles.toggleButtonTextDisabled
                                 ]}>
                                     Table
                                 </Text>
                             </TouchableOpacity>
                         </View>
                     </View>
-                )}
 
-                {canViewAll && employees.length > 0 && (
-                    <View style={styles.timeFilterSection}>
-                        <Text style={styles.selectorLabel}>Employee:</Text>
-                        <ScrollView 
-                            horizontal 
-                            showsHorizontalScrollIndicator={false} 
-                            style={styles.selectorScroll}
-                            contentContainerStyle={styles.selectorScrollContent}
-                        >
-                            <TouchableOpacity
-                                style={[
-                                    styles.selectorButton,
-                                    !selectedEmployee && styles.selectorButtonActive
-                                ]}
-                                onPress={() => setSelectedEmployee(null)}
+                    {/* Employee Filter for admins */}
+                    {canViewAll && employees.length > 0 && (
+                        <View style={styles.timeFilterSection}>
+                            <Text style={styles.selectorLabel}>Employee:</Text>
+                            <ScrollView 
+                                horizontal 
+                                showsHorizontalScrollIndicator={false} 
+                                style={styles.selectorScroll}
+                                contentContainerStyle={styles.selectorScrollContent}
                             >
-                                <Text style={[
-                                    styles.selectorButtonText,
-                                    !selectedEmployee && styles.selectorButtonTextActive
-                                ]}>
-                                    All Employees
-                                </Text>
-                            </TouchableOpacity>
-                            {employees.map(emp => (
                                 <TouchableOpacity
-                                    key={emp.id}
                                     style={[
                                         styles.selectorButton,
-                                        selectedEmployee?.id === emp.id && styles.selectorButtonActive
+                                        !selectedEmployee && styles.selectorButtonActive
                                     ]}
-                                    onPress={() => setSelectedEmployee(emp)}
+                                    onPress={() => setSelectedEmployee(null)}
                                 >
                                     <Text style={[
                                         styles.selectorButtonText,
-                                        selectedEmployee?.id === emp.id && styles.selectorButtonTextActive
+                                        !selectedEmployee && styles.selectorButtonTextActive
                                     ]}>
-                                        {emp.name}
+                                        All Employees
                                     </Text>
                                 </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-                )}
-            </View>
-
-            {loading ? (
-                <ActivityIndicator size="large" color={theme.colors.text.primary} style={styles.loader} />
-            ) : isTableView ? (
-                <FlatList
-                    data={worktimeData.slice(0, displayCount)}
-                    renderItem={({ item, index }) => (
-                        <View 
-                            style={[
-                                styles.tableRow,
-                                index % 2 === 0 && styles.tableRowEven
-                            ]}
-                        >
-                            <Text style={[styles.tableCellText, styles.colDate]}>
-                                {item.dateShort}
-                            </Text>
-                            {canViewAll && (
-                                <Text style={[styles.tableCellText, styles.colEmployee]}>
-                                    {item.employee.name.split(' ').map(n => n[0]).join('')}
-                                </Text>
-                            )}
-                            <Text style={[styles.tableCellText, styles.colTime]}>
-                                {item.checkIn}
-                            </Text>
-                            <Text style={[styles.tableCellText, styles.colTime]}>
-                                {item.checkOut === 'Still working' ? '--' : item.checkOut}
-                            </Text>
-                            <Text style={[styles.tableCellText, styles.colHours]}>
-                                {item.totalHours}
-                            </Text>
+                                {employees.map(emp => (
+                                    <TouchableOpacity
+                                        key={emp.id}
+                                        style={[
+                                            styles.selectorButton,
+                                            selectedEmployee?.id === emp.id && styles.selectorButtonActive
+                                        ]}
+                                        onPress={() => setSelectedEmployee(emp)}
+                                    >
+                                        <Text style={[
+                                            styles.selectorButtonText,
+                                            selectedEmployee?.id === emp.id && styles.selectorButtonTextActive
+                                        ]}>
+                                            {emp.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
                         </View>
                     )}
-                    keyExtractor={item => item.id.toString()}
-                    contentContainerStyle={styles.listContent}
-                    ListEmptyComponent={renderEmptyComponent}
-                    ListHeaderComponent={() => (
+                </View>
+
+                {loading ? (
+                    <ActivityIndicator size="large" color={theme.colors.text.primary} style={styles.loader} />
+                ) : worktimeData.length === 0 ? (
+                    renderEmptyComponent()
+                ) : (
+                    <>
+                        {isTableView ? (
+                    <View style={styles.tableContainer}>
                         <View style={styles.table}>
                             {/* Table Header */}
                             <View style={styles.tableHeader}>
@@ -752,10 +797,36 @@ export default function WorktimeScreen() {
                                 <Text style={[styles.tableHeaderText, styles.colTime]}>Out</Text>
                                 <Text style={[styles.tableHeaderText, styles.colHours]}>Hours</Text>
                             </View>
+                            {/* Table Rows */}
+                            {worktimeData.slice(0, displayCount).map((item, index) => (
+                                <View 
+                                    key={item.id}
+                                    style={[
+                                        styles.tableRow,
+                                        index % 2 === 0 && styles.tableRowEven
+                                    ]}
+                                >
+                                    <Text style={[styles.tableCellText, styles.colDate]}>
+                                        {item.dateShort}
+                                    </Text>
+                                    {canViewAll && (
+                                        <Text style={[styles.tableCellText, styles.colEmployee]}>
+                                            {item.employee.name.split(' ').map(n => n[0]).join('')}
+                                        </Text>
+                                    )}
+                                    <Text style={[styles.tableCellText, styles.colTime]}>
+                                        {item.checkIn}
+                                    </Text>
+                                    <Text style={[styles.tableCellText, styles.colTime]}>
+                                        {item.checkOut === 'Still working' ? '--' : item.checkOut}
+                                    </Text>
+                                    <Text style={[styles.tableCellText, styles.colHours]}>
+                                        {item.totalHours}
+                                    </Text>
+                                </View>
+                            ))}
                         </View>
-                    )}
-                    ListFooterComponent={
-                        worktimeData.length > 10 ? (
+                        {worktimeData.length > 10 && (
                             <View style={styles.showMoreContainer}>
                                 <LiquidGlassButton
                                     title={isExpanded ? 'Hide' : 'Show more'}
@@ -764,18 +835,16 @@ export default function WorktimeScreen() {
                                     style={{ width: 'auto' }}
                                 />
                             </View>
-                        ) : null
-                    }
-                />
-            ) : (
-                <FlatList
-                    data={worktimeData.slice(0, displayCount)}
-                    renderItem={renderItem}
-                    keyExtractor={item => item.id.toString()}
-                    contentContainerStyle={styles.listContent}
-                    ListEmptyComponent={renderEmptyComponent}
-                    ListFooterComponent={
-                        !loading && worktimeData.length > 10 ? (
+                        )}
+                    </View>
+                ) : (
+                    <View style={styles.listContent}>
+                        {worktimeData.slice(0, displayCount).map((item) => (
+                            <View key={item.id}>
+                                {renderItem({ item })}
+                            </View>
+                        ))}
+                        {!loading && worktimeData.length > 10 && (
                             <View style={styles.showMoreContainer}>
                                 <LiquidGlassButton
                                     title={isExpanded ? 'Hide' : 'Show more'}
@@ -784,12 +853,12 @@ export default function WorktimeScreen() {
                                     style={{ width: 'auto' }}
                                 />
                             </View>
-                        ) : null
-                    }
-                />
-            )}
-
-        </LiquidGlassLayout>
+                        )}
+                    </View>
+                        )}
+                    </>
+                )}
+            </View>
+        </LiquidGlassScreenLayout.WithGlassHeader>
     );
 }
-

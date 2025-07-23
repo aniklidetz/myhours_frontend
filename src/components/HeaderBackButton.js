@@ -32,7 +32,7 @@ export default function HeaderBackButton({
       <Ionicons 
         name={Platform.OS === 'ios' ? 'chevron-back' : 'arrow-back'} 
         size={24} 
-        color={palette.text.primary}
+        color="#FFFFFF"
         style={styles(palette).icon}
       />
       <Text style={[styles(palette).text, textStyle]}>
@@ -46,16 +46,19 @@ const styles = (palette) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingLeft: 8, // 8dp from left edge
     marginBottom: 16,
+    minHeight: 44, // Minimum touch target
+    minWidth: 44,
   },
   icon: {
     marginRight: 8,
   },
   text: {
     fontSize: 16,
-    color: palette.text.primary,
+    color: '#FFFFFF',
     fontWeight: '500',
   },
 });

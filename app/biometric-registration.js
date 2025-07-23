@@ -5,16 +5,19 @@ import {
   Text, 
   ActivityIndicator, 
   TouchableOpacity,
-  SafeAreaView
+  SafeAreaView,
+  Platform
 } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
 import { useLocalSearchParams, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import ApiService from '../src/api/apiService';
-import { useToast } from '../components/Toast';
+import { useToast } from '../contexts/ToastContext';
 import FaceCaptureOverlay from '../components/FaceCaptureOverlay';
 import { maskName } from '../src/utils/safeLogging';
 import { showGlassAlert } from '../hooks/useGlobalGlassModal';
-import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassCard from '../components/LiquidGlassCard';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
@@ -23,9 +26,8 @@ import useBiometricCamera from '../hooks/useBiometricCamera';
 
 export default function BiometricRegistrationScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [_buttonsVisible, setButtonsVisible] = useState(false); // Анимация кнопок
   const theme = useLiquidGlassTheme();
-  const { showSuccess, showError, ToastComponent } = useToast();
+  const { showSuccess, showError } = useToast();
 
   const { employeeId, employeeName, selfService, returnTo } = useLocalSearchParams();
   
@@ -39,8 +41,8 @@ export default function BiometricRegistrationScreen() {
     
     // Priority 2: Legacy selfService logic as fallback
     if (selfService === 'true') {
-      console.log('📱 Using legacy selfService logic: /employees');
-      return '/employees';
+      console.log('📱 Using legacy selfService logic: /check-in-out');
+      return '/check-in-out';
     }
     
     // Priority 3: Default fallback
@@ -155,33 +157,28 @@ export default function BiometricRegistrationScreen() {
     showError(errorMessage, 4000);
   };
 
-
-
-
-
   if (hasPermission === null) {
     return (
-      <SafeAreaView style={styles(theme).centered}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles(theme).centered}>
+        <ActivityIndicator size="large" color={theme.colors.text.primary} />
         <Text style={styles(theme).statusText}>Requesting camera permission...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (hasPermission === false) {
     return (
-      <SafeAreaView style={styles(theme).centered}>
+      <View style={styles(theme).centered}>
         <Text style={styles(theme).errorText}>Camera Access Denied</Text>
         <Text style={styles(theme).instructionText}>
           Please enable camera access in your device settings to use biometric registration
         </Text>
-        <TouchableOpacity 
-          style={styles(theme).retryButton}
+        <LiquidGlassButton
+          title="Try Again"
           onPress={resetCamera}
-        >
-          <Text style={styles(theme).retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+          variant="primary"
+        />
+      </View>
     );
   }
 
@@ -190,109 +187,130 @@ export default function BiometricRegistrationScreen() {
   }
 
   return (
-    <LiquidGlassLayout>
-      <HeaderBackButton destination="/employees" />
+    <LiquidGlassScreenLayout scrollable={false} noPadding={true} safeArea={false}>
       <View style={styles(theme).container}>
-      <CameraView 
-        ref={cameraRef} 
-        style={styles(theme).camera}
-        facing="front"
-        onCameraReady={() => {
-          console.log('✅ Camera is ready for registration');
-          setCameraReady(true);
-          setError(null);
-        }}
-        onMountError={async (error) => {
-          console.error('❌ Camera mount error:', error);
-          
-          // Use enhanced camera error handling
-          const { getCameraErrorMessage } = await import('../utils/biometricErrorHandler');
-          const errorInfo = getCameraErrorMessage(error);
-          
-          setError(errorInfo.message);
-          setCameraReady(false);
-          
-          // Show user-friendly notification
-          showGlassAlert(errorInfo.title, errorInfo.message);
-        }}
-      />
-      
-      {/* Face Capture Overlay - круглая маска */}
-      <FaceCaptureOverlay
-        isActive={hasPermission && cameraReady && !isProcessing && overlayActive}
-        isCapturing={isCapturing}
-        onAnimationComplete={() => {
-          // console.log('🎭 Face capture overlay animation completed for registration');
-          // Показываем кнопки с задержкой 100ms после маски
-          setTimeout(() => {
-            setButtonsVisible(true);
-          }, 100);
-        }}
-      />
+        {/* Back Button */}
+        <TouchableOpacity 
+          style={styles(theme).backButton}
+          onPress={() => {
+            console.log('🚫 Cancel button pressed in biometric registration');
+            const returnPath = getReturnPath();
+            console.log('📱 Cancelling registration, returning to:', returnPath);
+            router.replace(returnPath);
+          }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          <Text style={styles(theme).backButtonText}>Back</Text>
+        </TouchableOpacity>
 
-      <View style={styles(theme).overlay}>
-        {/* Header info */}
-        <View style={styles(theme).topInfo}>
-          <Text style={styles(theme).modeText}>
-            📋 Biometric Registration
-          </Text>
-          {employeeName && (
-            <Text style={styles(theme).userText}>
-              Employee: {employeeName}
-            </Text>
-          )}
-        </View>
+        <CameraView 
+          ref={cameraRef} 
+          style={styles(theme).camera}
+          facing="front"
+          onCameraReady={() => {
+            console.log('✅ Camera is ready for registration');
+            setCameraReady(true);
+            setError(null);
+          }}
+          onMountError={async (error) => {
+            console.error('❌ Camera mount error:', error);
+            
+            // Use enhanced camera error handling
+            const { getCameraErrorMessage } = await import('../utils/biometricErrorHandler');
+            const errorInfo = getCameraErrorMessage(error);
+            
+            setError(errorInfo.message);
+            setCameraReady(false);
+            
+            // Show user-friendly notification
+            showGlassAlert(errorInfo.title, errorInfo.message);
+          }}
+        />
+        
+        {/* Face Capture Overlay - круглая маска */}
+        <FaceCaptureOverlay
+          isActive={hasPermission && cameraReady && !isProcessing && overlayActive}
+          isCapturing={isCapturing}
+          onAnimationComplete={() => {
+            // Overlay animation completed
+          }}
+        />
 
-        {/* Error display */}
-        {error && (
-          <View style={styles(theme).errorContainer}>
-            <Text style={styles(theme).errorBanner}>⚠️ {error}</Text>
+        {/* Left Side Panel - Instructions */}
+        {!error && (
+          <View style={styles(theme).leftSidePanel}>
+            <View style={styles(theme).sideCard}>
+              <Text style={styles(theme).sideTipsTitle}>📝</Text>
+              <Text style={styles(theme).sideTipsText}>
+                Look directly{'\n'}
+                Remove glasses{'\n'}
+                Good lighting{'\n'}
+                Stay in circle
+              </Text>
+            </View>
           </View>
         )}
 
-        {/* Face guide - только инструкции без дублирования таймера */}
-        <View style={styles(theme).faceGuide}>
-          <Text 
-            style={styles(theme).instructionText}
-            accessible={true}
-            accessibilityLabel={countdown ? `Taking registration photo in ${countdown} seconds` : 'Position your face within the frame for biometric registration'}
-          >
-            Position your face within the frame for registration
-          </Text>
+        {/* Right Side Panel - Employee Info */}
+        <View style={styles(theme).rightSidePanel}>
+          <View style={styles(theme).sideCard}>
+            <Text style={styles(theme).sideModeText}>📋</Text>
+            <Text style={styles(theme).sideUserText}>
+              {employeeName ? employeeName.split(' ')[0] : 'Employee'}
+            </Text>
+            <Text style={styles(theme).sideStatusText}>🔧</Text>
+          </View>
         </View>
 
-        {/* Controls */}
+        {/* Error display - Bottom Area */}
+        {error && (
+          <View style={styles(theme).errorContainer}>
+            <View style={styles(theme).errorCard}>
+              <Text style={styles(theme).errorText}>⚠️ {error}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Camera Button & Controls */}
         <View style={styles(theme).bottomControls}>
+          {/* Main Camera Button */}
           <TouchableOpacity
             style={[
-              styles(theme).actionButton,
-              styles(theme).registerButton,
+              styles(theme).cameraButtonContainer,
               (isProcessing || !!countdown || isCapturing) && styles(theme).disabledButton
             ]}
             onPress={startCountdown}
             disabled={isProcessing || !!countdown || isCapturing}
-            accessible={true}
-            accessibilityLabel={
-              isProcessing ? 'Processing biometric registration' :
-              countdown ? `Taking registration photo in ${countdown} seconds` :
-              'Take photo for registration'
-            }
-            accessibilityRole="button"
+            activeOpacity={0.8}
           >
-            {!!(isProcessing || isCapturing) && (
-              <ActivityIndicator 
-                size="small" 
-                color="#FFFFFF" 
-                style={styles(theme).buttonLoader}
-              />
-            )}
-            <Text style={styles(theme).actionButtonText}>
-              {isProcessing ? 'Processing...' : getButtonText(countdown, 'Take Photo for Registration')}
-            </Text>
+            <LinearGradient
+              colors={['#3b82f6', '#1d4ed8']}
+              style={styles(theme).cameraButton}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              {isProcessing || isCapturing ? (
+                <ActivityIndicator size="large" color="#FFFFFF" />
+              ) : countdown ? (
+                <Text style={styles(theme).countdownText}>{countdown}</Text>
+              ) : (
+                <Ionicons 
+                  name="camera" 
+                  size={32} 
+                  color="#FFFFFF" 
+                />
+              )}
+            </LinearGradient>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles(theme).cancelButton}
+          {/* Status Text */}
+          <Text style={styles(theme).buttonStatusText}>
+            {isProcessing ? 'Processing...' : getButtonText(countdown, 'Take Photo for Registration')}
+          </Text>
+
+          {/* Cancel Button */}
+          <LiquidGlassButton
+            title="Cancel"
             onPress={() => {
               console.log('🚫 Cancel button pressed in biometric registration');
               const returnPath = getReturnPath();
@@ -307,256 +325,205 @@ export default function BiometricRegistrationScreen() {
               console.log('📱 Cancelling registration, returning to:', returnPath);
               router.replace(returnPath);
             }}
+            variant="ghost"
+            style={styles(theme).cancelButton}
             disabled={isProcessing || !!countdown}
-          >
-            <Text style={styles(theme).cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-
-          {/* Instructions */}
-          <View style={styles(theme).instructionsContainer}>
-            <Text style={styles(theme).instructionsTitle}>Instructions:</Text>
-            <Text style={styles(theme).instructionsText}>
-              • Look directly at the camera{'\n'}
-              • Remove glasses or masks if possible{'\n'}
-              • Ensure good lighting on your face{'\n'}
-              • Keep your face within the circle
-            </Text>
-          </View>
+          />
         </View>
       </View>
-      
-      {/* Toast уведомления */}
-      <ToastComponent />
-      </View>
-    </LiquidGlassLayout>
+    </LiquidGlassScreenLayout>
   );
 }
 
 const styles = (theme) => StyleSheet.create({
   container: { 
-    backgroundColor: 'transparent', 
-    flex: 1 
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   camera: { 
-    flex: 1 
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
-    justifyContent: 'space-between',
-    padding: 20,
+    flex: 1,
+    zIndex: 1,
   },
   centered: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.background.primary,
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
   },
   
-  // Top info - адаптивное позиционирование
-  topInfo: {
-    alignItems: 'center',
-    marginTop: 50,
+  // Back Button
+  backButton: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    maxHeight: 140, // Ограничиваем высоту для предотвращения перекрытия
-    paddingHorizontal: 20,
-  },
-  modeText: {
-    fontSize: 20, // Уменьшили размер для экономии места
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.9)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    marginBottom: 8,
-  },
-  userText: {
-    fontSize: 14, // Уменьшили размер
-    color: '#FFFFFF',
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  statusText: {
-    fontSize: 12, // Уменьшили размер
-    color: theme.colors.text.light,
-    textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  
-  // Face guide - теперь только для счётчика и инструкций
-  faceGuide: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-    paddingBottom: 180,
-    paddingTop: 220,
-  },
-  // Старые стили для круга больше не нужны
-  faceFrame: {
-    display: 'none',
-  },
-  faceFrameActive: {
-    display: 'none',
-  },
-  countdownContainer: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 180, // Соответствует размеру круга
-    height: 180, // Соответствует размеру круга
-  },
-  countdownText: {
-    fontSize: 42, // Уменьшили чтобы помещался в круг
-    fontWeight: 'bold',
-    color: theme.colors.success,
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 4,
-  },
-  instructionText: {
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginTop: 20, // Уменьшили отступ
-    backgroundColor: 'rgba(0,0,0,0.9)', // Более темный фон
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    fontSize: 14, // Уменьшили размер
-    fontWeight: '600',
-    marginHorizontal: 30,
-    maxWidth: 280, // Уменьшили максимальную ширину
-    alignSelf: 'center',
-  },
-  
-  // Controls - фиксированная панель действий
-  bottomControls: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingBottom: 50, // Отступ от safe area
-    backgroundColor: 'rgba(0,0,0,0.85)', // Более темный фон
-    paddingTop: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    zIndex: 10,
-    maxHeight: 200, // Ограничиваем высоту панели
-  },
-  actionButton: {
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    elevation: 3,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    height: 48, // Фиксированная высота
-    minWidth: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 10,
   },
-  registerButton: {
-    backgroundColor: theme.colors.primary,
+  backButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  
+  // Left Side Panel
+  leftSidePanel: {
+    position: 'absolute',
+    left: 8,
+    top: '35%',
+    zIndex: 5,
+    width: 60,
+  },
+  
+  // Right Side Panel
+  rightSidePanel: {
+    position: 'absolute',
+    right: 8,
+    top: '35%',
+    zIndex: 5,
+    width: 60,
+  },
+  
+  // Side Cards - White Glass Style like first screenshot
+  sideCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)', // Белый полупрозрачный
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    minHeight: 80,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)', // Белая обводка
+    // Добавляем backdrop blur эффект
+    backdropFilter: 'blur(10px)',
+  },
+  
+  // Side Panel Text Styles - Updated for white glass
+  sideTipsTitle: {
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  sideTipsText: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.9)', // Улучшенная контрастность
+    textAlign: 'center',
+    lineHeight: 12,
+    fontWeight: '600', // Жирнее для лучшей читаемости
+    textShadowColor: 'rgba(0, 0, 0, 0.3)', // Тень для контраста
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  sideModeText: {
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  sideUserText: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.9)', // Улучшенная контрастность
+    textAlign: 'center',
+    fontWeight: '700', // Очень жирный для читаемости
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)', // Тень для контраста
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  sideStatusText: {
+    fontSize: 14,
+  },
+  
+  // Error Container - Now at bottom
+  errorContainer: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 200 : 180, // Соответственно поднял ошибки
+    left: 20,
+    right: 20,
+    zIndex: 15,
+  },
+  errorCard: {
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  
+  // Bottom Controls
+  bottomControls: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 80 : 60, // Опустил с 120/100 до 80/60
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    zIndex: 10,
+  },
+  
+  // Camera Button
+  cameraButtonContainer: {
+    marginBottom: 16,
+  },
+  cameraButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   disabledButton: {
     opacity: 0.6,
   },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16, // Уменьшили размер
-    fontWeight: 'bold',
-  },
-  buttonLoader: {
-    marginRight: 10,
-  },
-  cancelButton: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 8,
-    height: 36,
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10, // Фиксированная высота
-  },
-  cancelButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14, // Уменьшили размер
-    fontWeight: '600',
-  },
-  instructionsContainer: {
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    borderRadius: 8,
-    marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  instructionsTitle: {
-    fontSize: 14, // Уменьшили размер
+  countdownText: {
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 6,
-  },
-  instructionsText: {
-    fontSize: 12, // Уменьшили размер
-    color: '#FFFFFF',
-    lineHeight: 16,
   },
   
-  // Error states
+  // Button Status
+  buttonStatusText: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    marginBottom: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  
+  // Cancel Button
+  cancelButton: {
+    minWidth: 120,
+  },
+  
+  // Common styles
+  instructionText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   errorText: {
-    color: theme.colors.danger,
-    fontSize: 20,
+    color: theme.colors.status.error[0],
+    fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 16,
-    textAlign: 'center',
-  },
-  retryButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 8,
-    marginTop: 20,
-    padding: 12,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  
-  // Error display - адаптивное позиционирование
-  errorContainer: {
-    position: 'absolute',
-    top: 150, // Ниже верхней информации
-    left: 20,
-    right: 20,
-    zIndex: 15, // Выше других элементов
-    maxHeight: 80, // Ограничиваем высоту
-  },
-  errorBanner: {
-    backgroundColor: 'rgba(220, 53, 69, 0.95)',
-    borderColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
-    borderWidth: 1,
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
     textAlign: 'center',
   },
 });

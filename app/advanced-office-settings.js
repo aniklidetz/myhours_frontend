@@ -1,5 +1,4 @@
-/* office-settings.js
-   Full screen for managing office GPS, radius and remote-work policy.
+/* Full screen for managing office GPS, radius and remote-work policy.
    All labels/buttons are in English. */
 
    import React, { useState, useEffect } from 'react';
@@ -10,9 +9,10 @@
      TextInput,
      TouchableOpacity,
      ScrollView,
-     SafeAreaView,
-     ActivityIndicator
+     ActivityIndicator,
+     Platform
    } from 'react-native';
+   import { SafeAreaView } from 'react-native-safe-area-context';
    import { router } from 'expo-router';
    import * as Location from 'expo-location';
    
@@ -21,11 +21,19 @@
    import useColors from '../hooks/useColors';
    import GlassModal from '../components/GlassModal';
    import useGlassModal from '../hooks/useGlassModal';
+   import LiquidGlassLayout from '../components/LiquidGlassLayout';
+   import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
+   import LiquidGlassCard from '../components/LiquidGlassCard';
+   import LiquidGlassButton from '../components/LiquidGlassButton';
+   import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
+   import LogoutButton from '../src/components/LogoutButton';
+   // FIX: Import shared styles
+   import { commonStyles, COLORS, SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../constants/CommonStyles';
    
    /* ---------------------------------------------------------------- */
    /*  Screen Component                                                */
    /* ---------------------------------------------------------------- */
-   export default function OfficeSettingsScreen() {
+   export default function AdvancedOfficeSettingsScreen() {
      /* ------------- Context / hooks --------------------------------- */
      const { user, hasAccess } = useUser();
      const {
@@ -36,6 +44,7 @@
        updateRemotePolicy
      } = useOffice();
      const { palette } = useColors();
+     const theme = useLiquidGlassTheme();
      const { modalState, showModal, showConfirm, showAlert, showError, hideModal } = useGlassModal();
    
      /* ------------- Local state ------------------------------------- */
@@ -92,7 +101,7 @@
          ? null
          : { latitude: lat, longitude: lon };
      };
-
+   
      /** Confirm location coordinates */
      const handleLocationConfirm = () => {
        if (locationInput.trim() === '') {
@@ -109,13 +118,13 @@
        setLocationStr(locationInput);
        setLocationConfirmed(true);
      };
-
+   
      /** Edit location coordinates */
      const handleLocationEdit = () => {
        setLocationConfirmed(false);
        setLocationInput(locationStr);
      };
-
+   
      /** Confirm radius */
      const handleRadiusConfirm = () => {
        if (radiusInput.trim() === '') {
@@ -132,7 +141,7 @@
        setRadiusStr(radiusInput);
        setRadiusConfirmed(true);
      };
-
+   
      /** Edit radius */
      const handleRadiusEdit = () => {
        setRadiusConfirmed(false);
@@ -173,6 +182,8 @@
              try {
                await updateOfficeLocation({ latitude, longitude });
                setLocationStr(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+               setLocationInput(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+               setLocationConfirmed(true);
              } catch (err) {
                console.error('Save location failed:', err);
                showError({ message: 'Could not save office location' });
@@ -238,119 +249,127 @@
      /* ----------------------------------------------------------------
         Render
      ---------------------------------------------------------------- */
-     if (officeLoading) {
+     if (officeLoading || !theme) {
        return (
-         <SafeAreaView style={styles(palette).centered}>
-           <ActivityIndicator size="large" color={palette.primary} />
-         </SafeAreaView>
+         <LiquidGlassLayout>
+           <View style={commonStyles.loader}>
+             <ActivityIndicator size="large" color="#FFFFFF" />
+           </View>
+         </LiquidGlassLayout>
        );
      }
    
      return (
-       <SafeAreaView style={styles(palette).container}>
-         <ScrollView contentContainerStyle={styles(palette).scrollContent}>
-           {/* Header */}
-           <View style={styles(palette).header}>
-             <Text style={styles(palette).headerTitle}>🏢 Office Settings</Text>
-             <Text style={styles(palette).headerSubtitle}>
-               Configure your office location and work policies
-             </Text>
-           </View>
+       <LiquidGlassScreenLayout.WithGlassHeader
+         title="Administration"
+         showLogout={true}
+         scrollable={true}
+       >
    
            {/* Office Location */}
-           <View style={styles(palette).section}>
-             <Text style={styles(palette).sectionTitle}>📍 Office Location</Text>
-             <Text style={styles(palette).sectionDescription}>
+           <View style={commonStyles.sectionCard}>
+             <View style={commonStyles.sectionTitleContainer}>
+               <Text style={commonStyles.sectionTitleIcon}>📍</Text>
+               <Text style={commonStyles.sectionTitle}>Office Location</Text>
+             </View>
+             <Text style={commonStyles.sectionDescription}>
                Set the GPS coordinates of your office for location-based check-ins
              </Text>
    
              {!locationConfirmed ? (
-               <View style={styles(palette).inputWithButton}>
+               <View style={commonStyles.inputWithButton}>
                  <TextInput
-                   style={[styles(palette).input, styles(palette).inputWithButtonText]}
+                   style={[commonStyles.input, commonStyles.inputWithButtonText]}
                    placeholder="latitude, longitude (e.g., 32.0853, 34.7818)"
                    value={locationInput}
                    onChangeText={setLocationInput}
                    keyboardType="decimal-pad"
-                   placeholderTextColor={palette.text.secondary}
+                   placeholderTextColor={COLORS.textSecondary}
                  />
-                 <TouchableOpacity
-                   style={styles(palette).confirmButton}
+                 <LiquidGlassButton
+                   title="✓"
                    onPress={handleLocationConfirm}
-                 >
-                   <Text style={styles(palette).confirmButtonText}>✓</Text>
-                 </TouchableOpacity>
+                   variant="primary"
+                   style={commonStyles.confirmButton}
+                 />
                </View>
              ) : (
-               <View style={styles(palette).confirmedInput}>
-                 <Text style={styles(palette).confirmedText}>{locationStr}</Text>
+               <View style={commonStyles.confirmedInput}>
+                 <Text style={commonStyles.confirmedText}>{locationStr}</Text>
                  <TouchableOpacity
-                   style={styles(palette).editButton}
+                   style={commonStyles.editButton}
                    onPress={handleLocationEdit}
                  >
-                   <Text style={styles(palette).editButtonText}>Edit</Text>
+                   <Text style={styles(theme).editButtonText}>Edit</Text>
                  </TouchableOpacity>
                </View>
              )}
    
-             <TouchableOpacity
-               style={styles(palette).locationButton}
+             <LiquidGlassButton
+               title={gettingLocation ? '📍 Getting Location…' : '📱 Use Current Location'}
                onPress={handleGetLocation}
                disabled={gettingLocation}
-             >
-               <Text style={styles(palette).locationButtonText}>
-                 {gettingLocation ? '📍 Getting Location…' : '📱 Use Current Location'}
-               </Text>
-             </TouchableOpacity>
+               variant="primary"
+               style={{ marginTop: SPACING.md }}
+             />
            </View>
    
            {/* Check Radius */}
-           <View style={styles(palette).section}>
-             <Text style={styles(palette).sectionTitle}>📏 Check-in Radius</Text>
-             <Text style={styles(palette).sectionDescription}>
+           <View style={commonStyles.sectionCard}>
+             <View style={commonStyles.sectionTitleContainer}>
+               <Text style={commonStyles.sectionTitleIcon}>📏</Text>
+               <Text style={commonStyles.sectionTitle}>Check-in Radius</Text>
+             </View>
+             <Text style={commonStyles.sectionDescription}>
                Maximum distance (in meters) from office to allow office check-ins
              </Text>
+             
              {!radiusConfirmed ? (
-               <View style={styles(palette).inputWithButton}>
+               <View style={commonStyles.inputWithButton}>
                  <TextInput
-                   style={[styles(palette).input, styles(palette).inputWithButtonText]}
+                   style={[commonStyles.input, commonStyles.inputWithButtonText]}
                    placeholder="100"
                    value={radiusInput}
                    onChangeText={setRadiusInput}
                    keyboardType="numeric"
-                   placeholderTextColor={palette.text.secondary}
+                   placeholderTextColor={COLORS.textSecondary}
                  />
-                 <TouchableOpacity
-                   style={styles(palette).confirmButton}
+                 <LiquidGlassButton
+                   title="✓"
                    onPress={handleRadiusConfirm}
-                 >
-                   <Text style={styles(palette).confirmButtonText}>✓</Text>
-                 </TouchableOpacity>
+                   variant="primary"
+                   style={commonStyles.confirmButton}
+                 />
                </View>
              ) : (
-               <View style={styles(palette).confirmedInput}>
-                 <Text style={styles(palette).confirmedText}>{radiusStr} m</Text>
+               <View style={commonStyles.confirmedInput}>
+                 <Text style={commonStyles.confirmedText}>{radiusStr} m</Text>
                  <TouchableOpacity
-                   style={styles(palette).editButton}
+                   style={commonStyles.editButton}
                    onPress={handleRadiusEdit}
                  >
-                   <Text style={styles(palette).editButtonText}>Edit</Text>
+                   <Text style={styles(theme).editButtonText}>Edit</Text>
                  </TouchableOpacity>
                </View>
              )}
-             <Text style={styles(palette).helpText}>
+             
+             <Text style={styles(theme).helpText}>
                💡 Recommended: 50-200 m depending on your building
              </Text>
            </View>
    
            {/* Work Policy */}
-           <View style={styles(palette).section}>
-             <Text style={styles(palette).sectionTitle}>🔄 Work Policy</Text>
-             <Text style={styles(palette).sectionDescription}>
-               Choose your company’s remote-work policy
+           <View style={commonStyles.sectionCard}>
+             <View style={commonStyles.sectionTitleContainer}>
+               <Text style={commonStyles.sectionTitleIcon}>🔄</Text>
+               <Text style={commonStyles.sectionTitle}>Work Policy</Text>
+             </View>
+             <Text style={[commonStyles.sectionDescription, { marginBottom: SPACING.md }]}>
+               Choose your company's remote-work policy
              </Text>
+             
              <TouchableOpacity
-               style={styles(palette).policySelector}
+               style={styles(theme).policySelector}
                onPress={() => {
                  showModal({
                    title: 'Select Work Policy',
@@ -389,14 +408,14 @@
                  });
                }}
              >
-               <Text style={styles(palette).policySelectorText}>
+               <Text style={styles(theme).policySelectorText}>
                  {policy === 'office-only'
                    ? '🏢 Office Only'
                    : policy === 'remote-only'
                    ? '🏠 Remote Only'
                    : '🔄 Hybrid'}
                </Text>
-               <Text style={styles(palette).policySelectorSubtext}>
+               <Text style={styles(theme).policySelectorSubtext}>
                  {policy === 'office-only'
                    ? 'Employees must work from office'
                    : policy === 'remote-only'
@@ -407,19 +426,22 @@
            </View>
    
            {/* Summary */}
-           <View style={styles(palette).summarySection}>
-             <Text style={styles(palette).summaryTitle}>📋 Current Configuration</Text>
-             <View style={styles(palette).summaryItem}>
-               <Text style={styles(palette).summaryLabel}>Office Location:</Text>
-               <Text style={styles(palette).summaryValue}>{locationStr || 'Not configured'}</Text>
+           <View style={commonStyles.sectionCard}>
+             <View style={commonStyles.sectionTitleContainer}>
+               <Text style={commonStyles.sectionTitleIcon}>📋</Text>
+               <Text style={commonStyles.sectionTitle}>Current Configuration</Text>
              </View>
-             <View style={styles(palette).summaryItem}>
-               <Text style={styles(palette).summaryLabel}>Check Radius:</Text>
-               <Text style={styles(palette).summaryValue}>{radiusStr || '100'} m</Text>
+             <View style={styles(theme).summaryItem}>
+               <Text style={styles(theme).summaryLabel}>Office Location:</Text>
+               <Text style={styles(theme).summaryValue}>{locationStr || 'Not configured'}</Text>
              </View>
-             <View style={styles(palette).summaryItem}>
-               <Text style={styles(palette).summaryLabel}>Work Policy:</Text>
-               <Text style={styles(palette).summaryValue}>
+             <View style={styles(theme).summaryItem}>
+               <Text style={styles(theme).summaryLabel}>Check Radius:</Text>
+               <Text style={styles(theme).summaryValue}>{radiusStr || '100'} m</Text>
+             </View>
+             <View style={styles(theme).summaryItem}>
+               <Text style={styles(theme).summaryLabel}>Work Policy:</Text>
+               <Text style={styles(theme).summaryValue}>
                  {policy === 'office-only'
                    ? 'Office Only'
                    : policy === 'remote-only'
@@ -430,26 +452,15 @@
            </View>
    
            {/* Save Button */}
-           <TouchableOpacity
-             style={styles(palette).saveButton}
+           <LiquidGlassButton
+             title={saving ? '' : '💾 Save Office Settings'}
              onPress={handleSave}
              disabled={saving}
+             variant="primary"
+             style={{ marginBottom: SPACING.xxl }}
            >
-             {saving ? (
-               <ActivityIndicator color={palette.text.light} />
-             ) : (
-               <Text style={styles(palette).saveButtonText}>💾 Save Settings</Text>
-             )}
-           </TouchableOpacity>
-   
-           {/* Back Button */}
-           <TouchableOpacity
-             style={styles(palette).backButton}
-             onPress={() => router.back()}
-           >
-             <Text style={styles(palette).backButtonText}>← Back to Admin</Text>
-           </TouchableOpacity>
-         </ScrollView>
+             {saving && <ActivityIndicator color="#FFFFFF" />}
+           </LiquidGlassButton>
    
          {/* Glass Modal */}
          <GlassModal
@@ -461,231 +472,99 @@
            closeOnBackdrop={modalState.closeOnBackdrop}
            closeOnBackButton={modalState.closeOnBackButton}
          />
-       </SafeAreaView>
+       </LiquidGlassScreenLayout.WithGlassHeader>
      );
    }
    
    /* ---------------------------------------------------------------- */
-   /*  Styles – function so we can consume palette                     */
+   /*  Styles – function so we can consume theme                      */
    /* ---------------------------------------------------------------- */
-   const styles = (p) =>
-     StyleSheet.create({
-       container: {
+   const styles = (theme) => {
+     if (!theme) return StyleSheet.create({});
+     
+     return StyleSheet.create({
+       scrollView: {
          flex: 1,
-         backgroundColor: p.background.secondary
-       },
-       centered: {
-         flex: 1,
-         justifyContent: 'center',
-         alignItems: 'center',
-         backgroundColor: p.background.secondary
+         backgroundColor: 'transparent',
        },
        scrollContent: {
-         padding: 16
+         padding: SPACING.lg,
+         paddingBottom: Platform.OS === 'ios' ? 120 : 100, // Extra space for tab bar
        },
        /* Header */
        header: {
-         backgroundColor: p.background.primary,
-         borderRadius: 12,
-         padding: 20,
-         marginBottom: 20,
          alignItems: 'center',
-         elevation: 2,
-         shadowColor: p.shadow,
-         shadowOffset: { width: 0, height: 2 },
-         shadowOpacity: 0.1,
-         shadowRadius: 4
+         marginBottom: SPACING.xl,
+       },
+       headerTitleContainer: {
+         flexDirection: 'row',
+         alignItems: 'center',
+         marginBottom: SPACING.xs,
+       },
+       headerTitleIcon: {
+         fontSize: TYPOGRAPHY.title.fontSize * 0.7,
+         marginRight: SPACING.sm,
        },
        headerTitle: {
-         fontSize: 24,
-         fontWeight: 'bold',
-         color: p.primary,
-         marginBottom: 8
+         fontSize: TYPOGRAPHY.title.fontSize * 0.7,
+         fontWeight: TYPOGRAPHY.title.fontWeight,
+         color: COLORS.textPrimary,
+         textShadowColor: 'rgba(0, 0, 0, 0.6)',
+         textShadowOffset: { width: 0, height: 1 },
+         textShadowRadius: 3,
        },
-       headerSubtitle: {
-         fontSize: 14,
-         color: p.text.secondary,
-         textAlign: 'center'
-       },
-       /* Generic section card */
-       section: {
-         backgroundColor: p.background.primary,
-         borderRadius: 12,
-         padding: 20,
-         marginBottom: 16,
-         elevation: 2,
-         shadowColor: p.shadow,
-         shadowOffset: { width: 0, height: 2 },
-         shadowOpacity: 0.1,
-         shadowRadius: 4
-       },
-       sectionTitle: {
-         fontSize: 18,
-         fontWeight: 'bold',
-         color: p.text.primary,
-         marginBottom: 8
-       },
-       sectionDescription: {
-         fontSize: 14,
-         color: p.text.secondary,
-         marginBottom: 16,
-         lineHeight: 20
-       },
-       /* Inputs / buttons */
-       input: {
-         backgroundColor: p.background.secondary,
-         borderColor: p.border,
-         borderWidth: 1,
-         borderRadius: 8,
-         padding: 12,
-         fontSize: 16,
-         color: p.text.primary,
-         marginBottom: 12
+       /* Edit button text styling */
+       editButtonText: {
+         fontSize: TYPOGRAPHY.caption.fontSize,
+         fontWeight: '600',
+         color: COLORS.textPrimary,
+         textAlign: 'center',
        },
        helpText: {
-         fontSize: 12,
-         color: p.text.secondary,
-         fontStyle: 'italic'
+         fontSize: TYPOGRAPHY.caption.fontSize,
+         color: COLORS.textSecondary,
+         fontStyle: 'italic',
+         marginTop: SPACING.sm
        },
-       locationButton: {
-         backgroundColor: p.primary,
-         padding: 12,
-         borderRadius: 8,
-         alignItems: 'center'
-       },
-       locationButtonText: {
-         color: p.text.light,
-         fontWeight: 'bold',
-         fontSize: 16
-       },
+       /* Work Policy selector */
        policySelector: {
-         backgroundColor: p.background.secondary,
-         borderColor: p.border,
+         backgroundColor: COLORS.glassLight,
+         borderColor: COLORS.glassBorder,
          borderWidth: 1,
-         borderRadius: 8,
-         padding: 16,
+         borderRadius: BORDER_RADIUS.xl,
+         padding: SPACING.lg,
          alignItems: 'center'
        },
        policySelectorText: {
-         fontSize: 16,
-         color: p.text.primary,
+         fontSize: TYPOGRAPHY.body.fontSize,
+         color: COLORS.textPrimary,
          fontWeight: 'bold',
-         marginBottom: 4
+         marginBottom: SPACING.xs,
        },
        policySelectorSubtext: {
-         fontSize: 12,
-         color: p.text.secondary,
+         fontSize: TYPOGRAPHY.caption.fontSize,
+         color: COLORS.textSecondary,
          textAlign: 'center'
        },
-       /* Summary */
-       summarySection: {
-         backgroundColor: p.background.primary,
-         borderRadius: 12,
-         padding: 20,
-         marginBottom: 24,
-         borderWidth: 2,
-         borderColor: p.primary
-       },
-       summaryTitle: {
-         fontSize: 18,
-         fontWeight: 'bold',
-         color: p.primary,
-         marginBottom: 16
-       },
+       
+       /* Summary section styles */
        summaryItem: {
          flexDirection: 'row',
          justifyContent: 'space-between',
-         marginBottom: 12
+         marginBottom: 4,
        },
        summaryLabel: {
-         fontSize: 14,
-         color: p.text.secondary,
+         fontSize: TYPOGRAPHY.body.fontSize,
+         color: COLORS.textSecondary,
          fontWeight: '500',
-         flex: 1
+         flex: 1,
        },
        summaryValue: {
-         fontSize: 14,
-         color: p.text.primary,
+         fontSize: TYPOGRAPHY.body.fontSize,
+         color: COLORS.textPrimary,
          fontWeight: 'bold',
          flex: 1,
-         textAlign: 'right'
+         textAlign: 'right',
        },
-       /* Save & back buttons */
-       saveButton: {
-         backgroundColor: p.success,
-         padding: 16,
-         borderRadius: 12,
-         alignItems: 'center',
-         marginBottom: 16,
-         elevation: 3,
-         shadowColor: p.shadow,
-         shadowOffset: { width: 0, height: 3 },
-         shadowOpacity: 0.2,
-         shadowRadius: 5
-       },
-       saveButtonText: {
-         color: p.text.light,
-         fontWeight: 'bold',
-         fontSize: 18
-       },
-       backButton: {
-         backgroundColor: p.text.secondary,
-         padding: 12,
-         borderRadius: 8,
-         alignItems: 'center'
-       },
-       backButtonText: {
-         color: p.text.light,
-         fontWeight: 'bold'
-       },
-       /* Confirmation UI styles */
-       inputWithButton: {
-         flexDirection: 'row',
-         alignItems: 'center',
-       },
-       inputWithButtonText: {
-         flex: 1,
-         marginRight: 8,
-       },
-       confirmButton: {
-         backgroundColor: p.primary,
-         padding: 12,
-         borderRadius: 8,
-         alignItems: 'center',
-         justifyContent: 'center',
-         width: 44,
-         height: 44,
-       },
-       confirmButtonText: {
-         color: p.text.light,
-         fontSize: 18,
-         fontWeight: 'bold',
-       },
-       confirmedInput: {
-         flexDirection: 'row',
-         alignItems: 'center',
-         justifyContent: 'space-between',
-         padding: 12,
-         borderWidth: 1,
-         borderColor: p.success || p.primary,
-         borderRadius: 8,
-         backgroundColor: p.background.secondary,
-       },
-       confirmedText: {
-         fontSize: 16,
-         color: p.text.primary,
-         fontWeight: '500',
-       },
-       editButton: {
-         backgroundColor: 'transparent',
-         borderWidth: 1,
-         borderColor: p.primary,
-         padding: 8,
-         borderRadius: 6,
-       },
-       editButtonText: {
-         color: p.primary,
-         fontSize: 14,
-         fontWeight: '500',
-       }
      });
+   };

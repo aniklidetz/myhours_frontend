@@ -5,8 +5,10 @@ import {
   View, 
   Text, 
   TouchableOpacity, 
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { showGlassAlert, showGlassConfirm } from '../hooks/useGlobalGlassModal';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useUser } from '../src/contexts/UserContext';
@@ -16,10 +18,12 @@ import useColors from '../hooks/useColors';
 import HeaderBackButton from '../src/components/HeaderBackButton';
 import useLocation from '../hooks/useLocation';
 import { safeLog, safeLogUser, maskEmail, safeLogLocation } from '../src/utils/safeLogging';
-import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassCard from '../components/LiquidGlassCard';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
+import LogoutButton from '../src/components/LogoutButton';
+import { commonStyles, COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/CommonStyles';
 
 export default function CheckInOutScreen() {
   const [refreshing, setRefreshing] = useState(false);
@@ -46,150 +50,146 @@ export default function CheckInOutScreen() {
   // Ensure theme is loaded before using it
   if (!theme) {
     return (
-      <LiquidGlassLayout>
+      <LiquidGlassScreenLayout scrollable={false}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#FFFFFF" />
         </View>
-      </LiquidGlassLayout>
+      </LiquidGlassScreenLayout>
     );
   }
 
-  // Create styles after theme is loaded
+  // Create styles after theme is loaded using CommonStyles
   const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: 'transparent',
-    },
+    container: commonStyles.container,
     loadingContainer: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
+      ...commonStyles.loader,
     },
     loadingText: {
-      marginTop: theme.spacing.md,
-      fontSize: theme.typography.body.fontSize,
-      color: theme.colors.text.secondary,
-    },
-    header: {
-      backgroundColor: 'transparent',
-      padding: theme.spacing.lg,
-      alignItems: 'center',
-      marginBottom: theme.spacing.md,
-    },
-    title: {
-      fontSize: theme.typography.title.fontSize * 0.7,
-      fontWeight: theme.typography.title.fontWeight,
-      color: theme.colors.text.primary,
-      textShadowColor: theme.shadows.text.color,
-      textShadowOffset: theme.shadows.text.offset,
-      textShadowRadius: theme.shadows.text.radius,
-    },
-    subtitle: {
-      fontSize: theme.typography.subtitle.fontSize,
-      color: theme.colors.text.secondary,
-      marginTop: theme.spacing.xs,
+      ...commonStyles.loaderText,
     },
     content: {
       flex: 1,
-      padding: theme.spacing.lg,
-      alignItems: 'center',
-      justifyContent: 'center',
+      padding: SPACING.lg,
     },
     refreshIndicator: {
-      position: 'absolute',
-      top: 10,
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: theme.colors.glass.medium,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
-      borderRadius: theme.borderRadius.lg,
+      backgroundColor: COLORS.glassMedium,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderRadius: BORDER_RADIUS.lg,
       borderWidth: 1,
-      borderColor: theme.colors.glass.border,
+      borderColor: COLORS.glassBorder,
+      marginBottom: SPACING.md,
+      alignSelf: 'center',
     },
     refreshText: {
-      marginLeft: theme.spacing.sm,
-      color: theme.colors.text.secondary,
-      fontSize: theme.typography.caption.fontSize,
+      marginLeft: SPACING.sm,
+      color: COLORS.textSecondary,
+      fontSize: TYPOGRAPHY.caption.fontSize,
     },
     manualModeIndicator: {
-      position: 'absolute',
-      top: 50,
-      backgroundColor: 'rgba(251, 191, 36, 0.9)',
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
-      borderRadius: theme.borderRadius.lg,
+      backgroundColor: COLORS.warning,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderRadius: BORDER_RADIUS.lg,
       borderWidth: 1,
       borderColor: 'rgba(251, 191, 36, 0.5)',
+      marginBottom: SPACING.md,
+      alignSelf: 'center',
     },
     manualModeText: {
-      color: theme.colors.text.primary,
-      fontSize: theme.typography.caption.fontSize,
+      color: COLORS.textPrimary,
+      fontSize: TYPOGRAPHY.caption.fontSize,
       fontWeight: '600',
       textAlign: 'center',
     },
+    
+    // Unified card styles with center alignment
+    statusCard: {
+      marginBottom: SPACING.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     statusTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: theme.colors.text.primary,
-      marginBottom: theme.spacing.md,
+      ...TYPOGRAPHY.subtitle,
+      color: COLORS.textPrimary,
+      marginBottom: SPACING.md,
+      textAlign: 'center',
     },
     statusHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: theme.spacing.md,
-    },
-    statusTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: theme.colors.text.primary,
-      marginLeft: theme.spacing.sm,
+      justifyContent: 'center',
+      marginBottom: SPACING.md,
+      width: '100%',
     },
     currentStatusBadge: {
-      alignSelf: 'flex-start',
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.sm,
-      borderRadius: theme.borderRadius.xl,
+      ...commonStyles.statusBadge,
+      alignSelf: 'center',
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.sm,
+      borderRadius: BORDER_RADIUS.full,
+      marginBottom: SPACING.sm,
     },
     onShiftBadge: {
-      backgroundColor: 'rgba(34, 197, 94, 0.8)',
+      backgroundColor: COLORS.onShift,
     },
     offShiftBadge: {
-      backgroundColor: 'rgba(107, 114, 128, 0.8)',
+      backgroundColor: COLORS.offShift,
     },
     currentStatusText: {
+      ...commonStyles.statusText,
       fontSize: 16,
       fontWeight: 'bold',
-      color: theme.colors.text.primary,
+      color: COLORS.textPrimary,
+      textAlign: 'center',
     },
     shiftTimeText: {
-      fontSize: theme.typography.caption.fontSize,
-      color: theme.colors.text.secondary,
-      marginTop: theme.spacing.sm,
+      ...TYPOGRAPHY.caption,
+      color: COLORS.textSecondary,
+      marginTop: SPACING.sm,
+      textAlign: 'center',
     },
     shiftInfo: {
-      marginTop: theme.spacing.md,
+      marginTop: SPACING.md,
       alignItems: 'center',
+      width: '100%',
     },
     shiftInfoText: {
-      fontSize: theme.typography.caption.fontSize,
-      color: theme.colors.text.secondary,
-      marginVertical: theme.spacing.xs / 2,
+      ...TYPOGRAPHY.caption,
+      color: COLORS.textSecondary,
+      marginVertical: SPACING.xs / 2,
+      textAlign: 'center',
+    },
+    
+    // Location card styles with center alignment
+    locationCard: {
+      marginBottom: SPACING.md,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     locationTitle: {
-      fontSize: theme.typography.body.fontSize,
+      ...TYPOGRAPHY.body,
       fontWeight: '600',
-      color: theme.colors.text.primary,
-      marginBottom: theme.spacing.sm,
+      color: COLORS.textPrimary,
+      marginBottom: SPACING.sm,
+      textAlign: 'center',
     },
     locationText: {
       fontSize: 18,
-      color: theme.colors.text.primary,
+      color: COLORS.textPrimary,
+      textAlign: 'center',
     },
+    locationIcon: {
+      marginBottom: SPACING.xs,
+      alignSelf: 'center',
+    },
+    
     infoText: {
-      fontSize: theme.typography.caption.fontSize,
-      color: theme.colors.text.secondary,
-      marginTop: theme.spacing.md,
+      ...TYPOGRAPHY.caption,
+      color: COLORS.textSecondary,
+      marginTop: SPACING.md,
       textAlign: 'center',
     },
   });
@@ -202,7 +202,7 @@ export default function CheckInOutScreen() {
       
       // Prevent rapid refreshes - minimum 2 seconds between refreshes
       if (user && user.id && !refreshing && timeSinceLastFocus > 2000) {
-        safeLog('📱 Check-in/out screen focused, refreshing status');
+        safeLog('Check-in/out screen focused, refreshing status');
         lastFocusTime.current = now;
         setRefreshing(true);
         loadWorkStatus(true).finally(() => {
@@ -212,14 +212,14 @@ export default function CheckInOutScreen() {
       
       // Return cleanup function
       return () => {
-        safeLog('📱 Check-in/out screen unfocused');
+        safeLog('Check-in/out screen unfocused');
       };
     }, [user?.id, refreshing, loadWorkStatus]) // Include all dependencies
   );
 
 
   const handleCheckIn = () => {
-    safeLog('🔐 Navigating to check-in');
+    safeLog('Navigating to check-in');
     router.push({
       pathname: '/biometric-check',
       params: { mode: 'check-in' }
@@ -236,7 +236,7 @@ export default function CheckInOutScreen() {
           {
             text: 'Try Biometric Again',
             onPress: () => {
-              safeLog('🔓 Navigating to biometric check-out');
+              safeLog('Navigating to biometric check-out');
               router.push({
                 pathname: '/biometric-check',
                 params: { mode: 'check-out' }
@@ -254,7 +254,7 @@ export default function CheckInOutScreen() {
         ]
       );
     } else {
-      safeLog('🔓 Navigating to check-out');
+      safeLog('Navigating to check-out');
       router.push({
         pathname: '/biometric-check',
         params: { mode: 'check-out' }
@@ -265,7 +265,7 @@ export default function CheckInOutScreen() {
   const handleManualCheckOut = async () => {
     try {
       setManualOperation(true);
-      safeLog('🖐️ Performing manual check-out', safeLogUser(user, 'manual_checkout'));
+      safeLog('Performing manual check-out', safeLogUser(user, 'manual_checkout'));
       
       Alert.alert(
         'Manual Check-out',
@@ -282,15 +282,15 @@ export default function CheckInOutScreen() {
                   'Manual (Location unavailable)';
                 
                 // For now, we'll simulate manual check-out
-                safeLog('🔄 Simulating manual check-out');
+                safeLog('Simulating manual check-out');
                 Alert.alert(
                   'Manual Check-out Complete',
                   'You have been checked out manually. Please contact your administrator if you continue to have biometric issues.',
-                  [{ text: 'OK', onPress: () => router.replace('/employees') }]
+                  [{ text: 'OK', onPress: () => router.replace('/check-in-out') }]
                 );
                 
               } catch (error) {
-                safeLog('❌ Manual check-out failed', { error: error.message });
+                safeLog('Manual check-out failed', { error: error.message });
                 Alert.alert(
                   'Manual Check-out Failed',
                   'Unable to complete manual check-out. Please contact your administrator.',
@@ -306,7 +306,7 @@ export default function CheckInOutScreen() {
         ]
       );
     } catch (error) {
-      safeLog('❌ Manual check-out error', { error: error.message });
+      safeLog('Manual check-out error', { error: error.message });
     } finally {
       setManualOperation(false);
     }
@@ -323,25 +323,23 @@ export default function CheckInOutScreen() {
 
   if (loading) {
     return (
-      <LiquidGlassLayout>
+      <LiquidGlassScreenLayout scrollable={false}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.text.primary} />
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
-      </LiquidGlassLayout>
+      </LiquidGlassScreenLayout>
     );
   }
 
   return (
-    <LiquidGlassLayout>
-      <HeaderBackButton destination="/employees" />
-      <View style={styles.header}>
-        <Text style={styles.title}>Check In/Out</Text>
-        <Text style={styles.subtitle}>
-          {user?.first_name || user?.email}'s Work Status
-        </Text>
-      </View>
-
+    <LiquidGlassScreenLayout.WithGlassHeader
+      title="Check In/Out"
+      subtitle={`${user?.first_name || user?.email}'s Work Status`}
+      showBackButton={false}
+      showLogout={true}
+      scrollable={true}
+    >
       <View style={styles.content}>
         {/* Refresh indicator */}
         {refreshing && (
@@ -355,7 +353,7 @@ export default function CheckInOutScreen() {
         {isManualMode && user?.email === 'mikhail.plotnik@gmail.com' && (
           <View style={styles.manualModeIndicator}>
             <Text style={styles.manualModeText}>
-              🔧 Manual mode enabled - alternative check-out available
+              Manual mode enabled - alternative check-out available
             </Text>
           </View>
         )}
@@ -369,14 +367,14 @@ export default function CheckInOutScreen() {
         )}
 
         {/* Current Status Card */}
-        <LiquidGlassCard variant="elevated" padding="lg">
+        <LiquidGlassCard variant="elevated" padding="lg" style={styles.statusCard}>
           <Text style={styles.statusTitle}>Current Status</Text>
           <View style={[
             styles.currentStatusBadge,
             workStatus === 'on-shift' ? styles.onShiftBadge : styles.offShiftBadge
           ]}>
             <Text style={styles.currentStatusText}>
-              {workStatus === 'on-shift' ? '🟢 On Shift' : '🔴 Off Shift'}
+              {workStatus === 'on-shift' ? 'On Shift' : 'Off Shift'}
             </Text>
           </View>
           
@@ -393,18 +391,24 @@ export default function CheckInOutScreen() {
         </LiquidGlassCard>
 
         {/* Location Status */}
-        <LiquidGlassCard variant="bordered" padding="md">
+        <LiquidGlassCard variant="bordered" padding="md" style={styles.locationCard}>
           <Text style={styles.locationTitle}>Location Status</Text>
+          <Ionicons 
+            name={isInOffice ? "business" : "home"} 
+            size={24} 
+            color={COLORS.textPrimary} 
+            style={styles.locationIcon}
+          />
           <Text style={styles.locationText}>{getLocationStatus()}</Text>
         </LiquidGlassCard>
 
         {/* Action Button */}
         <LiquidGlassButton
-          title={workStatus === 'on-shift' ? '🔓 Check Out' : '🔐 Check In'}
+          title={workStatus === 'on-shift' ? 'Check Out' : 'Check In'}
           onPress={workStatus === 'on-shift' ? handleCheckOut : handleCheckIn}
           disabled={refreshing || manualOperation}
           variant={workStatus === 'on-shift' ? 'secondary' : 'primary'}
-          style={{ width: '100%', marginVertical: theme.spacing.lg }}
+          style={{ width: '100%', marginVertical: SPACING.lg }}
         />
 
         {/* Info Text */}
@@ -417,17 +421,17 @@ export default function CheckInOutScreen() {
 
         {/* Manual Refresh Button */}
         <LiquidGlassButton
-          title="🔄 Refresh Status"
+          title="Refresh Status"
           onPress={() => {
             setRefreshing(true);
             loadWorkStatus(true).finally(() => setRefreshing(false));
           }}
           disabled={refreshing}
           variant="ghost"
-          style={{ marginTop: theme.spacing.md }}
+          style={{ marginTop: SPACING.md }}
         />
       </View>
-    </LiquidGlassLayout>
+    </LiquidGlassScreenLayout.WithGlassHeader>
   );
 }
 

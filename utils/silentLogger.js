@@ -22,22 +22,36 @@ export const setupSilentLogging = () => {
       }
     }
     
+    // ✅ ИСПРАВЛЕНИЕ: Убираем проблемный apply
     // For all other errors, use original console.error
-    originalConsoleError.apply(console, args);
+    try {
+      originalConsoleError(...args);
+    } catch (error) {
+      // Fallback to basic logging if apply fails
+      console.warn('Fallback logging:', ...args);
+    }
   };
 };
 
 // Helper function to log errors only in development
 export const devLog = (level, ...args) => {
   if (__DEV__) {
-    console[level](...args);
+    try {
+      console[level](...args);
+    } catch (error) {
+      console.warn('Dev log error:', ...args);
+    }
   }
 };
 
 // Helper function to log errors for debugging but not show to user
 export const silentLog = (...args) => {
   if (__DEV__) {
-    originalConsoleError.apply(console, args);
+    try {
+      originalConsoleError(...args);
+    } catch (error) {
+      console.warn('Silent log fallback:', ...args);
+    }
   }
   // In production, these errors are silently handled
 };

@@ -12,10 +12,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { showGlassAlert } from '../hooks/useGlobalGlassModal';
 import { useEmployeeForm } from '../hooks/useEmployeeForm';
 import { EmployeeForm } from '../components/EmployeeForm';
-import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 import HeaderBackButton from '../src/components/HeaderBackButton';
+import { COLORS, SPACING, TYPOGRAPHY } from '../constants/CommonStyles';
 
 export default function EditEmployeeScreen() {
   const theme = useLiquidGlassTheme();
@@ -63,10 +64,50 @@ export default function EditEmployeeScreen() {
     const result = await saveEmployee();
     if (result) {
       showGlassAlert('Success', 'Employee updated successfully', [
-        { text: 'OK', onPress: () => router.push('/employees') }
+        { text: 'OK', onPress: () => router.push('/team-management') }
       ]);
     }
   };
+
+  const handleCancel = () => {
+    showGlassAlert(
+      'Discard Changes',
+      'Are you sure you want to discard your changes?',
+      [
+        { text: 'Keep Editing', style: 'cancel' },
+        { 
+          text: 'Discard', 
+          style: 'destructive',
+          onPress: () => router.push('/team-management')
+        }
+      ]
+    );
+  };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: 'transparent',
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: SPACING.md,
+      fontSize: TYPOGRAPHY.body.fontSize,
+      color: COLORS.textPrimary,
+    },
+    
+    // Improved Footer with better spacing and single Cancel button
+    footer: {
+      padding: SPACING.lg,
+      paddingBottom: Platform.OS === 'ios' ? 34 + SPACING.md : SPACING.lg, // Safe area for iOS
+      backgroundColor: 'rgba(0, 0, 0, 0.1)',
+      gap: SPACING.md,
+    },
+  });
 
   if (!theme) {
     return null;
@@ -74,86 +115,65 @@ export default function EditEmployeeScreen() {
 
   if (loading) {
     return (
-      <LiquidGlassLayout>
+      <LiquidGlassScreenLayout.WithGlassHeader
+        title="Edit Employee"
+        backDestination="/team-management"
+        showLogout={true}
+        scrollable={false}
+      >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <ActivityIndicator size="large" color={theme.colors.text.primary} />
           <Text style={styles.loadingText}>Loading employee data...</Text>
         </View>
-      </LiquidGlassLayout>
+      </LiquidGlassScreenLayout.WithGlassHeader>
     );
   }
 
-  return (
-    <LiquidGlassLayout>
-      <HeaderBackButton destination="/employees" />
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Employee</Text>
-          <LiquidGlassButton
-            title={saving ? "Saving..." : "Save"}
-            onPress={handleSave}
-            disabled={saving}
-            variant="primary"
-            loading={saving}
-            style={{ paddingHorizontal: 20 }}
-          />
-        </View>
+  // Simplified footer with only primary action and cancel
+  const footer = (
+    <View style={styles.footer}>
+      {/* Primary Action Button */}
+      <LiquidGlassButton
+        title={saving ? "Saving..." : "Save Changes"}
+        onPress={handleSave}
+        disabled={saving}
+        variant="primary"
+        loading={saving}
+      />
+      
+      {/* Single Cancel Button - removed redundant Back button */}
+      <LiquidGlassButton
+        title="Cancel"
+        onPress={handleCancel}
+        disabled={saving}
+        variant="ghost"
+      />
+    </View>
+  );
 
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <EmployeeForm
-            formData={formData}
-            onFormChange={setFormData}
-            hourlyRateInput={hourlyRateInput}
-            onHourlyRateInputChange={setHourlyRateInput}
-            hourlyRateConfirmed={hourlyRateConfirmed}
-            onHourlyRateConfirm={handleHourlyRateConfirm}
-            onHourlyRateEdit={handleHourlyRateEdit}
-            monthlySalaryInput={monthlySalaryInput}
-            onMonthlySalaryInputChange={setMonthlySalaryInput}
-            monthlySalaryConfirmed={monthlySalaryConfirmed}
-            onMonthlySalaryConfirm={handleMonthlySalaryConfirm}
-            onMonthlySalaryEdit={handleMonthlySalaryEdit}
-            onEmploymentTypeChange={handleEmploymentTypeChange}
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </LiquidGlassLayout>
+  return (
+    <LiquidGlassScreenLayout.WithGlassHeader
+      title="Edit Employee"
+      backDestination="/team-management"
+      showLogout={true}
+      scrollable={true}
+      footerContent={footer}
+    >
+      <EmployeeForm
+        formData={formData}
+        onFormChange={setFormData}
+        hourlyRateInput={hourlyRateInput}
+        onHourlyRateInputChange={setHourlyRateInput}
+        hourlyRateConfirmed={hourlyRateConfirmed}
+        onHourlyRateConfirm={handleHourlyRateConfirm}
+        onHourlyRateEdit={handleHourlyRateEdit}
+        monthlySalaryInput={monthlySalaryInput}
+        onMonthlySalaryInputChange={setMonthlySalaryInput}
+        monthlySalaryConfirmed={monthlySalaryConfirmed}
+        onMonthlySalaryConfirm={handleMonthlySalaryConfirm}
+        onMonthlySalaryEdit={handleMonthlySalaryEdit}
+        onEmploymentTypeChange={handleEmploymentTypeChange}
+      />
+    </LiquidGlassScreenLayout.WithGlassHeader>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    flex: 1,
-  },
-  scrollContainer: {
-    padding: 20,
-  },
-});

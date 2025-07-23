@@ -9,6 +9,7 @@ import {
   ScrollView,
   Platform
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showGlassAlert } from '../hooks/useGlobalGlassModal';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,8 +21,9 @@ import useLocation from '../hooks/useLocation';
 import ApiService from '../src/api/apiService';
 import { APP_CONFIG } from '../src/config';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { maskName, safeLog, safeLogUser } from '../src/utils/safeLogging';
-import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassCard from '../components/LiquidGlassCard';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
@@ -44,11 +46,11 @@ export default function EmployeesScreen() {
   // Ensure theme is loaded before using it
   if (!theme) {
     return (
-      <LiquidGlassLayout>
+      <LiquidGlassScreenLayout scrollable={false}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#FFFFFF" />
         </View>
-      </LiquidGlassLayout>
+      </LiquidGlassScreenLayout>
     );
   }
 
@@ -102,13 +104,14 @@ export default function EmployeesScreen() {
           const hoursWorked = log.total_hours || log.hours_worked;
           console.log(`📊 Processing log: hours=${hoursWorked}, check_in=${log.check_in}, check_out=${log.check_out}`);
           
-          // Only count completed work logs (exclude active sessions)
-          if (log.check_in && !log.check_out) {
-            console.log(`🔄 Found active session: check_in=${log.check_in}, excluding from today's hours`);
-          } else if (hoursWorked && hoursWorked > 0) {
+          // Count both completed work logs AND active sessions
+          if (hoursWorked && hoursWorked > 0) {
             const minutesToAdd = Math.round(hoursWorked * 60);
-            console.log(`➕ Adding ${minutesToAdd} minutes (${hoursWorked}h) - completed work`);
+            const sessionType = log.check_out ? 'completed work' : 'active session';
+            console.log(`➕ Adding ${minutesToAdd} minutes (${hoursWorked}h) - ${sessionType}`);
             totalMinutes += minutesToAdd;
+          } else if (log.check_in && !log.check_out) {
+            console.log(`🔄 Found active session without total_hours: check_in=${log.check_in}`);
           }
         });
       }
@@ -283,6 +286,17 @@ export default function EmployeesScreen() {
     }
   }, []);
 
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.replace('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+      showGlassAlert({ title: 'Error', message: 'Failed to logout' });
+    }
+  };
+
   // Handle self-service biometric registration
   const handleSelfBiometricRegistration = () => {
     if (!user || !user.id) {
@@ -290,10 +304,24 @@ export default function EmployeesScreen() {
       return;
     }
 
+    // Get the employee ID from the user's employee profile
+    let employeeId = user.id; // Default fallback to user.id
+    if (user.employee_id) {
+      employeeId = user.employee_id;
+    } else if (user.employee_profile?.id) {
+      employeeId = user.employee_profile.id;
+    }
+
+    console.log('🔍 Self-service biometric registration:', {
+      userId: user.id,
+      employeeId: employeeId,
+      userName: `${user.first_name} ${user.last_name}`
+    });
+
     router.push({
       pathname: '/biometric-registration',
       params: {
-        employeeId: user.id,
+        employeeId: employeeId,
         employeeName: `${user.first_name || 'Unknown'} ${user.last_name || 'User'}`,
         selfService: 'true' // Flag to indicate self-service registration
       }
@@ -344,180 +372,228 @@ export default function EmployeesScreen() {
   if (userLoading || loading || workStatusLoading || (!user && userLoading)) {
     // console.log('⏳ Showing loader screen');
     return (
-      <LiquidGlassLayout>
+      <LiquidGlassScreenLayout scrollable={false}>
         <View style={styles(theme).loader}>
           <ActivityIndicator size="large" color={theme.colors.text.primary} />
           <Text style={styles(theme).loaderText}>
             {userLoading ? 'Loading user...' : loading ? 'Loading...' : 'Loading work status...'}
           </Text>
         </View>
-      </LiquidGlassLayout>
+      </LiquidGlassScreenLayout>
     );
   }
 
   console.log('✅ Rendering main dashboard content');
 
   return (
-    <LiquidGlassLayout>
-      {/* Header */}
-      <View style={styles(theme).header}>
-        <Text style={styles(theme).headerTitle}>
-          Dashboard
-        </Text>
-        <Text style={styles(theme).headerSubtitle}>
-          Welcome, {user?.first_name || user?.email || 'User'}
-        </Text>
-      </View>
-
-      {/* Control Bar */}
-      <View style={styles(theme).controlBar}>
-        <View style={styles(theme).controlBarLeft}>
-          {/* Role Badge - только если роль определена */}
-          {user?.role && (
-            <View style={[styles(theme).roleBadge, getRoleBadgeStyle()]}>
-              <Text style={styles(theme).roleBadgeText}>
-                {getRoleDisplayName(user.role)}
-              </Text>
-            </View>
-          )}
+    <LiquidGlassScreenLayout.WithGlassHeader
+      title="Dashboard"
+      subtitle={`Welcome, ${user?.first_name || user?.email || 'User'}`}
+      showBackButton={false}
+      showLogout={true}
+      scrollable={true}
+    >
+      {/* Role Badge */}
+      {user?.role && (
+        <View style={styles(theme).roleBadgeContainer}>
+          <View style={styles(theme).roleBadge}>
+            <Text style={styles(theme).roleBadgeText}>
+              {user.role}
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Content */}
-      <ScrollView style={styles(theme).personalDashboard}>
-          {/* Status Card */}
-          <LiquidGlassCard 
-            variant="elevated" 
-            padding="lg"
-            onPress={() => router.push('/check-in-out')}
-          >
-            <View style={styles(theme).statusHeader}>
-              <Ionicons name="time-outline" size={24} color={theme.colors.text.secondary} />
-              <Text style={styles(theme).statusTitle}>Current Status</Text>
-            </View>
-            <View style={[
-              styles(theme).currentStatusBadge,
-              workStatus === 'on-shift' ? styles(theme).onShiftBadge : styles(theme).offShiftBadge
-            ]}>
-              <Text style={styles(theme).currentStatusText}>
-                {workStatus === 'on-shift' ? 'On Shift' : 'Not on shift'}
-              </Text>
-            </View>
-            {workStatus === 'on-shift' && (
-              <Text style={styles(theme).shiftTimeText}>
-                Shift in progress
-              </Text>
-            )}
-          </LiquidGlassCard>
+      <View style={styles(theme).personalDashboard}>
+          {/* Shift Summary Section */}
+          <View style={styles(theme).section}>
+            <Text style={styles(theme).sectionHeader}>Shift Summary</Text>
+            
+            {/* Status Card */}
+            <LiquidGlassCard 
+              variant="elevated" 
+              padding="lg"
+              onPress={() => router.push('/check-in-out')}
+              style={styles(theme).statusCard}
+              accessibilityRole="button"
+              accessibilityLabel="Current work status. Tap to check in or check out."
+            >
+              <View style={styles(theme).statusHeader}>
+                <Ionicons name="time-outline" size={24} color={theme.colors.text.secondary} />
+                <Text style={styles(theme).statusTitle}>Current Status</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.text.secondary} style={styles(theme).chevron} />
+              </View>
+              <View style={[
+                styles(theme).currentStatusBadge,
+                workStatus === 'on-shift' ? styles(theme).onShiftBadge : styles(theme).offShiftBadge
+              ]}>
+                <Text style={styles(theme).currentStatusText}>
+                  {workStatus === 'on-shift' ? 'On Shift' : 'Not on shift'}
+                </Text>
+              </View>
+              {workStatus === 'on-shift' && (
+                <Text style={styles(theme).shiftTimeText}>
+                  Shift in progress
+                </Text>
+              )}
+            </LiquidGlassCard>
 
-          {/* Stats Grid */}
-          <View style={styles(theme).statsGrid}>
-            <LiquidGlassCard variant="bordered" padding="md" style={styles(theme).statCard}>
-              <Text style={styles(theme).statIcon}>📊</Text>
-              <Text style={styles(theme).statLabel}>Today's Hours</Text>
-              <Text style={styles(theme).statValue}>{todayHours}</Text>
-            </LiquidGlassCard>
-            
-            <LiquidGlassCard variant="bordered" padding="md" style={styles(theme).statCard}>
-              <Text style={styles(theme).statIcon}>📍</Text>
-              <Text style={styles(theme).statLabel}>Location</Text>
-              <Text style={styles(theme).statValue}>{getLocationStatus()}</Text>
-            </LiquidGlassCard>
-            
-            <LiquidGlassCard variant="bordered" padding="md" style={styles(theme).statCard}>
-              <Text style={styles(theme).statIcon}>🔐</Text>
-              <Text style={styles(theme).statLabel}>Security</Text>
-              <Text style={styles(theme).statValue}>
-                {biometricSessionValid ? 'Verified' : 'Standard'}
-              </Text>
-            </LiquidGlassCard>
+            {/* Stats Grid - Read-only data tiles */}
+            <View style={styles(theme).statsGrid}>
+              <View style={styles(theme).statCard}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Today's work hours: ${todayHours}`}>
+                <View style={styles(theme).statIconContainer}>
+                  <Ionicons name="time" size={24} color="#FFFFFFAA" style={styles(theme).statIcon} />
+                </View>
+                <View style={styles(theme).statContent}>
+                  <Text style={styles(theme).statValue} numberOfLines={1} ellipsizeMode="tail">
+                    {todayHours}
+                  </Text>
+                </View>
+                <Text style={styles(theme).statLabel} numberOfLines={1} ellipsizeMode="tail">
+                  Hours
+                </Text>
+              </View>
+              
+              <View style={styles(theme).statCard}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Current location: ${getLocationStatus()}`}>
+                <View style={styles(theme).statIconContainer}>
+                  <Ionicons name="location" size={24} color="#FFFFFFAA" style={styles(theme).statIcon} />
+                </View>
+                <View style={styles(theme).statContent}>
+                  <Text style={styles(theme).statValue} numberOfLines={1} ellipsizeMode="tail">
+                    {isInOffice ? 'Office' : 'Remote'}
+                  </Text>
+                </View>
+                <Text style={styles(theme).statLabel} numberOfLines={1} ellipsizeMode="tail">
+                  Location
+                </Text>
+              </View>
+              
+              <View style={styles(theme).statCard}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Security status: ${biometricSessionValid ? 'Verified' : 'Standard'}`}>
+                <View style={styles(theme).statIconContainer}>
+                  <Ionicons name="shield-checkmark" size={24} color="#FFFFFFAA" style={styles(theme).statIcon} />
+                </View>
+                <View style={styles(theme).statContent}>
+                  <Text style={styles(theme).statValue} numberOfLines={1} ellipsizeMode="tail">
+                    {biometricSessionValid ? 'Verified' : 'Standard'}
+                  </Text>
+                </View>
+                <Text style={styles(theme).statLabel} numberOfLines={1} ellipsizeMode="tail">
+                  Security
+                </Text>
+              </View>
+            </View>
           </View>
 
-          {/* Quick Access */}
-          <View style={styles(theme).quickAccessSection}>
-            <Text style={styles(theme).sectionTitle}>📊 My Data</Text>
-            <View style={styles(theme).quickAccessGrid}>
-              <LiquidGlassCard 
-                variant="elevated" 
-                padding="md"
-                style={styles(theme).quickAccessCard}
-                onPress={() => router.push('/worktime')}
-              >
-                <Ionicons name="time" size={24} color={theme.colors.text.primary} />
-                <Text style={styles(theme).quickAccessTitle}>Work Hours</Text>
-                <Text style={styles(theme).quickAccessSubtext}>View my work logs</Text>
-              </LiquidGlassCard>
-              
-              <LiquidGlassCard 
-                variant="elevated" 
-                padding="md"
-                style={styles(theme).quickAccessCard}
-                onPress={() => router.push('/payroll')}
-              >
-                <Ionicons name="cash" size={24} color="#22c55e" />
-                <Text style={styles(theme).quickAccessTitle}>My Salary</Text>
-                <Text style={styles(theme).quickAccessSubtext}>View my payroll</Text>
-              </LiquidGlassCard>
-              
-              {/* Biometric Registration/Update Cards */}
-              {userBiometricStatus && (
-                <>
-                  {console.log('🎨 Rendering biometric card. Status:', {
-                    hasBiometric: userBiometricStatus.has_biometric,
-                    statusType: typeof userBiometricStatus.has_biometric,
-                    registrationDate: userBiometricStatus.registration_date
-                  })}
-                  
-                  {!userBiometricStatus.has_biometric ? (
-                    // Show registration card if no biometric data
-                    <LiquidGlassCard 
-                      variant="elevated" 
-                      padding="md"
-                      style={[styles(theme).quickAccessCard, styles(theme).biometricCard]}
-                      onPress={handleSelfBiometricRegistration}
-                    >
-                      <Ionicons name="finger-print" size={24} color="#fbbf24" />
-                      <Text style={styles(theme).quickAccessTitle}>Register Face ID</Text>
-                      <Text style={styles(theme).quickAccessSubtext}>Complete your profile</Text>
-                    </LiquidGlassCard>
-                  ) : (
-                    // Show completion status if biometric data exists
-                    <LiquidGlassCard 
-                      variant="elevated" 
-                      padding="md"
-                      style={[styles(theme).quickAccessCard, styles(theme).biometricCompleteCard]}
-                    >
-                      <Ionicons name="checkmark-circle" size={24} color="#22c55e" />
-                      <Text style={styles(theme).quickAccessTitle}>Face ID Complete</Text>
-                      <Text style={styles(theme).quickAccessSubtext}>
-                        Registered {userBiometricStatus.registration_date ? 
-                          new Date(userBiometricStatus.registration_date).toLocaleDateString() : 
-                          'successfully'}
-                      </Text>
-                    </LiquidGlassCard>
-                  )}
-                </>
-              )}
-              
-              {/* Modal Demo Button - Hidden in production */}
-              {__DEV__ && (
+          {/* Quick Actions Section */}
+          <View style={styles(theme).section}>
+            <Text style={styles(theme).sectionHeader}>Quick Actions</Text>
+            
+            <View style={styles(theme).quickActionsGrid}>
+              {/* Row 1 */}
+              <View style={styles(theme).actionRow}>
                 <LiquidGlassCard 
                   variant="elevated" 
                   padding="md"
-                  style={styles(theme).quickAccessCard}
-                  onPress={() => router.push('/modal-demo')}
+                  style={styles(theme).actionCard}
+                  onPress={() => router.push('/worktime')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Work Hours - View my work logs"
                 >
-                  <Ionicons name="layers" size={24} color="#f59e0b" />
-                  <Text style={styles(theme).quickAccessTitle}>Modal Demo</Text>
-                  <Text style={styles(theme).quickAccessSubtext}>Test glass modals</Text>
+                  <Ionicons name="time" size={24} color={theme.colors.text.primary} style={styles(theme).actionIcon} />
+                  <Text style={styles(theme).actionTitle}>Work Hours</Text>
+                  <Text style={styles(theme).actionSubtext}>View logs</Text>
+                  <Ionicons name="chevron-forward" size={14} color={theme.colors.text.secondary} style={styles(theme).actionChevron} />
                 </LiquidGlassCard>
-              )}
+                
+                <LiquidGlassCard 
+                  variant="elevated" 
+                  padding="md"
+                  style={styles(theme).actionCard}
+                  onPress={() => router.push('/payroll')}
+                  accessibilityRole="button"
+                  accessibilityLabel="My Salary - View my payroll information"
+                >
+                  <Ionicons name="cash" size={24} color="#22c55e" style={styles(theme).actionIcon} />
+                  <Text style={styles(theme).actionTitle}>My Salary</Text>
+                  <Text style={styles(theme).actionSubtext}>View payroll</Text>
+                  <Ionicons name="chevron-forward" size={14} color={theme.colors.text.secondary} style={styles(theme).actionChevron} />
+                </LiquidGlassCard>
+              </View>
               
+              {/* Row 2 */}
+              <View style={styles(theme).actionRow}>
+                {/* Biometric Registration/Update Card */}
+                {userBiometricStatus && (
+                  <>
+                    {!userBiometricStatus.has_biometric ? (
+                      <LiquidGlassCard 
+                        variant="elevated" 
+                        padding="md"
+                        style={[styles(theme).actionCard, styles(theme).biometricCard]}
+                        onPress={handleSelfBiometricRegistration}
+                        accessibilityRole="button"
+                        accessibilityLabel="Register Face ID - Complete your biometric profile"
+                      >
+                        <Ionicons name="finger-print" size={24} color="#fbbf24" style={styles(theme).actionIcon} />
+                        <Text style={styles(theme).actionTitle}>Face ID</Text>
+                        <Text style={styles(theme).actionSubtext}>Register</Text>
+                        <Ionicons name="chevron-forward" size={14} color={theme.colors.text.secondary} style={styles(theme).actionChevron} />
+                      </LiquidGlassCard>
+                    ) : (
+                      <View style={[styles(theme).actionCard, styles(theme).completedCard]}
+                            accessibilityRole="text"
+                            accessibilityLabel={`Face ID Complete - Registered ${userBiometricStatus.registration_date ? new Date(userBiometricStatus.registration_date).toLocaleDateString() : 'successfully'}`}>
+                        <Ionicons name="checkmark-circle" size={24} color="#22c55e" style={styles(theme).actionIcon} />
+                        <Text style={styles(theme).actionTitle}>Face ID</Text>
+                        <Text style={styles(theme).actionSubtext}>Complete</Text>
+                      </View>
+                    )}
+                  </>
+                )}
+                
+                {/* Modal Demo Button - Hidden in production */}
+                {__DEV__ && (
+                  <LiquidGlassCard 
+                    variant="elevated" 
+                    padding="md"
+                    style={styles(theme).actionCard}
+                    onPress={() => router.push('/modal-demo')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Modal Demo - Test glass modals"
+                  >
+                    <Ionicons name="layers" size={24} color="#f59e0b" style={styles(theme).actionIcon} />
+                    <Text style={styles(theme).actionTitle}>Modal Demo</Text>
+                    <Text style={styles(theme).actionSubtext}>Test modals</Text>
+                    <Ionicons name="chevron-forward" size={14} color={theme.colors.text.secondary} style={styles(theme).actionChevron} />
+                  </LiquidGlassCard>
+                )}
+              </View>
+              
+              {/* Development Tools Section */}
+              {__DEV__ && (
+                <View style={styles(theme).devSection}>
+                  <Text style={styles(theme).devLabel}>Dev / Test</Text>
+                </View>
+              )}
             </View>
           </View>
 
-        </ScrollView>
-    </LiquidGlassLayout>
+      </View>
+        
+        {/* Bottom gradient mask for navigation */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0.3)']}
+          style={styles(theme).bottomGradient}
+          pointerEvents="none"
+        />
+    </LiquidGlassScreenLayout.WithGlassHeader>
   );
 }
 
@@ -603,10 +679,12 @@ const styles = (theme) => StyleSheet.create({
     fontWeight: '600',
   },
   logoutButton: {
-    backgroundColor: 'rgba(239, 68, 68, 0.8)',
-    paddingHorizontal: 16,
+    backgroundColor: theme.colors.glass.medium,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.glass.border,
   },
   logoutText: {
     color: theme.colors.text.primary,
@@ -617,7 +695,25 @@ const styles = (theme) => StyleSheet.create({
   // Personal Dashboard
   personalDashboard: {
     flex: 1,
-    padding: theme.spacing.lg,
+    padding: 24, // Match SPACING.lg (24px) used by other screens
+  },
+  
+  // Section styling
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.secondary,
+    marginBottom: 16,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  
+  // Status Card (Interactive)
+  statusCard: {
+    marginBottom: 16,
   },
   statusHeader: {
     flexDirection: 'row',
@@ -629,6 +725,10 @@ const styles = (theme) => StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.text.primary,
     marginLeft: theme.spacing.sm,
+    flex: 1,
+  },
+  chevron: {
+    marginLeft: 'auto',
   },
   currentStatusBadge: {
     alignSelf: 'flex-start',
@@ -652,75 +752,152 @@ const styles = (theme) => StyleSheet.create({
     color: theme.colors.text.secondary,
     marginTop: theme.spacing.sm,
   },
+  
+  // Stats Grid (Read-only data tiles with unified design)
   statsGrid: {
     flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
+    gap: 8,
   },
   statCard: {
     flex: 1,
+    height: 110, // Fixed height for consistent baseline
+    padding: 16, // Unified 16px padding on all sides
+    backgroundColor: 'rgba(255, 255, 255, 0.03)', // Slightly more subtle for read-only
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)', // Softer border for read-only
+    flexDirection: 'column',
+    justifyContent: 'space-between', // Distribute space evenly
+    opacity: 0.9, // Slightly transparent to indicate read-only
+  },
+  statIconContainer: {
     alignItems: 'center',
+    marginBottom: 8,
   },
   statIcon: {
-    fontSize: 24,
-    marginBottom: theme.spacing.xs,
+    // Centered horizontally, fixed distance from top
   },
-  statLabel: {
-    fontSize: theme.typography.caption.fontSize,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.xs,
-  },
-  statValue: {
-    fontSize: theme.typography.caption.fontSize,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-    textAlign: 'center',
-  },
-  quickAccessSection: {
-    marginBottom: theme.spacing.md,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.md,
-  },
-  quickAccessGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.md,
-  },
-  quickAccessCard: {
-    minWidth: '48%',
-    maxWidth: '48%',
+  statContent: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  quickAccessTitle: {
-    fontSize: theme.typography.body.fontSize,
-    fontWeight: 'bold',
+  statValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 4,
+    numberOfLines: 1, // Force single line
+    minHeight: 20, // Consistent height
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#FFFFFFCC', // Improved contrast from B3 to CC (80% vs 70%)
+    textAlign: 'center',
+    numberOfLines: 1, // Force single line
+    minHeight: 16, // Consistent height for baseline alignment
+  },
+  
+  // Quick Actions Grid (Interactive tiles with vivid treatment)
+  quickActionsGrid: {
+    gap: 12,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  actionCard: {
+    width: 160,
+    height: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    borderWidth: 1.5, // Thicker border for interactive elements
+    borderColor: 'rgba(255, 255, 255, 0.15)', // More visible border
+    backgroundColor: 'rgba(255, 255, 255, 0.08)', // Brighter background for interactive
+  },
+  actionIcon: {
+    marginBottom: 8,
+  },
+  actionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
     color: theme.colors.text.primary,
-    marginTop: theme.spacing.sm,
+    textAlign: 'center',
+    marginBottom: 4,
   },
-  quickAccessSubtext: {
-    fontSize: theme.typography.caption.fontSize,
+  actionSubtext: {
+    fontSize: 13,
     color: theme.colors.text.secondary,
-    marginTop: theme.spacing.xs,
+    textAlign: 'center',
   },
+  actionChevron: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+  },
+  
+  // Completed/Read-only action cards
+  completedCard: {
+    width: 160,
+    height: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+    opacity: 0.7,
+  },
+  
+  // Special styling
   biometricCard: {
     borderLeftWidth: 4,
     borderLeftColor: '#fbbf24',
   },
-  biometricUpdateCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#22c55e',
+  
+  // Development section
+  devSection: {
+    width: 160,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  biometricCompleteCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#22c55e',
-    opacity: 0.8,
+  devLabel: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
+    opacity: 0.6,
   },
-  logoutCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#ef4444',
+  
+  // Role Badge
+  roleBadgeContainer: {
+    padding: theme.spacing.md,
+    alignItems: 'center',
+  },
+  roleBadge: {
+    backgroundColor: theme.colors.glass.medium,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.glass.border,
+  },
+  roleBadgeText: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: '600',
+  },
+  
+  // Bottom gradient mask for navigation
+  bottomGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 96, // ≈ 96 pt как требуется
+    zIndex: 1,
   },
 });

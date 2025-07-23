@@ -1,5 +1,6 @@
 import React from 'react';
-import { SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, View, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import LiquidGlassBackground from './LiquidGlassBackground';
 
 const LiquidGlassLayout = ({ 
@@ -11,6 +12,7 @@ const LiquidGlassLayout = ({
   contentStyle,
   showsVerticalScrollIndicator = false
 }) => {
+
   const content = (
     <>
       {scrollable ? (
@@ -38,7 +40,7 @@ const LiquidGlassLayout = ({
   ) : content;
 
   const safeContent = safeArea ? (
-    <SafeAreaView style={[styles.container, style]}>
+    <SafeAreaView style={[styles.container, style]} edges={[]}>
       {keyboardContent}
     </SafeAreaView>
   ) : (
@@ -47,6 +49,7 @@ const LiquidGlassLayout = ({
     </View>
   );
 
+  // Important: LiquidGlassBackground should fill entire screen, content has safe areas
   return (
     <LiquidGlassBackground>
       {safeContent}

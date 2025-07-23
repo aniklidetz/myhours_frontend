@@ -23,7 +23,7 @@ import ApiService from '../src/api/apiService';
 import { APP_CONFIG } from '../src/config';
 import { Ionicons } from '@expo/vector-icons';
 import { maskName, safeLog, safeLogUser, safeLogEmployeesList } from '../src/utils/safeLogging';
-import LiquidGlassLayout from '../components/LiquidGlassLayout';
+import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassCard from '../components/LiquidGlassCard';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
@@ -45,11 +45,11 @@ export default function TeamManagementScreen() {
   // Ensure theme is loaded before using it
   if (!theme) {
     return (
-      <LiquidGlassLayout>
+      <LiquidGlassScreenLayout scrollable={false}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#FFFFFF" />
         </View>
-      </LiquidGlassLayout>
+      </LiquidGlassScreenLayout>
     );
   }
 
@@ -58,6 +58,7 @@ export default function TeamManagementScreen() {
     container: {
       flex: 1,
       backgroundColor: 'transparent',
+      paddingBottom: 0, // Ensure content extends under tab bar
     },
     loader: {
       flex: 1,
@@ -66,26 +67,21 @@ export default function TeamManagementScreen() {
     },
     listContent: {
       padding: theme.spacing.lg,
+      paddingBottom: Platform.OS === 'ios' ? 100 : 80, // Reduced to allow content to reach tab bar
     },
-    listHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+    // FIX: Fixed Add Member button at bottom of content
+    fixedAddButtonContainer: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.sm,        //  it was lg (24px) дnow is sm (8px)
+      paddingBottom: theme.spacing.md,     //  it was lg (24px) now is md (16px)
       alignItems: 'center',
-      marginBottom: theme.spacing.md,
+      backgroundColor: 'transparent',
     },
-    listHeaderText: {
-      fontSize: theme.typography.title.fontSize * 0.7,
-      fontWeight: theme.typography.title.fontWeight,
-      color: theme.colors.text.primary,
-      textShadowColor: theme.shadows.text.color,
-      textShadowOffset: theme.shadows.text.offset,
-      textShadowRadius: theme.shadows.text.radius,
-    },
-    addButton: {
-      backgroundColor: theme.colors.status.success[0],
-      borderRadius: theme.borderRadius.md,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
+    addMemberButton: {
+      minWidth: 240,
+      borderRadius: 16, // More rectangular shape
+      paddingVertical: 18,
+      paddingHorizontal: 24,
     },
     addButtonText: {
       color: theme.colors.text.primary,
@@ -98,8 +94,15 @@ export default function TeamManagementScreen() {
     employeeHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: theme.spacing.sm,
+      alignItems: 'flex-start', // Better alignment for multiline content
+      marginBottom: theme.spacing.md,
+      paddingBottom: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(255, 255, 255, 0.1)', // Subtle separator
+    },
+    employeeInfo: {
+      flex: 1,
+      paddingRight: theme.spacing.md, // Space before status badge
     },
     employeeName: {
       fontSize: theme.typography.body.fontSize,
@@ -118,11 +121,16 @@ export default function TeamManagementScreen() {
     },
     employeeStats: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginTop: theme.spacing.sm,
+      justifyContent: 'space-around', // Better distribution
+      marginTop: theme.spacing.md,
+      marginBottom: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      backgroundColor: 'rgba(255, 255, 255, 0.03)', // Subtle background
+      borderRadius: theme.borderRadius.md,
     },
     statItem: {
       alignItems: 'center',
+      flex: 1, // Equal width distribution
     },
     statLabel: {
       fontSize: theme.typography.caption.fontSize,
@@ -135,10 +143,12 @@ export default function TeamManagementScreen() {
       color: theme.colors.text.primary,
     },
     statusBadge: {
-      paddingHorizontal: theme.spacing.sm,
-      paddingVertical: theme.spacing.xs,
-      borderRadius: theme.borderRadius.sm,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.lg,
       alignSelf: 'flex-start',
+      minWidth: 80, // Consistent width
+      alignItems: 'center', // Center text
     },
     statusActive: {
       backgroundColor: theme.colors.status.success[0],
@@ -155,10 +165,11 @@ export default function TeamManagementScreen() {
       flexDirection: 'row',
       justifyContent: 'space-between',
       marginTop: theme.spacing.md,
+      gap: theme.spacing.md, // Consistent spacing between buttons
     },
     actionButton: {
       flex: 1,
-      marginHorizontal: theme.spacing.xs,
+      // Removed marginHorizontal for better gap control
     },
     emptyState: {
       flex: 1,
@@ -181,7 +192,7 @@ export default function TeamManagementScreen() {
     },
   });
 
-  // Определяем роли
+  // Define roles
   const isEmployee = user?.role === ROLES.EMPLOYEE;
   const isAccountant = hasAccess(ROLES.ACCOUNTANT);
   const isAdmin = hasAccess(ROLES.ADMIN);
@@ -616,7 +627,7 @@ export default function TeamManagementScreen() {
     return (
       <LiquidGlassCard variant="bordered" padding="md" style={styles.employeeCard}>
         <View style={styles.employeeHeader}>
-          <View>
+          <View style={styles.employeeInfo}>
             <Text style={styles.employeeName}>{item.first_name} {item.last_name}</Text>
             <Text style={styles.employeeEmail}>{item.email}</Text>
             <Text style={styles.employeeRole}>{item.role || 'Employee'}</Text>
@@ -680,48 +691,54 @@ export default function TeamManagementScreen() {
 
   if (userLoading || loading) {
     return (
-      <LiquidGlassLayout>
+      <LiquidGlassScreenLayout scrollable={false}>
         <View style={styles.loader}>
           <ActivityIndicator size="large" color={theme.colors.text.primary} />
           <Text style={{ color: theme.colors.text.primary, marginTop: 10 }}>
             Loading team data...
           </Text>
         </View>
-      </LiquidGlassLayout>
+      </LiquidGlassScreenLayout>
     );
   }
 
   if (!canManageEmployees) {
     return (
-      <LiquidGlassLayout>
+      <LiquidGlassScreenLayout scrollable={false}>
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateTitle}>🚫 Access Denied</Text>
           <Text style={styles.emptyStateText}>
             You don't have permission to manage team members.
           </Text>
         </View>
-      </LiquidGlassLayout>
+      </LiquidGlassScreenLayout>
     );
   }
 
   return (
-    <LiquidGlassLayout scrollable={false}>
+    <LiquidGlassScreenLayout.WithGlassHeader
+      title="Team Members"
+      backDestination="/employees"
+      showLogout={true}
+      scrollable={false}
+      noBottomPadding={true}
+    >
       <FlatList
         data={employees}
         renderItem={renderEmployeeItem}
         keyExtractor={item => item.id.toString()}
         contentContainerStyle={styles.listContent}
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        removeClippedSubviews={false}
         ListHeaderComponent={() => (
-          <View style={styles.listHeader}>
-            <Text style={styles.listHeaderText}>
-              Team Members ({employees.length})
-            </Text>
-            <TouchableOpacity
-              style={styles.addButton}
+          // Add Member button at the top
+          <View style={styles.fixedAddButtonContainer}>
+            <LiquidGlassButton
+              title="👤 Add Member"
               onPress={() => router.push('/add-employee')}
-            >
-              <Text style={styles.addButtonText}>+ Add</Text>
-            </TouchableOpacity>
+              variant="ghost"
+              style={styles.addMemberButton}
+            />
           </View>
         )}
         ListEmptyComponent={() => (
@@ -731,6 +748,9 @@ export default function TeamManagementScreen() {
               Add your first team member to get started with team management.
             </Text>
           </View>
+        )}
+        ListFooterComponent={() => (
+          <View style={{ height: 50 }} />
         )}
       />
       
@@ -744,6 +764,6 @@ export default function TeamManagementScreen() {
         closeOnBackdrop={modalState.closeOnBackdrop}
         closeOnBackButton={modalState.closeOnBackButton}
       />
-    </LiquidGlassLayout>
+    </LiquidGlassScreenLayout.WithGlassHeader>
   );
 }

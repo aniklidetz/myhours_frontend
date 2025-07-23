@@ -47,6 +47,16 @@ const apiClientBiometric = axios.create({
   },
 });
 
+// Create extra heavy requests client with extended timeout for complex queries
+const apiClientExtraHeavy = axios.create({
+  baseURL: API_URL,
+  timeout: APP_CONFIG.API_TIMEOUT_BIOMETRIC, // 45 seconds - reuse biometric timeout for complex queries
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
+
 // Track recent errors to avoid spam
 const errorTracker = new Map();
 
@@ -221,7 +231,9 @@ const addAuthInterceptors = (client) => {
         APP_CONFIG.STORAGE_KEYS.WORK_STATUS,
         APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA
       ]);
-      // Note: Navigation to login should be handled by the app
+      
+      // Add a flag to help components know authentication failed
+      error.isAuthenticationError = true;
     }
 
     return Promise.reject(error);
@@ -234,6 +246,7 @@ addAuthInterceptors(apiClient);
 addAuthInterceptors(apiClientHeavy);
 addAuthInterceptors(apiClientLight);
 addAuthInterceptors(apiClientBiometric);
+addAuthInterceptors(apiClientExtraHeavy); // FIX: Add auth interceptors to extra heavy client!
 
 // API Service methods
 const apiService = {
@@ -280,13 +293,31 @@ const apiService = {
           platform: deviceInfo.platform
         });
         
-        const response = await apiClient.post(API_ENDPOINTS.AUTH.ENHANCED_LOGIN, {
-          email,
-          password,
-          device_id: deviceId,
-          device_info: deviceInfo,
-          location
-        });
+        // Try enhanced login first, fallback to legacy if it fails
+        let response;
+        try {
+          response = await apiClient.post(API_ENDPOINTS.AUTH.ENHANCED_LOGIN, {
+            email,
+            password,
+            device_id: deviceId,
+            device_info: deviceInfo,
+            location
+          });
+        } catch (enhancedError) {
+          // If enhanced login fails with 404 or 500, try legacy login
+          if (enhancedError.response?.status === 404 || enhancedError.response?.status === 500) {
+            safeLog('⚠️ Enhanced login failed, falling back to legacy login');
+            response = await apiClient.post(API_ENDPOINTS.AUTH.LOGIN, {
+              email,
+              password,
+            });
+            // Add default values for enhanced features
+            response.data.biometric_registered = false;
+            response.data.security_info = { requires_biometric_verification: false };
+          } else {
+            throw enhancedError;
+          }
+        }
         
         // Save enhanced auth data
         if (response.data.success && response.data.token) {
@@ -1003,8 +1034,15 @@ const apiService = {
 
   // Work time
   worktime: {
-    getLogs: async (params = {}) => {
-      const response = await apiClientHeavy.get(API_ENDPOINTS.WORKTIME.LOGS, { params });
+    getLogs: async (params = {}, options = {}) => {
+      // Use extra heavy client (45s timeout) if filtering by specific employee 
+      // as it might trigger N+1 queries on the backend
+      const client = params.employee ? apiClientExtraHeavy : apiClientHeavy;
+      
+      const response = await client.get(API_ENDPOINTS.WORKTIME.LOGS, { 
+        params,
+        ...options // Allow passing additional options like signal for AbortController
+      });
       return response.data;
     },
 
