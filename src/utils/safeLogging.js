@@ -289,6 +289,80 @@ export const safeLogPayroll = (payrollData, action = 'payroll_action') => {
 };
 
 /**
+ * Создаёт безопасное представление work logs для логирования
+ * @param {Object|Array} workLogs - Work logs данные
+ * @param {string} action - Описание действия
+ * @returns {Object} Безопасные данные для логирования
+ */
+export const safeLogWorkLogs = (workLogs, action = 'work_logs') => {
+  if (!workLogs) {
+    return { action, status: 'no_data' };
+  }
+  
+  const isArray = Array.isArray(workLogs);
+  const logs = isArray ? workLogs : (workLogs.results || [workLogs]);
+  
+  const safeData = {
+    action,
+    count: workLogs.count || logs.length,
+    has_data: logs.length > 0,
+  };
+  
+  if (logs.length > 0) {
+    const firstLog = logs[0];
+    
+    // Безопасные метаданные без точных координат и ID
+    safeData.sample = {
+      hasCheckIn: !!firstLog.check_in,
+      hasCheckOut: !!firstLog.check_out,
+      status: firstLog.status,
+      duration: firstLog.duration,
+      totalHours: firstLog.total_hours,
+      employeeName: firstLog.employee_name ? maskName(firstLog.employee_name) : 'unknown',
+      locationCheckIn: firstLog.location_check_in ? maskLocationString(firstLog.location_check_in) : null,
+      locationCheckOut: firstLog.location_check_out ? maskLocationString(firstLog.location_check_out) : null,
+      hasWorklogId: !!firstLog.id
+    };
+    
+    // Статистика без чувствительных данных
+    const completedCount = logs.filter(log => log.check_out).length;
+    const activeCount = logs.filter(log => !log.check_out).length;
+    
+    safeData.stats = {
+      completed: completedCount,
+      active: activeCount,
+      total: logs.length
+    };
+  }
+  
+  return safeData;
+};
+
+/**
+ * Маскирует строку местоположения, содержащую координаты
+ * @param {string} locationString - Строка вида "Office (32.050938, 34.781841)"
+ * @returns {string} Обобщённое местоположение
+ */
+export const maskLocationString = (locationString) => {
+  if (!locationString) {
+    return 'Location Unknown';
+  }
+  
+  // Извлекаем координаты из строки типа "Office (32.050938, 34.781841)"
+  const coordRegex = /\(([^,]+),\s*([^)]+)\)/;
+  const match = locationString.match(coordRegex);
+  
+  if (match) {
+    const lat = parseFloat(match[1]);
+    const lng = parseFloat(match[2]);
+    return maskCoordinates(lat, lng);
+  }
+  
+  // Если координат нет, возвращаем только название без координат
+  return locationString.replace(/\s*\([^)]*\)/, '').trim() || 'Location Unknown';
+};
+
+/**
  * Создаёт безопасное представление API ответа для логирования
  * @param {Object} apiResponse - Ответ от API
  * @param {string} endpoint - Имя endpoint'а

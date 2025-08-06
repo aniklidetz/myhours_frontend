@@ -289,7 +289,7 @@ const apiService = {
         
         safeLog('🔐 Enhanced login attempt:', {
           hasEmail: !!email,
-          deviceId: deviceId.substring(0, 8) + '...',
+          hasDeviceId: !!deviceId,
           platform: deviceInfo.platform
         });
         
@@ -380,7 +380,7 @@ const apiService = {
       try {
         console.log('🔒 Starting biometric verification:', {
           operationType,
-          imageDataLength: imageBase64.length,
+          hasImage: !!imageBase64,
           hasLocation: !!location
         });
         
@@ -406,7 +406,7 @@ const apiService = {
           );
           
           console.log('✅ Biometric verification successful:', {
-            sessionId: response.data.biometric_session_id,
+            hasSession: !!response.data.biometric_session_id,
             verificationLevel: response.data.verification_level,
             confidenceScore: response.data.confidence_score
           });
@@ -600,7 +600,7 @@ const apiService = {
         
         const debugInfo = {
           hasToken: !!token,
-          tokenPreview: token ? `${token.substring(0, 20)}...` : null,
+          tokenPreview: token ? `${token.substring(0, 4)}***` : null,
           hasUserData: !!userData,
           hasEnhancedAuth: !!enhancedAuthData,
         };
@@ -622,7 +622,7 @@ const apiService = {
             tokenMatches: authData.token === token,
             expiresAt: authData.expires_at,
             isExpired: new Date() >= new Date(authData.expires_at),
-            deviceId: authData.device_id ? `${authData.device_id.substring(0, 8)}...` : null
+            hasDeviceId: !!authData.device_id
           };
         }
         
@@ -665,7 +665,24 @@ const apiService = {
         }
       }
       
-      const response = await apiClientHeavy.get(API_ENDPOINTS.EMPLOYEES, { params });
+      // Check if there was a recent biometric registration
+      let client = apiClientHeavy;
+      try {
+        const recentReg = await AsyncStorage.getItem('@MyHours:RecentBiometricRegistration');
+        if (recentReg) {
+          const regTime = parseInt(recentReg);
+          const timeSinceReg = Date.now() - regTime;
+          // If registration was within last 5 minutes, use extra heavy client
+          if (timeSinceReg < 5 * 60 * 1000) {
+            console.log('⏳ Using extended timeout due to recent biometric registration');
+            client = apiClientExtraHeavy;
+          }
+        }
+      } catch (e) {
+        // Ignore error, use default client
+      }
+      
+      const response = await client.get(API_ENDPOINTS.EMPLOYEES, { params });
       
       // Cache the response if no specific params
       if (Object.keys(params).length === 0) {
@@ -770,12 +787,29 @@ const apiService = {
           };
         }
         
-        const response = await apiClientLight.get(API_ENDPOINTS.BIOMETRICS.WORK_STATUS);
+        // Check if there was a recent biometric registration
+        let client = apiClientLight;
+        try {
+          const recentReg = await AsyncStorage.getItem('@MyHours:RecentBiometricRegistration');
+          if (recentReg) {
+            const regTime = parseInt(recentReg);
+            const timeSinceReg = Date.now() - regTime;
+            // If registration was within last 5 minutes, use extra heavy client
+            if (timeSinceReg < 5 * 60 * 1000) {
+              console.log('⏳ Using extended timeout for work status due to recent biometric registration');
+              client = apiClientExtraHeavy;
+            }
+          }
+        } catch (e) {
+          // Ignore error, use default client
+        }
+        
+        const response = await client.get(API_ENDPOINTS.BIOMETRICS.WORK_STATUS);
         
         console.log('✅ Work status check successful:', {
           isCheckedIn: response.data.is_checked_in,
           employeeName: response.data.employee_info?.employee_name ? maskName(response.data.employee_info.employee_name) : 'unknown',
-          sessionId: response.data.current_session?.worklog_id
+          hasSession: !!response.data.current_session?.worklog_id
         });
         
         return {
@@ -809,7 +843,8 @@ const apiService = {
         
         console.log('🔧 Starting biometric registration:', {
           employeeId,
-          imageDataLength: imageBase64.length,
+          hasImage: !!imageBase64,
+          imageSize: imageBase64 ? imageBase64.length : 0,
           mockMode: APP_CONFIG.ENABLE_MOCK_DATA
         });
         
@@ -828,15 +863,27 @@ const apiService = {
           });
         }
         
-        const response = await apiClientBiometric.post(API_ENDPOINTS.BIOMETRICS.REGISTER, {
+        const requestData = {
           employee_id: employeeId,
           image: imageBase64,
+        };
+        
+        console.log('📤 Sending registration request:', {
+          endpoint: API_ENDPOINTS.BIOMETRICS.REGISTER,
+          employee_id: requestData.employee_id,
+          imageLength: requestData.image.length
         });
+        
+        const response = await apiClientBiometric.post(API_ENDPOINTS.BIOMETRICS.REGISTER, requestData);
         
         console.log('✅ Biometric registration successful:', {
           employeeId,
           registeredAt: response.data.registered_at
         });
+        
+        // Set a flag to indicate recent biometric registration
+        // This helps other API calls to know they might need more time
+        await AsyncStorage.setItem('@MyHours:RecentBiometricRegistration', Date.now().toString());
         
         return response.data;
       } catch (error) {
@@ -857,8 +904,9 @@ const apiService = {
         }
         
         console.log('🔐 Starting biometric check-in:', {
-          location,
-          imageDataLength: imageBase64.length,
+          hasLocation: !!location,
+          hasImage: !!imageBase64,
+          imageSize: imageBase64 ? imageBase64.length : 0,
           hasSignal: !!signal,
           mockMode: APP_CONFIG.ENABLE_MOCK_DATA
         });
@@ -928,8 +976,8 @@ const apiService = {
         }
         
         console.log('🔓 Starting biometric check-out:', {
-          location,
-          imageDataLength: imageBase64.length,
+          hasLocation: !!location,
+          hasImage: !!imageBase64,
           mockMode: APP_CONFIG.ENABLE_MOCK_DATA
         });
         

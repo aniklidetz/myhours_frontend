@@ -23,7 +23,7 @@ import { API_URL } from '../src/config';
 import { useWorkStatus } from '../src/contexts/WorkStatusContext';
 import { useToast } from '../contexts/ToastContext';
 import FaceCaptureOverlay from '../components/FaceCaptureOverlay';
-import { maskName } from '../src/utils/safeLogging';
+import { maskName, maskEmail } from '../src/utils/safeLogging';
 import { showGlassAlert } from '../hooks/useGlobalGlassModal';
 import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassCard from '../components/LiquidGlassCard';
@@ -35,9 +35,7 @@ import useBiometricCamera from '../hooks/useBiometricCamera';
 
 export default function BiometricCheckScreen() {
   // Get `mode` safely: string | undefined | string[]  →  string | undefined
-  console.log('🔧 About to call useLocalSearchParams...');
   const params = useLocalSearchParams();
-  console.log('🔧 useLocalSearchParams result:', params);
   const modeParam = Array.isArray(params.mode) ? params.mode[0] : params.mode;
   // Fallback to 'check-in' if absent
   const mode = modeParam ?? 'check-in';
@@ -48,7 +46,7 @@ export default function BiometricCheckScreen() {
   const [successState, setSuccessState] = useState(false);
 
   const theme = useLiquidGlassTheme();
-  console.log('🔧 THEME CHECK:', theme); // ← Добавь эту строку
+  // Theme loaded successfully
 
   // Если theme undefined, возвращаем простой компонент
   if (!theme) {
@@ -83,7 +81,7 @@ export default function BiometricCheckScreen() {
       const locationString = getLocationString();
 
       // Call the appropriate API endpoint
-      console.log(`👤 Current authenticated user: ${user?.email} (ID: ${user?.id}, Name: ${user?.first_name} ${user?.last_name})`);
+      console.log(`👤 Current authenticated user: ${maskEmail(user?.email)} (ID: ${user?.id}, Name: ${maskName(`${user?.first_name || ''} ${user?.last_name || ''}`.trim())})`);
 
       // Debug authentication state
       await ApiService.auth.debugAuthState();
@@ -149,8 +147,8 @@ export default function BiometricCheckScreen() {
                   router.push({
                     pathname: '/biometric-registration',
                     params: {
-                      employeeId: userData?.id || '29',  // Current user ID
-                      employeeName: userData?.name || 'Current User',
+                      employeeId: user?.id || '1',  // Current user ID
+                      employeeName: `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Current User',
                       returnTo: '/check-in-out'
                     }
                   });
@@ -176,7 +174,7 @@ export default function BiometricCheckScreen() {
 
   // Use simplified approach - hook for logic, local state for camera
   const [cameraReady, setCameraReady] = useState(false);
-  const [cameraActive, setCameraActive] = useState(true);
+  const [cameraActive, setCameraActive] = useState(true); // Start with camera active
   const [hasPermission, setHasPermission] = useState(null);
   const [error, setError] = useState(null);
   const [overlayActive, setOverlayActive] = useState(true);
@@ -193,8 +191,21 @@ export default function BiometricCheckScreen() {
   // Initialize camera permissions
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
+      try {
+        console.log('🔧 Platform check:', Platform.OS);
+        console.log('📷 Requesting camera permissions...');
+        const { status } = await Camera.requestCameraPermissionsAsync();
+        console.log('📷 Permission status:', status);
+        setHasPermission(status === 'granted');
+        
+        if (status === 'granted') {
+          console.log('📷 Camera permissions granted, camera is active');
+          // Camera is already active by default
+        }
+      } catch (error) {
+        console.error('❌ Camera permission error:', error);
+        setError(`Camera permission error: ${error.message}`);
+      }
     })();
   }, []);
 
@@ -221,16 +232,25 @@ export default function BiometricCheckScreen() {
   // Reset state when screen comes into focus (fixes camera initialization after check-in)
   useFocusEffect(
     useCallback(() => {
+      console.log('🎯 BiometricCheckScreen focused, initializing camera...');
       // Reset all states on focus to ensure fresh start
       setLoading(false);
       setSuccessState(false);
+      setCameraReady(false);
+      setError(null);
+      
+      // Camera is already active by default
+      setCameraActive(true);
 
       // Cleanup function when screen loses focus
       return () => {
+        console.log('👋 BiometricCheckScreen unfocused, cleaning up...');
         if (abortControllerRef.current) {
           abortControllerRef.current.abort();
         }
         setLoading(false);
+        setCameraActive(false);
+        setCameraReady(false);
       };
     }, [mode]) // Re-run when mode changes (check-in vs check-out)
   );
@@ -333,8 +353,16 @@ export default function BiometricCheckScreen() {
             }}
             onMountError={(error) => {
               console.error('❌ Camera mount error:', error);
-              setError(`Camera failed to initialize: ${error.message}`);
+              const errorMessage = Platform.OS === 'ios' 
+                ? 'Camera failed to initialize. Please try again or restart the app.'
+                : `Camera failed to initialize: ${error.message}`;
+              setError(errorMessage);
               setCameraReady(false);
+              
+              // Try to reset camera after error
+              setTimeout(() => {
+                resetCamera();
+              }, 2000);
             }}
           />
         ) : (
@@ -407,7 +435,23 @@ export default function BiometricCheckScreen() {
                 styles(theme).cameraButtonContainer,
                 (loading || !!countdown || isCapturing || !cameraReady || !cameraActive) && styles(theme).disabledButton
               ]}
-              onPress={startCameraCountdown}
+              onPress={() => {
+                console.log('📸 Camera button pressed:', {
+                  loading,
+                  countdown,
+                  isCapturing,
+                  cameraReady,
+                  cameraActive,
+                  hasPermission,
+                  cameraRef: !!cameraRef.current
+                });
+                if (!cameraReady) {
+                  console.warn('⚠️ Camera not ready yet!');
+                  showError('Camera is still initializing, please wait...');
+                  return;
+                }
+                startCameraCountdown();
+              }}
               disabled={loading || !!countdown || isCapturing || !cameraReady || !cameraActive}
               activeOpacity={0.8}
             >

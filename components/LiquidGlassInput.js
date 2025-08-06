@@ -48,12 +48,13 @@ const LiquidGlassInput = ({
   return (
     <Animated.View style={[styles.container, animatedStyle, style]}>
       {/* Glass background */}
-      <BlurView intensity={30} style={StyleSheet.absoluteFillObject}>
+      <BlurView intensity={30} style={StyleSheet.absoluteFillObject} pointerEvents="none">
         <LinearGradient
           colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
           style={StyleSheet.absoluteFillObject}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
+          pointerEvents="none"
         />
       </BlurView>
 
@@ -67,6 +68,7 @@ const LiquidGlassInput = ({
         style={styles.border}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
+        pointerEvents="none"
       />
 
       {/* Input field */}
@@ -85,6 +87,7 @@ const LiquidGlassInput = ({
         onSubmitEditing={onSubmitEditing}
         returnKeyType={returnKeyType}
         blurOnSubmit={blurOnSubmit}
+        editable={true}
         style={[styles.input, rightIcon && styles.inputWithIcon]}
         {...props}
       />
@@ -121,6 +124,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     height: '100%',
+    zIndex: 10, // Ensure input is above blur layers
   },
   inputWithIcon: {
     paddingRight: 60,
@@ -133,6 +137,8 @@ const styles = StyleSheet.create({
     width: 60,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 15, // Higher than input to ensure touchability
+    pointerEvents: 'box-none', // Allow touch events to pass through to children
   },
 });
 

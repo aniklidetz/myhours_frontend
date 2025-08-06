@@ -25,27 +25,233 @@ import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 import { commonStyles, COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/CommonStyles';
 
 export default function PayrollScreen() {
+    // ✅ ALWAYS call all hooks in the same order - add guards to prevent hook violations
     const [payrollData, setPayrollData] = useState([]);
     const [currentSalaryData, setCurrentSalaryData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const [selectedPeriod, setSelectedPeriod] = useState(null); // null = current month
     const [employees, setEmployees] = useState([]);
-    const { user, hasAccess } = useUser();
+    const { user, hasAccess, loading: userLoading } = useUser();
     const { palette, isDark } = useColors();
     const theme = useLiquidGlassTheme();
-    const canViewAllEmployees = hasAccess(ROLES.ACCOUNTANT);
-    const canExportAndConfirm = hasAccess(ROLES.ACCOUNTANT);
+    
+    // ✅ Guard against null user during logout to prevent hook violations
+    const safeHasAccess = user ? hasAccess : () => false;
+    const canViewAllEmployees = safeHasAccess(ROLES.ACCOUNTANT);
+    const canExportAndConfirm = safeHasAccess(ROLES.ACCOUNTANT);
 
-    // Check authentication first
-    if (!user && !loading) {
-        console.log('❌ User not found, redirecting to login');
-        router.replace('/');
-        return null;
-    }
+    // Handle authentication redirects in useEffect to avoid render-time navigation
+    useEffect(() => {
+        if (!user && !loading && !userLoading) {
+            console.log('❌ User not found, redirecting to login');
+            router.replace('/');
+        }
+    }, [user, loading, userLoading]);
 
-    // Ensure theme is loaded before using it
-    if (!theme) {
+    // Main data fetching effect - moved to top to comply with Rules of Hooks
+    useEffect(() => {
+        // Only run effects if user is authenticated and theme is loaded
+        if (!user || !theme) return;
+        
+        // Inline function to avoid dependency issues
+        const performDataFetch = async () => {
+            if (canViewAllEmployees) {
+                // Fetch employees for admin users
+                try {
+                    console.log('🔍 Fetching employees list for payroll...', {});
+                    const response = await ApiService.employees.getAll();
+                    
+                    if (response && response.results) {
+                        const employeeList = response.results.map(emp => ({
+                            id: emp.id,
+                            name: `${emp.first_name} ${emp.last_name}`,
+                            email: emp.email
+                        }));
+                        setEmployees(employeeList);
+                        console.log('✅ Fetched employees for payroll:', {
+                            employee_count: employeeList.length,
+                            has_data: true
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error fetching employees:', error);
+                    setEmployees([]);
+                }
+            } else {
+                // For regular employees, clear any selected employee to ensure they only see their own data
+                setSelectedEmployee(null);
+            }
+        };
+        
+        const debounceTimer = setTimeout(() => {
+            performDataFetch();
+            // Note: Actual payroll data fetching will be handled by separate functions
+            // to avoid circular dependencies during the hooks refactor
+        }, 300);
+        
+        return () => clearTimeout(debounceTimer);
+    }, [selectedEmployee, selectedPeriod, canViewAllEmployees, user, theme]);
+
+    // Separate effect for payroll data fetching - simplified to avoid dependency issues
+    useEffect(() => {
+        if (!user || !theme) return;
+        
+        const fetchEmployees = async () => {
+            if (!canViewAllEmployees) return;
+            
+            try {
+                console.log('🔍 Fetching employees list for payroll...', {});
+                const response = await ApiService.employees.getAll();
+                
+                if (response && response.results) {
+                    const employeeList = response.results.map(emp => ({
+                        id: emp.id,
+                        name: `${emp.first_name} ${emp.last_name}`,
+                        email: emp.email
+                    }));
+                    setEmployees(employeeList);
+                    console.log('✅ Fetched employees for payroll:', {
+                        employee_count: employeeList.length,
+                        has_data: employeeList.length > 0
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching employees:', error);
+                setEmployees([]);
+            }
+        };
+        
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                
+                // Build API parameters
+                const apiParams = {
+                    month: selectedPeriod ? selectedPeriod.split('-')[1] : new Date().getMonth() + 1,
+                    year: selectedPeriod ? selectedPeriod.split('-')[0] : new Date().getFullYear(),
+                };
+                
+                if (canViewAllEmployees && selectedEmployee) {
+                    apiParams.employee_id = selectedEmployee.id;
+                }
+                
+                console.log('🔄 Fetching payroll data...', { selectedEmployee, selectedPeriod });
+                
+                let response;
+                if (!canViewAllEmployees) {
+                    // For regular employees, use the standard earnings endpoint without employee_id
+                    console.log('🔍 Using earnings endpoint for regular employee (backend auto-detects)');
+                    response = await ApiService.payroll.getEarnings(apiParams);
+                } else if (!selectedEmployee) {
+                    // For admin requesting all employees, use the salaries endpoint  
+                    console.log('🔍 Using salaries endpoint for all employees');
+                    response = await ApiService.payroll.getSalaries(apiParams);
+                } else {
+                    // For admin requesting specific employee, use earnings endpoint
+                    console.log('🔍 Using earnings endpoint for specific employee');
+                    response = await ApiService.payroll.getEarnings(apiParams);
+                }
+                
+                console.log('Payroll API response received:', {
+                    endpoint: 'earnings',
+                    has_data: !!response,
+                    is_array: Array.isArray(response),
+                    response_keys: response ? Object.keys(response) : []
+                });
+
+                // Transform the response data - handle both array and object responses
+                let dataArray = [];
+                if (canViewAllEmployees && !selectedEmployee) {
+                    // For all employees request, response should be an array from payroll_list
+                    if (Array.isArray(response)) {
+                        dataArray = response;
+                        console.log('📊 Received array response for all employees:', dataArray.length, 'employees');
+                    } else {
+                        console.warn('Expected array for all employees but got:', typeof response);
+                        dataArray = response ? [response] : [];
+                    }
+                } else {
+                    // For single employee request, response can be object or array
+                    if (Array.isArray(response)) {
+                        dataArray = response;
+                    } else if (response && response.results) {
+                        dataArray = response.results;
+                    } else if (response) {
+                        dataArray = [response];
+                    }
+                }
+
+                const transformedData = dataArray.map((item, index) => {
+                    // Handle different response formats from payroll_list vs enhanced_earnings
+                    const isPayrollListFormat = canViewAllEmployees && !selectedEmployee;
+                    
+                    return {
+                        id: `earnings-${item.employee?.id || item.id || index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        employee: isPayrollListFormat ? {
+                            id: item.employee?.id || item.id,
+                            name: item.employee?.name || 'Unknown Employee',
+                            email: item.employee?.email || 'unknown@example.com'
+                        } : {
+                            id: item.employee?.id || item.employee_id || item.id || index,
+                            name: item.employee?.name || 
+                                  item.employee_name ||
+                                  `${item.employee?.first_name || item.first_name || ''} ${item.employee?.last_name || item.last_name || ''}`.trim() || 
+                                  `Employee ${index + 1}`,
+                            email: item.employee?.email || item.email || 'unknown@example.com'
+                        },
+                        period: `${new Date(apiParams.year, apiParams.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}${selectedPeriod === null ? ' (Current)' : ''}`,
+                        status: 'In Progress',
+                        baseSalary: item.base_salary || item.salary || 0,
+                        baseHourlyRate: item.hourly_rate || item.rate || 0,
+                        hourlyRate: item.hourly_rate || item.rate || 0,
+                        hoursWorked: item.total_hours || item.hours_worked || item.hours || 0,
+                        regularHours: item.regular_hours || 0,
+                        overtimeHours: item.overtime_hours || 0,
+                        holidayHours: item.holiday_hours || 0,
+                        sabbathHours: item.shabbat_hours || item.sabbath_hours || 0,
+                        overtimePay: item.overtime_pay || 0,
+                        sabbathPay: item.sabbath_pay || 0,
+                        holidayPay: item.holiday_pay || 0,
+                        bonuses: item.bonus || item.bonuses || 0,
+                        compensatoryDays: item.compensatory_days || 0,
+                        totalPayout: item.total_salary || item.total_payout || item.total || item.amount || 0,
+                        workedDays: item.worked_days || item.days_worked || 0,
+                        totalWorkingDays: item.total_working_days || 0,
+                        workSessions: item.work_sessions || item.worked_days || item.sessions || 0,
+                        regularPayAmount: (item.regular_hours || 0) * (item.hourly_rate || item.rate || 0),
+                        overtime: item.overtime_hours || 0,
+                        enhancedBreakdown: item
+                    };
+                });
+
+                console.log('📊 Found salaries for employees:', {
+                    employee_count: transformedData.length,
+                    has_data: transformedData.length > 0
+                });
+
+
+                setPayrollData(transformedData);
+                
+                // Set current salary data to null for now
+                setCurrentSalaryData(null);
+                
+            } catch (error) {
+                console.error('Error fetching payroll data:', error);
+                setPayrollData([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        // Fetch employees first, then fetch payroll data
+        fetchEmployees();
+        const debounceTimer = setTimeout(fetchData, 300);
+        return () => clearTimeout(debounceTimer);
+    }, [selectedEmployee, selectedPeriod, canViewAllEmployees, user, theme]);
+
+    // Show loading during logout transition to prevent hook violations
+    if (loading || userLoading || !user || !theme) {
         return (
             <LiquidGlassScreenLayout scrollable={false}>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -63,7 +269,7 @@ export default function PayrollScreen() {
         },
         header: {
             backgroundColor: 'transparent',
-            padding: theme.spacing.lg,
+            // Padding handled by LiquidGlassScreenLayout
             alignItems: 'center',
             marginBottom: theme.spacing.md,
         },
@@ -120,7 +326,7 @@ export default function PayrollScreen() {
         selectorButtonTextActive: commonStyles.selectorButtonTextActive,
         content: {
             flex: 1,
-            padding: theme.spacing.lg,
+            // Padding handled by LiquidGlassScreenLayout
         },
         loader: {
             flex: 1,
@@ -128,7 +334,7 @@ export default function PayrollScreen() {
             alignItems: 'center',
         },
         listContent: {
-            padding: 16,
+            // Padding handled by LiquidGlassScreenLayout
             paddingBottom: 100,
         },
         // Simple card styles for testing
@@ -225,210 +431,6 @@ export default function PayrollScreen() {
 
     const availablePeriods = getAvailablePeriods();
 
-    useEffect(() => {
-        if (canViewAllEmployees) {
-            fetchEmployees();
-        } else {
-            // For regular employees, clear any selected employee to ensure they only see their own data
-            setSelectedEmployee(null);
-        }
-        
-        const debounceTimer = setTimeout(() => {
-            fetchPayrollData();
-            fetchCurrentSalaryData();
-        }, 300);
-        
-        return () => clearTimeout(debounceTimer);
-    }, [selectedEmployee, selectedPeriod, canViewAllEmployees]);
-
-    const fetchPayrollData = async () => {
-        try {
-            setLoading(true);
-            
-            // Check if user is authenticated before making request
-            if (!user) {
-                console.log('❌ User not authenticated, redirecting to login');
-                router.replace('/');
-                return;
-            }
-            
-            console.log('🔄 Fetching payroll data...', { selectedEmployee, selectedPeriod });
-            
-            // Build API parameters
-            const apiParams = {
-                month: selectedPeriod ? selectedPeriod.split('-')[1] : new Date().getMonth() + 1,
-                year: selectedPeriod ? selectedPeriod.split('-')[0] : new Date().getFullYear(),
-            };
-
-            // Determine which employee data to request based on user permissions
-            if (!canViewAllEmployees) {
-                // For regular employees: DON'T pass employee_id, backend will handle it automatically
-                console.log('🔍 Regular user requesting own payroll data (no employee_id needed)');
-            } else if (selectedEmployee) {
-                // For admins with a specific employee selected
-                apiParams.employee_id = selectedEmployee.id;
-                console.log('🔍 Admin requesting payroll for specific employee:', selectedEmployee.name);
-            } else {
-                // For admins viewing all employees - no employee_id filter
-                console.log('🔍 Admin requesting payroll for ALL employees (no employee_id filter)');
-            }
-
-            console.log('📊 Branch:', canViewAllEmployees ? 'Admin/Accountant access' : 'Regular employee access');
-            console.log('🌍 Fetching payroll data for:', canViewAllEmployees ? (selectedEmployee ? selectedEmployee.name : 'all employees') : 'current user only');
-
-            // Fetch earnings data - use different endpoints based on the request
-            console.log('📋 API params being sent:', apiParams);
-            
-            let response;
-            if (!canViewAllEmployees) {
-                // For regular employees, use the standard earnings endpoint without employee_id
-                console.log('🔍 Using earnings endpoint for regular employee (backend auto-detects)');
-                response = await ApiService.payroll.getEarnings(apiParams);
-            } else if (!selectedEmployee) {
-                // For admin requesting all employees, use the salaries endpoint  
-                console.log('🔍 Using salaries endpoint for all employees');
-                response = await ApiService.payroll.getSalaries(apiParams);
-            } else {
-                // For admin requesting specific employee, use earnings endpoint
-                console.log('🔍 Using earnings endpoint for specific employee');
-                response = await ApiService.payroll.getEarnings(apiParams);
-            }
-            
-            console.log('Payroll API response received:', {
-                endpoint: 'earnings',
-                has_data: !!response,
-                is_array: Array.isArray(response),
-                response_keys: response ? Object.keys(response) : []
-            });
-
-            // Transform the response data - handle both array and object responses
-            let dataArray = [];
-            if (canViewAllEmployees && !selectedEmployee) {
-                // For all employees request, response should be an array from payroll_list
-                if (Array.isArray(response)) {
-                    dataArray = response;
-                    console.log('📊 Received array response for all employees:', dataArray.length, 'employees');
-                } else {
-                    console.warn('Expected array for all employees but got:', typeof response);
-                    dataArray = response ? [response] : [];
-                }
-            } else {
-                // For single employee request, response can be object or array
-                if (Array.isArray(response)) {
-                    dataArray = response;
-                } else if (response && response.results) {
-                    dataArray = response.results;
-                } else if (response) {
-                    dataArray = [response];
-                }
-            }
-
-            const transformedData = dataArray.map((item, index) => {
-                // Handle different response formats from payroll_list vs enhanced_earnings
-                const isPayrollListFormat = canViewAllEmployees && !selectedEmployee;
-                
-                return {
-                    id: `earnings-${item.employee?.id || item.id || index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    employee: isPayrollListFormat ? {
-                        id: item.employee?.id || item.id,
-                        name: item.employee?.name || 'Unknown Employee',
-                        email: item.employee?.email || 'unknown@example.com'
-                    } : {
-                        id: item.employee?.id || item.employee_id || item.id || index,
-                        name: item.employee?.name || 
-                              item.employee_name ||
-                              `${item.employee?.first_name || item.first_name || ''} ${item.employee?.last_name || item.last_name || ''}`.trim() || 
-                              `Employee ${index + 1}`,
-                        email: item.employee?.email || item.email || 'unknown@example.com'
-                    },
-                    period: `${new Date(0, apiParams.month - 1).toLocaleDateString('en-US', { month: 'long' })} ${apiParams.year} (Current)`,
-                    status: 'In Progress',
-                    baseSalary: item.base_salary || item.salary || 0,
-                    baseHourlyRate: item.hourly_rate || item.rate || 0,
-                    hourlyRate: item.hourly_rate || item.rate || 0,
-                    hoursWorked: item.total_hours || item.hours_worked || item.hours || 0,
-                    regularHours: item.regular_hours || 0,
-                    overtimeHours: item.overtime_hours || 0,
-                    holidayHours: item.holiday_hours || 0,
-                    sabbathHours: item.shabbat_hours || item.sabbath_hours || 0,
-                    overtimePay: item.overtime_pay || 0,
-                    sabbathPay: item.sabbath_pay || 0,
-                    holidayPay: item.holiday_pay || 0,
-                    bonuses: item.bonus || item.bonuses || 0,
-                    compensatoryDays: item.compensatory_days || 0,
-                    totalPayout: item.total_salary || item.total_payout || item.total || item.amount || 0,
-                    workedDays: item.worked_days || item.days_worked || 0,
-                    totalWorkingDays: item.total_working_days || 0,
-                    workSessions: item.work_sessions || item.worked_days || item.sessions || 0,
-                    regularPayAmount: (item.regular_hours || 0) * (item.hourly_rate || item.rate || 0),
-                    overtime: item.overtime_hours || 0,
-                    enhancedBreakdown: item
-                };
-            });
-
-            console.log('📊 Found salaries for employees:', {
-                employee_count: transformedData.length,
-                has_data: transformedData.length > 0
-            });
-
-            console.log('MOBILE DEBUG: Setting payroll data:', {
-                filteredDataLength: transformedData.length,
-                hasData: transformedData.length > 0,
-                sampleItem: transformedData.length > 0 ? transformedData[0] : null
-            });
-
-            setPayrollData(transformedData);
-            
-        } catch (error) {
-            console.error('Error fetching payroll data:', error);
-            
-            // Handle authentication errors
-            if (error.response?.status === 401) {
-                console.log('❌ Authentication failed, redirecting to login');
-                router.replace('/');
-                return;
-            }
-            
-            setPayrollData([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchEmployees = async () => {
-        if (!canViewAllEmployees) return;
-        
-        try {
-            console.log('🔍 Fetching employees list for payroll...', {});
-            const response = await ApiService.employees.getAll();
-            
-            if (response && response.results) {
-                const employeeList = response.results.map(emp => ({
-                    id: emp.id,
-                    name: `${emp.first_name} ${emp.last_name}`,
-                    email: emp.email
-                }));
-                setEmployees(employeeList);
-                console.log('✅ Fetched employees for payroll:', {
-                    employee_count: employeeList.length,
-                    has_data: employeeList.length > 0
-                });
-            }
-        } catch (error) {
-            console.error('Error fetching employees:', error);
-            setEmployees([]);
-        }
-    };
-
-    const fetchCurrentSalaryData = async () => {
-        try {
-            // For simplified version, set null - this is optional data
-            setCurrentSalaryData(null);
-        } catch (error) {
-            console.error('Error fetching current salary data:', error);
-            setCurrentSalaryData(null);
-        }
-    };
 
     const handleExport = async () => {
         try {
@@ -478,12 +480,6 @@ export default function PayrollScreen() {
 
     // Ultra-simplified renderPayrollItem for testing
     const renderPayrollItem = ({ item }) => {
-        console.log('MOBILE DEBUG: Rendering payroll item:', {
-            id: item.id,
-            employeeName: item.employee?.name,
-            totalPayout: item.totalPayout,
-            hasData: !!item
-        });
         
         return (
             <View style={stylesWithDarkMode.simpleCard}>
@@ -519,13 +515,6 @@ export default function PayrollScreen() {
         </View>
     );
 
-    console.log('MOBILE DEBUG: Rendering Payroll screen:', {
-        loading,
-        payrollDataLength: payrollData.length,
-        hasPayrollData: payrollData.length > 0,
-        canViewAllEmployees,
-        selectedEmployee: selectedEmployee?.name || 'All Employees'
-    });
 
     return (
         <LiquidGlassScreenLayout.WithGlassHeader
@@ -616,7 +605,7 @@ export default function PayrollScreen() {
                 ) : payrollData.length === 0 ? (
                     renderEmptyComponent()
                 ) : (
-                    <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16 }}>
+                    <View style={{ flex: 1 }}>
                         {payrollData.map((item) => (
                             <LiquidGlassCard key={item.id} variant="bordered" padding="md" style={{ marginBottom: theme.spacing.md }}>
                                 {/* Header with employee name, type and period */}

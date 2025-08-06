@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ApiService from '../api/apiService';
 import { useUser } from './UserContext';
 import { APP_CONFIG } from '../config';
-import { maskName } from '../utils/safeLogging';
+import { maskName, safeLogUser } from '../utils/safeLogging';
 
 const WORK_STATUS_KEY = '@MyHours:WorkStatus';
 
@@ -162,8 +162,14 @@ export const WorkStatusProvider = ({ children }) => {
 
   // Check in handler
   const handleCheckInSuccess = useCallback(async (checkInData) => {
-    console.log('✅ Check-in successful, updating global status:', checkInData);
-    console.log('📊 Current user state:', { userId: user?.id, userName: user?.name });
+    console.log('✅ Check-in successful, updating global status:', {
+      success: checkInData.success,
+      employeeName: checkInData.employee_name ? maskName(checkInData.employee_name) : 'unknown',
+      hasCheckInTime: !!checkInData.check_in_time,
+      hasWorklogId: !!checkInData.worklog_id,
+      hasLocation: !!checkInData.location
+    });
+    console.log('📊 Current user state:', { userId: user?.id, userName: undefined });
     
     setWorkStatus('on-shift');
     setShiftStartTime(checkInData.check_in_time);
@@ -207,7 +213,14 @@ export const WorkStatusProvider = ({ children }) => {
 
   // Check out handler
   const handleCheckOutSuccess = useCallback(async (checkOutData) => {
-    console.log('✅ Check-out successful, updating global status:', checkOutData);
+    console.log('✅ Check-out successful, updating global status:', {
+      success: checkOutData.success,
+      employeeName: checkOutData.employee_name ? maskName(checkOutData.employee_name) : 'unknown',
+      hoursWorked: checkOutData.hours_worked,
+      hasCheckInTime: !!checkOutData.check_in_time,
+      hasCheckOutTime: !!checkOutData.check_out_time,
+      hasWorklogId: !!checkOutData.worklog_id
+    });
     
     // Optimistic UI update
     setWorkStatus('off-shift');

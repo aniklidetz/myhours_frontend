@@ -1,6 +1,7 @@
 // Authentication Diagnostics Utility
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_CONFIG } from '../config';
+import { maskEmail, maskName, hashUserId } from './safeLogging';
 
 export const runAuthDiagnostics = async () => {
   console.log('========================================');
@@ -30,7 +31,7 @@ export const runAuthDiagnostics = async () => {
     
     if (token) {
       console.log('\n🔑 Token Details:');
-      console.log(`  Token preview: ${token.substring(0, 20)}...`);
+      console.log(`  Token preview: ${token.substring(0, 6)}...***`);
       console.log(`  Token length: ${token.length} characters`);
     }
     
@@ -38,7 +39,7 @@ export const runAuthDiagnostics = async () => {
       console.log('\n🔐 Enhanced Auth Details:');
       try {
         const authData = JSON.parse(enhancedAuthData);
-        console.log(`  Device ID: ${authData.device_id?.substring(0, 8)}...`);
+        console.log(`  Device ID: ${authData.device_id?.substring(0, 4)}...***`);
         console.log(`  Expires at: ${authData.expires_at}`);
         
         const expiresAt = new Date(authData.expires_at);
@@ -66,10 +67,10 @@ export const runAuthDiagnostics = async () => {
       console.log('\n👤 User Details:');
       try {
         const user = JSON.parse(userData);
-        console.log(`  ID: ${user.id}`);
-        console.log(`  Email: ${user.email}`);
+        console.log(`  ID Hash: ${hashUserId(user.id)}`);
+        console.log(`  Email: ${maskEmail(user.email)}`);
         console.log(`  Role: ${user.role}`);
-        console.log(`  Name: ${user.first_name} ${user.last_name}`);
+        console.log(`  Name: ${maskName(`${user.first_name || ''} ${user.last_name || ''}`.trim())}`);
       } catch (error) {
         console.error('  ❌ Error parsing user data:', error);
       }

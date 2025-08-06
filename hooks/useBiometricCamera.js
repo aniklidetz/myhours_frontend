@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { Camera } from 'expo-camera';
 import { showGlassAlert } from './useGlobalGlassModal';
 
@@ -139,12 +140,15 @@ export function useBiometricCamera(onPhotoTaken, externalCameraRef = null, exter
         quality: 0.7,
         base64: true,
         exif: false,
-        skipProcessing: false
+        skipProcessing: true  // Changed to true for iOS compatibility
       });
       
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Photo capture timed out after 10 seconds')), 10000)
       );
+      
+      // Add platform-specific error handling
+      const isIOS = Platform.OS === 'ios';
       
       const photo = await Promise.race([photoPromise, timeoutPromise]);
 
@@ -193,6 +197,9 @@ export function useBiometricCamera(onPhotoTaken, externalCameraRef = null, exter
       } else if (error.message?.includes('base64') || error.message?.includes('Image could not be captured')) {
         title = '📸 Capture Error';
         message = 'Photo could not be processed. Please ensure good lighting and try again. If the problem persists, restart the app.';
+      } else if (isIOS && (error.message?.includes('AVCaptureSession') || error.name === 'CameraError')) {
+        title = '📱 iOS Camera Error';
+        message = 'Camera session interrupted. Please go back and try again, or restart the app if the problem persists.';
       } else {
         title = '❌ Camera Error';
         message = `Something went wrong with the camera: ${error.message || 'Unknown error'}`;

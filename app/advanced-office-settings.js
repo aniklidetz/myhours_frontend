@@ -27,6 +27,7 @@
    import LiquidGlassButton from '../components/LiquidGlassButton';
    import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
    import LogoutButton from '../src/components/LogoutButton';
+import { maskCoordinates } from '../src/utils/safeLogging';
    // FIX: Import shared styles
    import { commonStyles, COLORS, SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../constants/CommonStyles';
    
@@ -80,11 +81,12 @@
    
      /* ------------- Guard – non-admins are bounced ------------------ */
      useEffect(() => {
-       if (!user || !hasAccess(ROLES.ADMIN)) {
+       // Don't show access denied during logout process or when user is null
+      if (user && !hasAccess(ROLES.ADMIN)) {
          showAlert({
            title: 'Access Denied',
            message: 'You do not have permission to access office settings',
-           onPress: () => router.replace('/employees')
+           onPress: () => router.replace('/dashboard')
          });
        }
      }, [user]);
@@ -172,7 +174,7 @@
          });
          const { latitude, longitude, accuracy } = loc.coords;
    
-         console.log(`📍 Location obtained: lat=${latitude}, lon=${longitude}, accuracy=${accuracy}m`);
+         console.log(`📍 Location obtained: ${maskCoordinates(latitude, longitude)}, accuracy=${accuracy}m`);
    
          showConfirm({
            title: 'Location Retrieved',
@@ -262,6 +264,7 @@
      return (
        <LiquidGlassScreenLayout.WithGlassHeader
          title="Administration"
+         backDestination="/dashboard"
          showLogout={true}
          scrollable={true}
        >

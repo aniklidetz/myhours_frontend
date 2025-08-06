@@ -66,12 +66,12 @@ export default function TeamManagementScreen() {
       alignItems: 'center',
     },
     listContent: {
-      padding: theme.spacing.lg,
+      // Padding handled by LiquidGlassScreenLayout
       paddingBottom: Platform.OS === 'ios' ? 100 : 80, // Reduced to allow content to reach tab bar
     },
     // FIX: Fixed Add Member button at bottom of content
     fixedAddButtonContainer: {
-      paddingHorizontal: theme.spacing.lg,
+      // Horizontal padding handled by LiquidGlassScreenLayout
       paddingTop: theme.spacing.sm,        //  it was lg (24px) дnow is sm (8px)
       paddingBottom: theme.spacing.md,     //  it was lg (24px) now is md (16px)
       alignItems: 'center',

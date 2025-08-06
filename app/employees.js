@@ -22,7 +22,7 @@ import ApiService from '../src/api/apiService';
 import { APP_CONFIG } from '../src/config';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { maskName, safeLog, safeLogUser } from '../src/utils/safeLogging';
+import { maskName, safeLog, safeLogUser, safeLogWorkLogs } from '../src/utils/safeLogging';
 import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassCard from '../components/LiquidGlassCard';
 import LiquidGlassButton from '../components/LiquidGlassButton';
@@ -74,15 +74,7 @@ export default function EmployeesScreen() {
         page_size: 50  // Ограничиваем количество записей
       });
 
-      console.log(`⏰ Work logs for current user:`, {
-        count: workLogs.count,
-        next: workLogs.next,
-        previous: workLogs.previous,
-        results: workLogs.results?.map(log => ({
-          ...log,
-          employee_name: log.employee_name ? maskName(log.employee_name) : 'unknown'
-        }))
-      });
+      console.log(`⏰ Work logs for current user:`, safeLogWorkLogs(workLogs, 'current_user_logs'));
 
       let totalMinutes = 0;
 
@@ -189,12 +181,10 @@ export default function EmployeesScreen() {
 
   // Debug user role and loading states
   useEffect(() => {
-    if (user) {
-      safeLog('🔍 EMPLOYEES SCREEN - User data:', safeLogUser(user, 'screen_render'));
-    } else {
+    if (!user && !loading) {
       console.log('❌ EMPLOYEES SCREEN - No user found, showing loading or redirect');
     }
-  }, [user, loading, workStatusLoading, workStatus]);
+  }, [user, loading]);
 
   // Refresh on focus
   useFocusEffect(
@@ -383,7 +373,7 @@ export default function EmployeesScreen() {
     );
   }
 
-  console.log('✅ Rendering main dashboard content');
+  // Dashboard render
 
   return (
     <LiquidGlassScreenLayout.WithGlassHeader
@@ -695,7 +685,7 @@ const styles = (theme) => StyleSheet.create({
   // Personal Dashboard
   personalDashboard: {
     flex: 1,
-    padding: 24, // Match SPACING.lg (24px) used by other screens
+    paddingVertical: 0, // Only vertical padding, horizontal handled by LiquidGlassScreenLayout
   },
   
   // Section styling

@@ -78,17 +78,15 @@ export default function LogoutButton({
       try {
         console.log('🚪 Starting logout process...');
         await logout();
-        console.log('✅ Logout successful, redirecting...');
+        console.log('✅ Logout successful, letting tabs handle navigation...');
 
         // Trigger success callback
         if (onLogoutSuccess) {
           onLogoutSuccess();
         }
 
-        // Small delay for UI transition
-        setTimeout(() => {
-          router.replace('/');
-        }, 100);
+        // Let TabsNavigator handle navigation automatically when user state changes
+        console.log('🔄 User state cleared, TabsNavigator will handle navigation');
       } catch (error) {
         console.error('❌ Logout error:', error);
         const errorMessage = error?.message || 'Failed to logout. You may need to restart the app.';

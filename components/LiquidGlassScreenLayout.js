@@ -67,13 +67,13 @@ export default function LiquidGlassScreenLayout({
         scrollContent: {
             flexGrow: 1,
             paddingTop: noPadding ? 0 : theme.spacing.lg,
-            paddingHorizontal: 0, // Remove automatic horizontal padding
+            paddingHorizontal: noPadding ? 0 : theme.spacing.lg,
             paddingBottom: getBottomPadding(),
         },
         nonScrollContent: {
             flex: 1,
             paddingTop: noPadding ? 0 : theme.spacing.lg,
-            paddingHorizontal: 0, // Remove automatic horizontal padding
+            paddingHorizontal: noPadding ? 0 : theme.spacing.lg,
             paddingBottom: getBottomPadding(),
         },
         header: {

@@ -57,7 +57,12 @@ export default function BiometricRegistrationScreen() {
       console.log('🔧 Starting face registration for:', employeeName ? maskName(employeeName) : `Employee #${employeeId}`);
       
       const imageData = `data:image/jpeg;base64,${photo.base64}`;
-      const result = await ApiService.biometrics.register(employeeId, imageData);
+      // Ensure employeeId is a number
+      const empId = parseInt(employeeId, 10);
+      if (isNaN(empId)) {
+        throw new Error(`Invalid employee ID: ${employeeId}`);
+      }
+      const result = await ApiService.biometrics.register(empId, imageData);
       
       if (result.success) {
         const employeeDisplayName = employeeName || `Employee #${employeeId}`;
@@ -70,8 +75,14 @@ export default function BiometricRegistrationScreen() {
           [
             {
               text: 'OK',
-              onPress: () => {
+              onPress: async () => {
                 console.log('📱 Navigation after success: returning to', returnPath);
+                // Deactivate camera before navigation
+                setCameraActive(false);
+                setCameraReady(false);
+                // Give server time to process biometric registration
+                console.log('⏳ Waiting for server to process biometric data...');
+                await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds delay
                 router.replace(returnPath);
               }
             }
@@ -126,6 +137,18 @@ export default function BiometricRegistrationScreen() {
       const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
+  }, []);
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      console.log('🧹 Cleaning up biometric registration camera...');
+      setCameraActive(false);
+      setCameraReady(false);
+      if (cameraRef.current) {
+        cameraRef.current = null;
+      }
+    };
   }, []);
 
   // Simple reset camera function

@@ -160,9 +160,10 @@ export const APP_CONFIG = {
   
   // API configuration
   API_TIMEOUT: 10000, // 10 seconds - default for simple requests
-  API_TIMEOUT_HEAVY: 30000, // 30 seconds - for heavy requests like employees/worklogs
-  API_TIMEOUT_LIGHT: 15000, // 15 seconds - increased for status checks to prevent timeout errors
-  API_TIMEOUT_BIOMETRIC: 45000, // 45 seconds - for biometric operations (face recognition)
+  API_TIMEOUT_HEAVY: 45000, // 45 seconds - increased for heavy requests after biometric registration
+  API_TIMEOUT_LIGHT: 25000, // 25 seconds - increased for status checks after biometric operations
+  API_TIMEOUT_BIOMETRIC: 60000, // 60 seconds - for biometric operations (face recognition)
+  API_TIMEOUT_EXTRA_HEAVY: 60000, // 60 seconds - for extra heavy operations
   RETRY_ATTEMPTS: 3,
   
   // Development flags

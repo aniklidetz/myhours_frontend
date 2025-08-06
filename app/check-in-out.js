@@ -69,7 +69,7 @@ export default function CheckInOutScreen() {
     },
     content: {
       flex: 1,
-      padding: SPACING.lg,
+      // Padding handled by LiquidGlassScreenLayout
     },
     refreshIndicator: {
       flexDirection: 'row',

@@ -55,7 +55,7 @@ const getVisibleTabsCount = (user, canManageTeam, canAdministrate) => {
 };
 
 function TabsNavigator() {
-  const { user, hasAccess } = useUser();
+  const { user, hasAccess, isLoggingOut } = useUser();
   const { palette } = useColors();
   const { modalState, GlassModal } = useGlobalGlassModal();
 
@@ -134,7 +134,7 @@ function TabsNavigator() {
             tabBarIcon: ({ color }) => (
               <Ionicons name="finger-print" size={24} color={color} />
             ),
-            tabBarButton: !user ? () => null : undefined,
+            tabBarButton: (!user && !isLoggingOut) ? () => null : undefined,
           }}
         />
 
@@ -151,7 +151,7 @@ function TabsNavigator() {
                 color={color}
               />
             ),
-            tabBarButton: !user ? () => null : undefined,
+            tabBarButton: (!user && !isLoggingOut) ? () => null : undefined,
           }}
         />
 
@@ -164,7 +164,7 @@ function TabsNavigator() {
             tabBarIcon: ({ color }) => (
               <Ionicons name="time" size={24} color={color} />
             ),
-            tabBarButton: !user ? () => null : undefined,
+            tabBarButton: (!user && !isLoggingOut) ? () => null : undefined,
           }}
         />
 
@@ -177,7 +177,7 @@ function TabsNavigator() {
             tabBarIcon: ({ color }) => (
               <Ionicons name="cash" size={24} color={color} />
             ),
-            tabBarButton: !user ? () => null : undefined,
+            tabBarButton: (!user && !isLoggingOut) ? () => null : undefined,
           }}
         />
 

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, View, Dimensions } from 'react-native';
+import { StyleSheet, View, Dimensions, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -150,14 +150,32 @@ const LiquidGlassBackground = ({ children, style }) => {
       </Animated.View>
 
       {/* Glass effect overlay */}
-      <BlurView intensity={50} style={StyleSheet.absoluteFillObject}>
-        <LinearGradient
-          colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
-          style={StyleSheet.absoluteFillObject}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-      </BlurView>
+      {Platform.OS === 'ios' ? (
+        <BlurView intensity={50} style={StyleSheet.absoluteFillObject}>
+          <LinearGradient
+            colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
+            style={StyleSheet.absoluteFillObject}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+        </BlurView>
+      ) : (
+        // Android fallback - use semi-transparent overlay instead of blur
+        <View style={StyleSheet.absoluteFillObject}>
+          <LinearGradient
+            colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.5)']}
+            style={StyleSheet.absoluteFillObject}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+          <LinearGradient
+            colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.05)']}
+            style={StyleSheet.absoluteFillObject}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+        </View>
+      )}
 
       {/* Content */}
       {children}

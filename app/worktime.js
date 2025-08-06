@@ -61,7 +61,7 @@ export default function WorktimeScreen() {
         // Remove excessive padding in header
         header: {
             backgroundColor: 'transparent',
-            paddingHorizontal: SPACING.lg, // Only side padding
+            paddingHorizontal: 0, // Remove side padding - handled by screen layout
             paddingTop: SPACING.md, // Minimal top padding
             paddingBottom: SPACING.sm, // Minimal bottom padding
         },
@@ -76,7 +76,7 @@ export default function WorktimeScreen() {
         loader: commonStyles.loader,
         // Reduce bottom padding
         listContent: {
-            padding: SPACING.lg,
+            // Horizontal padding handled by LiquidGlassScreenLayout
             paddingBottom: Platform.OS === 'ios' ? 100 : 80, // Reduced from 120/100
         },
         
@@ -232,10 +232,11 @@ export default function WorktimeScreen() {
             textAlign: 'center',
         },
         
-        // Table styles remain unchanged
+        // Table styles with reduced side padding
         tableContainer: {
             flex: 1,
-            padding: SPACING.lg,
+            paddingHorizontal: 0, // Remove side padding - handled by screen layout
+            paddingVertical: SPACING.md,
             paddingBottom: Platform.OS === 'ios' ? 100 : 80, // Reduced
         },
         table: {

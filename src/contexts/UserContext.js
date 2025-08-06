@@ -34,6 +34,36 @@ export const UserProvider = ({ children }) => {
     if (!user && !loading) {
       safeLog('🔍 User is null and not loading - user logged out');
       setIsLoggingOut(false); // Reset logout flag when user is cleared
+      
+      // Try to navigate to login screen after logout
+      try {
+        if (typeof window !== 'undefined' && window.location) {
+          // Web platform
+          const currentPath = window.location.pathname;
+          if (currentPath !== '/' && currentPath !== '/index') {
+            safeLog('🔄 Redirecting to login screen after logout (web)');
+            window.location.href = '/';
+          }
+        } else {
+          // Mobile platform - import router dynamically to avoid circular dependencies
+          import('expo-router').then(({ router }) => {
+            const timeout = setTimeout(() => {
+              try {
+                safeLog('🔄 Redirecting to login screen after logout (mobile)');
+                router.replace('/');
+              } catch (error) {
+                safeLog('⚠️ Could not redirect after logout:', error);
+              }
+            }, 200);
+            
+            return () => clearTimeout(timeout);
+          }).catch((error) => {
+            safeLog('⚠️ Could not import expo-router:', error);
+          });
+        }
+      } catch (error) {
+        safeLog('⚠️ Navigation after logout failed:', error);
+      }
     }
   }, [user, loading]);
 
@@ -321,6 +351,7 @@ export const UserProvider = ({ children }) => {
     user,
     loading,
     isOnline,
+    isLoggingOut,
     login,
     logout,
     hasRole,
