@@ -69,7 +69,7 @@ export function useEmployeeForm(employeeId = null) {
   }, [employeeId, isEditMode]);
 
   // Validation functions
-  const validateEmail = (email) => {
+  const validateEmail = email => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
@@ -114,7 +114,7 @@ export function useEmployeeForm(employeeId = null) {
       showGlassAlert('Error', 'Please enter an hourly rate');
       return;
     }
-    
+
     const rate = parseFloat(hourlyRateInput);
     if (isNaN(rate) || rate <= 0) {
       showGlassAlert('Error', 'Please enter a valid hourly rate');
@@ -131,7 +131,7 @@ export function useEmployeeForm(employeeId = null) {
       showGlassAlert('Error', 'Please enter a monthly salary');
       return;
     }
-    
+
     const salary = parseFloat(monthlySalaryInput);
     if (isNaN(salary) || salary <= 0) {
       showGlassAlert('Error', 'Please enter a valid monthly salary');
@@ -156,16 +156,19 @@ export function useEmployeeForm(employeeId = null) {
   }, []);
 
   // Handle employment type change
-  const handleEmploymentTypeChange = useCallback((value) => {
-    setFormData(prev => ({ ...prev, employment_type: value }));
-    
-    // Reset rates when switching employment type
-    if (value === 'hourly') {
-      resetMonthlySalary();
-    } else if (value === 'full_time') {
-      resetHourlyRate();
-    }
-  }, [resetHourlyRate, resetMonthlySalary]);
+  const handleEmploymentTypeChange = useCallback(
+    value => {
+      setFormData(prev => ({ ...prev, employment_type: value }));
+
+      // Reset rates when switching employment type
+      if (value === 'hourly') {
+        resetMonthlySalary();
+      } else if (value === 'full_time') {
+        resetHourlyRate();
+      }
+    },
+    [resetHourlyRate, resetMonthlySalary]
+  );
 
   // Save employee (create or update) - simplified for hook usage
   const saveEmployee = useCallback(async () => {
@@ -182,8 +185,12 @@ export function useEmployeeForm(employeeId = null) {
       return result;
     } catch (error) {
       console.error('Error saving employee:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Unknown error occurred';
-      showGlassAlert('Error', `Failed to ${isEditMode ? 'update' : 'create'} employee: ${errorMessage}`);
+      const errorMessage =
+        error.response?.data?.message || error.message || 'Unknown error occurred';
+      showGlassAlert(
+        'Error',
+        `Failed to ${isEditMode ? 'update' : 'create'} employee: ${errorMessage}`
+      );
       return false;
     } finally {
       setSaving(false);
@@ -197,7 +204,7 @@ export function useEmployeeForm(employeeId = null) {
     formData,
     setFormData,
     isEditMode,
-    
+
     // Rate/Salary handlers
     hourlyRateInput,
     setHourlyRateInput,
@@ -205,14 +212,14 @@ export function useEmployeeForm(employeeId = null) {
     monthlySalaryInput,
     setMonthlySalaryInput,
     monthlySalaryConfirmed,
-    
+
     // Handlers
     handleHourlyRateConfirm,
     handleMonthlySalaryConfirm,
     resetHourlyRate,
     resetMonthlySalary,
     handleEmploymentTypeChange,
-    
+
     // Main actions
     saveEmployee,
     validateForm,

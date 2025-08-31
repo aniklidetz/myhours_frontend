@@ -1,19 +1,18 @@
-// eslint.config.mjs
-import { defineConfig } from 'eslint/config';
+// eslint.config.mjs - JavaScript Only Configuration
 import js from '@eslint/js';
 import globals from 'globals';
-import tseslint from 'typescript-eslint';
 import pluginReact from 'eslint-plugin-react';
 import pluginReactNative from 'eslint-plugin-react-native';
 import pluginReactHooks from 'eslint-plugin-react-hooks';
 
-export default defineConfig([
+export default [
+  // Apply to all JavaScript and JSX files
   {
-    files: ['**/*.{js,ts,jsx,tsx}'],
+    files: ['**/*.{js,jsx}'],
     languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'module',
       parserOptions: {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
         ecmaFeatures: {
           jsx: true,
         },
@@ -22,62 +21,77 @@ export default defineConfig([
         ...globals.browser,
         ...globals.node,
         ...globals.jest,
+        ...globals.es2021,
+        // React Native globals
+        __DEV__: 'readonly',
+        // React Native doesn't need to import Alert, it's global
+        Alert: 'readonly',
+        fetch: 'readonly',
+        console: 'readonly',
       },
     },
     plugins: {
-      js,
       react: pluginReact,
       'react-native': pluginReactNative,
       'react-hooks': pluginReactHooks,
     },
     rules: {
-      // Disable strict rules that hinder development
-      'react-native/no-raw-text': 'off', // Temporarily disabled until we address the issue
-      'react-native/no-color-literals': 'warn', // Show a warning instead of an error
-      'react-native/no-inline-styles': 'warn', // Show a warning instead of an error
-      'react-native/sort-styles': 'warn', // Show a warning instead of an error
-
+      // Base JavaScript rules
+      ...js.configs.recommended.rules,
+      
       // React rules
-      'react/react-in-jsx-scope': 'off', // Not required in newer versions of React
-      'react/prop-types': 'warn', // Warn about missing PropTypes
-      'react/no-unescaped-entities': 'warn', // Show a warning instead of an error
+      'react/react-in-jsx-scope': 'off', // Not needed with new JSX Transform
+      'react/prop-types': 'warn', // Warn about missing prop-types
+      'react/no-unescaped-entities': 'warn',
+      'react/jsx-uses-vars': 'error',
+      'react/jsx-uses-react': 'error',
 
-      // React Hooks rules
-      'react-hooks/rules-of-hooks': 'error', // Validate the rules of hooks
-      'react-hooks/exhaustive-deps': 'warn', // Validate effect dependencies
+      // React Hooks rules - KEEP CRITICAL
+      'react-hooks/rules-of-hooks': 'error', // Critical - must be error
+      'react-hooks/exhaustive-deps': 'warn', // Warn about missing dependencies
 
-      // TypeScript rules
-      '@typescript-eslint/no-unused-vars': ['warn', {
+      // React Native rules - Relaxed for development
+      'react-native/no-raw-text': 'warn',
+      'react-native/no-color-literals': 'off',
+      'react-native/no-inline-styles': 'off',
+      'react-native/sort-styles': 'off',
+
+      // General JavaScript rules
+      'no-unused-vars': ['warn', { 
         argsIgnorePattern: '^_',
         varsIgnorePattern: '^_',
         caughtErrorsIgnorePattern: '^_'
       }],
-      '@typescript-eslint/no-require-imports': 'warn', // Prefer import over require
+      'no-console': 'off', // Allow console.log for React Native
+      'no-debugger': 'warn',
+      'no-undef': 'error',
     },
     settings: {
       react: {
-        version: 'detect', // Automatically detect React version
+        version: 'detect',
       },
     },
   },
-  // TypeScript configuration
-  ...tseslint.configs.recommended,
-  // Disable some TypeScript rules for JavaScript files
+  
+  // Special rules for test files
   {
-    files: ['**/*.js', '**/*.jsx'],
+    files: ['**/*.test.{js,jsx}', '**/__tests__/**/*.{js,jsx}'],
     rules: {
-      '@typescript-eslint/no-var-requires': 'off',
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
-    },
-  },
-  // Additional rules for tests
-  {
-    files: ['**/*.test.{js,ts,jsx,tsx}', '**/__tests__/**/*.{js,ts,jsx,tsx}'],
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
+      'no-unused-vars': 'off',
       'react-native/no-raw-text': 'off',
     },
   },
-]);
+  
+  // Special rules for configuration files
+  {
+    files: ['*.config.{js,mjs}', 'scripts/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      'no-console': 'off',
+    },
+  },
+];

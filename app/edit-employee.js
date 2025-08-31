@@ -1,13 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, ActivityIndicator, Platform, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { showGlassAlert } from '../hooks/useGlobalGlassModal';
 import { useEmployeeForm } from '../hooks/useEmployeeForm';
@@ -15,14 +7,13 @@ import { EmployeeForm } from '../components/EmployeeForm';
 import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
-import HeaderBackButton from '../src/components/HeaderBackButton';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/CommonStyles';
 
 export default function EditEmployeeScreen() {
   const theme = useLiquidGlassTheme();
   const params = useLocalSearchParams();
   const employeeId = params.employeeId || params.id;
-  
+
   const {
     loading,
     saving,
@@ -40,12 +31,12 @@ export default function EditEmployeeScreen() {
     resetMonthlySalary,
     handleEmploymentTypeChange,
     saveEmployee,
-    validateForm,
+    validateForm: _validateForm,
   } = useEmployeeForm(employeeId);
 
   if (!employeeId) {
     showGlassAlert('Error', 'Employee ID is required', [
-      { text: 'OK', onPress: () => router.back() }
+      { text: 'OK', onPress: () => router.back() },
     ]);
     return null;
   }
@@ -64,42 +55,38 @@ export default function EditEmployeeScreen() {
     const result = await saveEmployee();
     if (result) {
       showGlassAlert('Success', 'Employee updated successfully', [
-        { text: 'OK', onPress: () => router.push('/team-management') }
+        { text: 'OK', onPress: () => router.push('/team-management') },
       ]);
     }
   };
 
   const handleCancel = () => {
-    showGlassAlert(
-      'Discard Changes',
-      'Are you sure you want to discard your changes?',
-      [
-        { text: 'Keep Editing', style: 'cancel' },
-        { 
-          text: 'Discard', 
-          style: 'destructive',
-          onPress: () => router.push('/team-management')
-        }
-      ]
-    );
+    showGlassAlert('Discard Changes', 'Are you sure you want to discard your changes?', [
+      { text: 'Keep Editing', style: 'cancel' },
+      {
+        text: 'Discard',
+        style: 'destructive',
+        onPress: () => router.push('/team-management'),
+      },
+    ]);
   };
 
   const styles = StyleSheet.create({
     container: {
-      flex: 1,
       backgroundColor: 'transparent',
+      flex: 1,
     },
     loadingContainer: {
+      alignItems: 'center',
       flex: 1,
       justifyContent: 'center',
-      alignItems: 'center',
     },
     loadingText: {
-      marginTop: SPACING.md,
-      fontSize: TYPOGRAPHY.body.fontSize,
       color: COLORS.textPrimary,
+      fontSize: TYPOGRAPHY.body.fontSize,
+      marginTop: SPACING.md,
     },
-    
+
     // Improved Footer with better spacing and single Cancel button
     footer: {
       padding: SPACING.lg,
@@ -134,20 +121,15 @@ export default function EditEmployeeScreen() {
     <View style={styles.footer}>
       {/* Primary Action Button */}
       <LiquidGlassButton
-        title={saving ? "Saving..." : "Save Changes"}
+        title={saving ? 'Saving...' : 'Save Changes'}
         onPress={handleSave}
         disabled={saving}
         variant="primary"
         loading={saving}
       />
-      
+
       {/* Single Cancel Button - removed redundant Back button */}
-      <LiquidGlassButton
-        title="Cancel"
-        onPress={handleCancel}
-        disabled={saving}
-        variant="ghost"
-      />
+      <LiquidGlassButton title="Cancel" onPress={handleCancel} disabled={saving} variant="ghost" />
     </View>
   );
 

@@ -97,14 +97,14 @@ a
 ### 5. Emulator Limitations
 
 #### iOS Simulator
-- ✅ Camera: Works with simulated camera
-- ✅ Location: Can simulate location
-- ✅ Biometric: Limited functionality (mock data)
+- Camera: Works with simulated camera
+- Location: Can simulate location
+- Biometric: Limited functionality (mock data)
 
 #### Android Emulator
-- ⚠️ Camera: May not work properly
-- ⚠️ Location: Limited GPS simulation
-- ⚠️ Biometric: Use physical device for full testing
+- Camera: May not work properly
+- Location: Limited GPS simulation
+- Biometric: Use physical device for full testing
 
 **Recommendation**: Use physical devices for biometric testing and production features.
 

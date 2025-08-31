@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
+import { router as _router } from 'expo-router';
 import { useToast } from '../contexts/ToastContext';
 import LiquidGlassLayout from '../components/LiquidGlassLayout';
 import LiquidGlassCard from '../components/LiquidGlassCard';
@@ -17,20 +17,8 @@ export default function ToastDemoScreen() {
   }
 
   const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: 'transparent',
-    },
-    content: {
-      padding: theme.spacing.lg,
-      gap: theme.spacing.md,
-    },
-    title: {
-      fontSize: theme.typography.title.fontSize * 0.8,
-      fontWeight: theme.typography.title.fontWeight,
-      color: theme.colors.text.primary,
-      textAlign: 'center',
-      marginBottom: theme.spacing.lg,
+    buttonContainer: {
+      minWidth: '45%',
     },
     buttonsGrid: {
       flexDirection: 'row',
@@ -38,8 +26,20 @@ export default function ToastDemoScreen() {
       gap: theme.spacing.md,
       justifyContent: 'center',
     },
-    buttonContainer: {
-      minWidth: '45%',
+    container: {
+      backgroundColor: 'transparent',
+      flex: 1,
+    },
+    content: {
+      gap: theme.spacing.md,
+      padding: theme.spacing.lg,
+    },
+    title: {
+      color: theme.colors.text.primary,
+      fontSize: theme.typography.title.fontSize * 0.8,
+      fontWeight: theme.typography.title.fontWeight,
+      marginBottom: theme.spacing.lg,
+      textAlign: 'center',
     },
   });
 
@@ -53,51 +53,55 @@ export default function ToastDemoScreen() {
               title="Success Toast"
               variant="primary"
               style={styles.buttonContainer}
-              onPress={() => showSuccess('✅ Operation completed successfully!')}
+              onPress={() => showSuccess('Operation completed successfully!')}
             />
-            
+
             <LiquidGlassButton
               title="Error Toast"
               variant="danger"
               style={styles.buttonContainer}
-              onPress={() => showError('❌ Something went wrong!')}
+              onPress={() => showError('Something went wrong!')}
             />
-            
+
             <LiquidGlassButton
               title="Warning Toast"
               variant="warning"
               style={styles.buttonContainer}
-              onPress={() => showWarning('⚠️ Please check your input')}
+              onPress={() => showWarning('Please check your input')}
             />
-            
+
             <LiquidGlassButton
               title="Info Toast"
               variant="secondary"
               style={styles.buttonContainer}
-              onPress={() => showInfo('ℹ️ Here is some information')}
+              onPress={() => showInfo('Here is some information')}
             />
-            
+
             <LiquidGlassButton
               title="Long Message"
               variant="ghost"
               style={styles.buttonContainer}
-              onPress={() => showSuccess('🎉 This is a longer message to test how the toast handles multiple lines of text content.')}
+              onPress={() =>
+                showSuccess(
+                  'This is a longer message to test how the toast handles multiple lines of text content.'
+                )
+              }
             />
-            
+
             <LiquidGlassButton
               title="Bottom Toast"
               variant="primary"
               style={styles.buttonContainer}
-              onPress={() => showInfo('📱 This toast appears at the bottom', { position: 'bottom' })}
+              onPress={() => showInfo('This toast appears at the bottom', { position: 'bottom' })}
             />
-            
+
             <LiquidGlassButton
               title="Persistent Toast"
               variant="secondary"
               style={styles.buttonContainer}
-              onPress={() => showWarning('🔒 This toast stays until dismissed', { duration: 0 })}
+              onPress={() => showWarning('This toast stays until dismissed', { duration: 0 })}
             />
-            
+
             <LiquidGlassButton
               title="Clear All"
               variant="danger"

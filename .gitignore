@@ -44,6 +44,7 @@ android/build/
 android/.gradle
 android/app/build/
 android/app/src/main/res/values/generated.xml
+android/app/debug.keystore
 
 # iOS builds
 ios/Pods/
@@ -51,6 +52,9 @@ ios/build/
 ios/*.xcworkspace
 ios/myhoursapp.xcodeproj/project.xcworkspace/
 ios/myhoursapp.xcodeproj/xcuserdata/
+
+# React Native generated files
+ios/build/generated/
 
 # IDE and editors
 .vscode/

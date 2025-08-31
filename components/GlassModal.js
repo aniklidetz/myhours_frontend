@@ -1,11 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+/* eslint-disable react/prop-types */
+import React, { useEffect, useRef, useCallback } from 'react';
 import {
   Modal,
   View,
   Text,
   StyleSheet,
   Animated,
-  PanResponder,
+  PanResponder as _PanResponder,
   Dimensions,
   Platform,
   TouchableOpacity,
@@ -19,11 +20,11 @@ import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-const GlassModal = ({ 
-  visible, 
-  title, 
-  message, 
-  buttons = [], 
+const GlassModal = ({
+  visible,
+  title,
+  message,
+  buttons = [],
   onClose,
   closeOnBackdrop = true,
   closeOnBackButton = true,
@@ -92,15 +93,15 @@ const GlassModal = ({
         }),
       ]).start();
     }
-  }, [visible]);
+  }, [visible, fadeAnim, scaleAnim, slideAnim]);
 
-  const handleBackdropPress = () => {
+  const handleBackdropPress = useCallback(() => {
     if (closeOnBackdrop && onClose) {
       onClose();
     }
-  };
+  }, [closeOnBackdrop, onClose]);
 
-  const getButtonVariant = (type) => {
+  const getButtonVariant = type => {
     switch (type) {
       case 'primary':
         return {
@@ -127,112 +128,112 @@ const GlassModal = ({
   }
 
   const styles = StyleSheet.create({
-    modalContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    },
     backdrop: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
       bottom: 0,
-    },
-    modalContent: {
-      width: Math.min(screenWidth * 0.85, 400),
-      maxHeight: screenHeight * 0.8,
-      borderRadius: theme.borderRadius.xl,
-      overflow: 'hidden',
-      shadowColor: theme.shadows.elevated.shadowColor,
-      shadowOffset: theme.shadows.elevated.shadowOffset,
-      shadowOpacity: theme.shadows.elevated.shadowOpacity,
-      shadowRadius: theme.shadows.elevated.shadowRadius,
-      elevation: theme.shadows.elevated.elevation,
+      left: 0,
+      position: 'absolute',
+      right: 0,
+      top: 0,
     },
     blurContainer: {
       borderRadius: theme.borderRadius.xl,
       overflow: 'hidden',
     },
-    gradient: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-    },
-    content: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingTop: theme.spacing.xl,
-      paddingBottom: theme.spacing.lg,
-      borderRadius: theme.borderRadius.xl,
-      borderWidth: 1,
-      borderColor: theme.colors.glass.border,
-      backgroundColor: theme.colors.glass.light,
-    },
-    header: {
-      alignItems: 'center',
-      marginBottom: theme.spacing.lg,
-    },
-    title: {
-      fontSize: theme.typography.title.fontSize * 0.8,
-      fontWeight: theme.typography.title.fontWeight,
-      color: theme.colors.text.primary,
-      textAlign: 'center',
-      textShadowColor: theme.shadows.text.color,
-      textShadowOffset: theme.shadows.text.offset,
-      textShadowRadius: theme.shadows.text.radius,
-    },
-    messageContainer: {
-      marginBottom: theme.spacing.xl,
-    },
-    message: {
-      fontSize: theme.typography.body.fontSize,
-      color: theme.colors.text.secondary,
-      textAlign: 'center',
-      lineHeight: 22,
-    },
-    buttonsContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      gap: theme.spacing.md,
-    },
-    buttonsContainerColumn: {
-      flexDirection: 'column',
-      gap: theme.spacing.md,
-    },
     button: {
-      flex: 1,
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.lg,
-      borderRadius: theme.borderRadius.md,
       alignItems: 'center',
+      borderColor: theme.colors.glass.border,
+      borderRadius: theme.borderRadius.md,
+      borderWidth: 1,
+      flex: 1,
       justifyContent: 'center',
       minHeight: 44,
-      borderWidth: 1,
-      borderColor: theme.colors.glass.border,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
     },
     buttonText: {
       fontSize: theme.typography.body.fontSize,
       fontWeight: '600',
       textAlign: 'center',
     },
+    buttonsContainer: {
+      flexDirection: 'row',
+      gap: theme.spacing.md,
+      justifyContent: 'space-between',
+    },
+    buttonsContainerColumn: {
+      flexDirection: 'column',
+      gap: theme.spacing.md,
+    },
+    closeButton: {
+      alignItems: 'center',
+      backgroundColor: theme.colors.glass.medium,
+      borderRadius: 16,
+      height: 32,
+      justifyContent: 'center',
+      position: 'absolute',
+      right: theme.spacing.md,
+      top: theme.spacing.md,
+      width: 32,
+      zIndex: 1,
+    },
+    content: {
+      backgroundColor: theme.colors.glass.light,
+      borderColor: theme.colors.glass.border,
+      borderRadius: theme.borderRadius.xl,
+      borderWidth: 1,
+      paddingBottom: theme.spacing.lg,
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.xl,
+    },
+    gradient: {
+      bottom: 0,
+      left: 0,
+      position: 'absolute',
+      right: 0,
+      top: 0,
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: theme.spacing.lg,
+    },
+    message: {
+      color: theme.colors.text.secondary,
+      fontSize: theme.typography.body.fontSize,
+      lineHeight: 22,
+      textAlign: 'center',
+    },
+    messageContainer: {
+      marginBottom: theme.spacing.xl,
+    },
+    modalContainer: {
+      alignItems: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      flex: 1,
+      justifyContent: 'center',
+    },
+    modalContent: {
+      borderRadius: theme.borderRadius.xl,
+      elevation: theme.shadows.elevated.elevation,
+      maxHeight: screenHeight * 0.8,
+      overflow: 'hidden',
+      shadowColor: theme.shadows.elevated.shadowColor,
+      shadowOffset: theme.shadows.elevated.shadowOffset,
+      shadowOpacity: theme.shadows.elevated.shadowOpacity,
+      shadowRadius: theme.shadows.elevated.shadowRadius,
+      width: Math.min(screenWidth * 0.85, 400),
+    },
     singleButton: {
       alignSelf: 'center',
       minWidth: 120,
     },
-    closeButton: {
-      position: 'absolute',
-      top: theme.spacing.md,
-      right: theme.spacing.md,
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: theme.colors.glass.medium,
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1,
+    title: {
+      color: theme.colors.text.primary,
+      fontSize: theme.typography.title.fontSize * 0.8,
+      fontWeight: theme.typography.title.fontWeight,
+      textAlign: 'center',
+      textShadowColor: theme.shadows.text.color,
+      textShadowOffset: theme.shadows.text.offset,
+      textShadowRadius: theme.shadows.text.radius,
     },
   });
 
@@ -255,15 +256,12 @@ const GlassModal = ({
         <TouchableWithoutFeedback onPress={handleBackdropPress}>
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
-        
+
         <Animated.View
           style={[
             styles.modalContent,
             {
-              transform: [
-                { scale: scaleAnim },
-                { translateY: slideAnim },
-              ],
+              transform: [{ scale: scaleAnim }, { translateY: slideAnim }],
             },
           ]}
         >
@@ -290,11 +288,7 @@ const GlassModal = ({
                   onPress={onClose}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Ionicons
-                    name="close"
-                    size={18}
-                    color={theme.colors.text.secondary}
-                  />
+                  <Ionicons name="close" size={18} color={theme.colors.text.secondary} />
                 </TouchableOpacity>
               )}
 
@@ -309,10 +303,12 @@ const GlassModal = ({
               </View>
 
               {/* Buttons */}
-              <View style={[
-                buttons.length > 2 ? styles.buttonsContainerColumn : styles.buttonsContainer,
-                buttons.length === 1 && { justifyContent: 'center' }
-              ]}>
+              <View
+                style={[
+                  buttons.length > 2 ? styles.buttonsContainerColumn : styles.buttonsContainer,
+                  buttons.length === 1 && { justifyContent: 'center' },
+                ]}
+              >
                 {buttons.map((button, index) => {
                   const variant = getButtonVariant(button.type);
                   return (
@@ -322,15 +318,12 @@ const GlassModal = ({
                         styles.button,
                         buttons.length === 1 && styles.singleButton,
                         buttons.length > 2 && { flex: 0 }, // Don't stretch in column layout
-                        { backgroundColor: variant.backgroundColor }
+                        { backgroundColor: variant.backgroundColor },
                       ]}
                       onPress={button.onPress}
                       activeOpacity={0.8}
                     >
-                      <Text style={[
-                        styles.buttonText,
-                        { color: variant.textColor }
-                      ]}>
+                      <Text style={[styles.buttonText, { color: variant.textColor }]}>
                         {button.label}
                       </Text>
                     </TouchableOpacity>

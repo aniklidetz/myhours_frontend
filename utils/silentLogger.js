@@ -10,23 +10,25 @@ export const setupSilentLogging = () => {
   // Override console.error to suppress biometric errors in production
   console.error = (...args) => {
     const errorString = args.join(' ').toLowerCase();
-    
+
     // In production, silently handle biometric-related errors
     if (!__DEV__) {
-      if (errorString.includes('biometric') || 
-          errorString.includes('face recognition') ||
-          errorString.includes('camera') ||
-          errorString.includes('request failed with status code')) {
+      if (
+        errorString.includes('biometric') ||
+        errorString.includes('face recognition') ||
+        errorString.includes('camera') ||
+        errorString.includes('request failed with status code')
+      ) {
         // Log to device logs but don't show red screen
         return;
       }
     }
-    
-    // ✅ ИСПРАВЛЕНИЕ: Убираем проблемный apply
+
+    // FIX: Remove problematic apply
     // For all other errors, use original console.error
     try {
       originalConsoleError(...args);
-    } catch (error) {
+    } catch (_error) {
       // Fallback to basic logging if apply fails
       console.warn('Fallback logging:', ...args);
     }
@@ -38,7 +40,7 @@ export const devLog = (level, ...args) => {
   if (__DEV__) {
     try {
       console[level](...args);
-    } catch (error) {
+    } catch (_error) {
       console.warn('Dev log error:', ...args);
     }
   }
@@ -49,7 +51,7 @@ export const silentLog = (...args) => {
   if (__DEV__) {
     try {
       originalConsoleError(...args);
-    } catch (error) {
+    } catch (_error) {
       console.warn('Silent log fallback:', ...args);
     }
   }

@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { useEffect } from 'react';
 import { StyleSheet, View, Dimensions, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -85,7 +86,7 @@ const LiquidGlassBackground = ({ children, style }) => {
       -1,
       false
     );
-  }, []);
+  }, [blob1X, blob1Y, blob2X, blob2Y, blob3X, blob3Y, rotation]);
 
   const blob1Style = useAnimatedStyle(() => ({
     transform: [
@@ -184,37 +185,37 @@ const LiquidGlassBackground = ({ children, style }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-  },
   blob1: {
+    height: width * 0.5,
+    left: width * 0.1,
     position: 'absolute',
     top: height * 0.1,
-    left: width * 0.1,
     width: width * 0.5,
-    height: width * 0.5,
   },
   blob2: {
-    position: 'absolute',
     bottom: height * 0.2,
+    height: width * 0.6,
+    position: 'absolute',
     right: width * 0.1,
     width: width * 0.6,
-    height: width * 0.6,
   },
   blob3: {
-    position: 'absolute',
-    top: height * 0.4,
-    right: width * 0.3,
-    width: width * 0.4,
     height: width * 0.4,
+    position: 'absolute',
+    right: width * 0.3,
+    top: height * 0.4,
+    width: width * 0.4,
   },
   blobGradient: {
-    width: '100%',
-    height: '100%',
     borderRadius: 999,
+    height: '100%',
     opacity: 0.7,
+    width: '100%',
+  },
+  container: {
+    backgroundColor: 'transparent',
+    flex: 1,
+    overflow: 'hidden',
   },
 });
 

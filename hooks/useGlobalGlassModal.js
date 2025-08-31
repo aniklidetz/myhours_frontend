@@ -26,7 +26,7 @@ const useGlobalGlassModal = () => {
     }));
   };
 
-  const showModal = (config) => {
+  const showModal = config => {
     const {
       title = '',
       message = '',
@@ -163,9 +163,12 @@ export const showGlassAlert = (title, message, buttons = []) => {
 
   const glassButtons = buttons.map((button, index) => ({
     label: button.text || 'Button',
-    type: button.style === 'destructive' || button.style === 'cancel' 
-      ? (button.style === 'destructive' ? 'danger' : 'secondary')
-      : 'primary',
+    type:
+      button.style === 'destructive' || button.style === 'cancel'
+        ? button.style === 'destructive'
+          ? 'danger'
+          : 'secondary'
+        : 'primary',
     onPress: () => {
       globalModalInstance(prev => ({ ...prev, visible: false }));
       if (button.onPress) button.onPress();

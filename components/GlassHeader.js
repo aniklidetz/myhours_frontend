@@ -1,12 +1,13 @@
+/* eslint-disable react/prop-types */
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Platform, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 import { useUser } from '../src/contexts/UserContext';
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../constants/CommonStyles';
+import { COLORS, BORDER_RADIUS, SHADOWS } from '../constants/CommonStyles';
 import LogoutButton from './LogoutButton';
 
 export default function GlassHeader({
@@ -39,7 +40,7 @@ export default function GlassHeader({
     }
   };
 
-  const handleLogoutPress = async () => {
+  const _handleLogoutPress = async () => {
     try {
       await logout();
       router.replace('/');
@@ -52,14 +53,14 @@ export default function GlassHeader({
   const headerHeight = 70 + insets.top; // Increased from 50 to 70px
   const contentHeight = 70; // Increased from 50 to 70px
 
-  const titleScale = Math.max(0.85, 1 - scrollOffset * 0.0005);
-  const titleOpacity = Math.max(0.7, 1 - scrollOffset * 0.002);
+  const _titleScale = Math.max(0.85, 1 - scrollOffset * 0.0005);
+  const _titleOpacity = Math.max(0.7, 1 - scrollOffset * 0.002);
 
   const styles = StyleSheet.create({
     container: {
+      backgroundColor: 'transparent',
       height: headerHeight,
       paddingTop: insets.top,
-      backgroundColor: 'transparent',
       zIndex: 100,
     },
     blurContainer: {
@@ -87,23 +88,23 @@ export default function GlassHeader({
       paddingLeft: 4, // Added padding from edge
     },
     backButton: {
-      width: 44,
-      height: 44,
-      borderRadius: BORDER_RADIUS.full,
-      backgroundColor: COLORS.glassLight,
-      justifyContent: 'center',
       alignItems: 'center',
+      backgroundColor: COLORS.glassLight,
+      borderRadius: BORDER_RADIUS.full,
+      height: 44,
+      justifyContent: 'center',
+      width: 44,
       ...SHADOWS.small,
-      borderWidth: 1,
       borderColor: COLORS.glassBorder,
+      borderWidth: 1,
       margin: 0,
     },
     backButtonPressed: {
-      transform: [{ scale: 0.95 }],
       shadowColor: '#FFFFFF',
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.3,
       shadowRadius: 6,
+      transform: [{ scale: 0.95 }],
     },
     // FIX: Center section with improved positioning
     centerSection: {
@@ -120,25 +121,25 @@ export default function GlassHeader({
       paddingVertical: 4, // Added vertical padding
     },
     title: {
+      color: COLORS.textPrimary,
       fontSize: 18,
       fontWeight: 'bold',
-      color: COLORS.textPrimary,
+      lineHeight: 22,
+      marginBottom: 2,
       textAlign: 'center',
       textShadowColor: 'rgba(0, 0, 0, 0.6)',
       textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 3,
-      lineHeight: 22,
-      marginBottom: 2, // Spacing between title and subtitle
+      textShadowRadius: 3, // Spacing between title and subtitle
     },
     titleLong: {
       fontSize: 16,
       lineHeight: 20,
     },
     subtitle: {
-      fontSize: theme.typography.caption.fontSize,
       color: 'rgba(255, 255, 255, 0.7)',
-      textAlign: 'center',
+      fontSize: theme.typography.caption.fontSize,
       marginTop: 2,
+      textAlign: 'center',
       textShadowColor: 'rgba(0, 0, 0, 0.4)',
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
@@ -151,22 +152,22 @@ export default function GlassHeader({
       paddingRight: 4, // Added padding from edge
     },
     actionButton: {
-      width: 44,
+      alignItems: 'center',
+      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      borderRadius: 22,
       height: 44,
       justifyContent: 'center',
-      alignItems: 'center',
-      borderRadius: 22,
-      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      width: 44,
     },
     actionButtonPressed: {
       transform: [{ scale: 0.9 }],
     },
     glassBorder: {
       ...StyleSheet.absoluteFillObject,
-      borderBottomWidth: 1,
       borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-      borderTopWidth: Platform.OS === 'ios' ? 0 : 1,
+      borderBottomWidth: 1,
       borderTopColor: 'rgba(255, 255, 255, 0.05)',
+      borderTopWidth: Platform.OS === 'ios' ? 0 : 1,
     },
     outerShadow: {
       ...StyleSheet.absoluteFillObject,
@@ -206,10 +207,7 @@ export default function GlassHeader({
         <View style={styles.leftSection}>
           {showBackButton && (
             <Pressable
-              style={({ pressed }) => [
-                styles.backButton,
-                pressed && styles.backButtonPressed,
-              ]}
+              style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
               onPress={handleBackPress}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
@@ -234,11 +232,7 @@ export default function GlassHeader({
               {title}
             </Text>
             {subtitle && (
-              <Text
-                style={styles.subtitle}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
+              <Text style={styles.subtitle} numberOfLines={1} ellipsizeMode="tail">
                 {subtitle}
               </Text>
             )}
@@ -254,18 +248,11 @@ export default function GlassHeader({
             <LogoutButton.Icon size="small" />
           ) : rightIcon && onRightPress ? (
             <Pressable
-              style={({ pressed }) => [
-                styles.actionButton,
-                pressed && styles.actionButtonPressed,
-              ]}
+              style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}
               onPress={onRightPress}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons
-                name={rightIcon}
-                size={20}
-                color="rgba(255, 255, 255, 0.9)"
-              />
+              <Ionicons name={rightIcon} size={20} color="rgba(255, 255, 255, 0.9)" />
             </Pressable>
           ) : null}
         </View>
@@ -275,12 +262,8 @@ export default function GlassHeader({
 }
 
 // Variants remain unchanged
-GlassHeader.WithLogout = (props) => <GlassHeader {...props} showLogout />;
-GlassHeader.Root = (props) => <GlassHeader {...props} showBackButton={false} />;
+GlassHeader.WithLogout = props => <GlassHeader {...props} showLogout />;
+GlassHeader.Root = props => <GlassHeader {...props} showBackButton={false} />;
 GlassHeader.WithExport = ({ onExport, ...props }) => (
-  <GlassHeader
-    {...props}
-    rightIcon="share-outline"
-    onRightPress={onExport}
-  />
+  <GlassHeader {...props} rightIcon="share-outline" onRightPress={onExport} />
 );

@@ -1,38 +1,30 @@
+/* eslint-disable react/prop-types */
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  Animated,
-  Dimensions,
-} from 'react-native';
-import Svg, { Defs, Mask, Rect, Circle, Path } from 'react-native-svg';
+import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-const FaceCaptureOverlay = ({ 
-  isActive = false, 
-  isCapturing = false, 
-  onAnimationComplete 
-}) => {
+const FaceCaptureOverlay = ({ isActive = false, _isCapturing = false, onAnimationComplete }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [dimensions, setDimensions] = useState({
     width: screenWidth,
-    height: screenHeight
+    height: screenHeight,
   });
-  
-  // Вычисляем размер и позицию круга
+
+  // Calculate circle size and position
   const calculateCircleParams = () => {
     const minDimension = Math.min(dimensions.width, dimensions.height);
-    const circleRadius = (minDimension * 0.8) / 2; // 80% от наименьшей стороны
+    const circleRadius = (minDimension * 0.8) / 2; // 80% of the smallest side
     const centerX = dimensions.width / 2;
-    const centerY = (dimensions.height / 2) - (dimensions.height * 0.1); // Сдвиг вверх на 10%
-    
+    const centerY = dimensions.height / 2 - dimensions.height * 0.1; // Shift up by 10%
+
     return { circleRadius, centerX, centerY };
   };
 
   const { circleRadius, centerX, centerY } = calculateCircleParams();
-  
-  // Создаем SVG Path для круглой маски с even-odd правилом
+
+  // Create SVG Path for circular mask with even-odd rule
   const createCircleMaskPath = () => {
     const diameter = circleRadius * 2;
     return `
@@ -43,10 +35,10 @@ const FaceCaptureOverlay = ({
       a ${circleRadius},${circleRadius} 0 1,0 -${diameter},0
     `;
   };
-  
+
   useEffect(() => {
     if (isActive) {
-      // Маска fade-in 150ms
+      // Mask fade-in 150ms
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 150,
@@ -57,7 +49,7 @@ const FaceCaptureOverlay = ({
         }
       });
     } else {
-      // Скрываем маску
+      // Hide mask
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 150,
@@ -66,7 +58,7 @@ const FaceCaptureOverlay = ({
     }
   }, [isActive, fadeAnim, onAnimationComplete]);
 
-  const handleLayout = (event) => {
+  const handleLayout = event => {
     const { width, height } = event.nativeEvent.layout;
     setDimensions({ width, height });
   };
@@ -74,34 +66,34 @@ const FaceCaptureOverlay = ({
   if (!isActive) return null;
 
   return (
-    <Animated.View 
+    <Animated.View
       style={[
         styles.maskLayer,
         {
           opacity: fadeAnim,
           width: dimensions.width,
           height: dimensions.height,
-        }
+        },
       ]}
       onLayout={handleLayout}
-      pointerEvents="none" // Не перехватываем touch events
-      accessible={false} // Не попадаем в фокус скрин-ридера
+      pointerEvents="none" // Don't intercept touch events
+      accessible={false} // Don't get focus in screen reader
     >
-      {/* SVG маска с круглым вырезом - используем Path с even-odd правилом */}
+      {/* SVG mask with circular cutout - using Path with even-odd rule */}
       <Svg
         width={dimensions.width}
         height={dimensions.height}
         style={StyleSheet.absoluteFillObject}
       >
-        {/* Затемнённый слой с идеально круглым вырезом */}
+        {/* Darkened layer with perfectly circular cutout */}
         <Path
           d={createCircleMaskPath()}
-          fill="rgba(0, 0, 0, 0.1)" // 10% opacity как требуется
-          fillRule="evenodd" // even-odd правило для создания "дырки"
+          fill="rgba(0, 0, 0, 0.1)" // 10% opacity as required
+          fillRule="evenodd" // even-odd rule to create a "hole"
         />
       </Svg>
-      
-      {/* Опциональная тонкая обводка круга для акцента */}
+
+      {/* Optional thin circle outline for accent */}
       <View
         style={[
           styles.circleOutline,
@@ -111,7 +103,7 @@ const FaceCaptureOverlay = ({
             width: circleRadius * 2,
             height: circleRadius * 2,
             borderRadius: circleRadius,
-          }
+          },
         ]}
       />
     </Animated.View>
@@ -119,17 +111,17 @@ const FaceCaptureOverlay = ({
 };
 
 const styles = StyleSheet.create({
-  maskLayer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    zIndex: 2, // Между камерой (1) и UI элементами (3+)
-  },
   circleOutline: {
     position: 'absolute',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)', // Тонкая белая обводка
+    borderColor: 'rgba(255, 255, 255, 0.2)', // Thin white border
     backgroundColor: 'transparent',
+  },
+  maskLayer: {
+    left: 0,
+    position: 'absolute',
+    top: 0,
+    zIndex: 2, // Between camera (1) and UI elements (3+)
   },
 });
 

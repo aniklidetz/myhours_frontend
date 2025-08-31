@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 /* LiquidGlassScreenLayout.js
    Liquid Glass screen wrapper that properly handles safe areas and tab bar spacing
    without interfering with the glass background effect */
@@ -11,14 +12,14 @@ import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 
 /**
  * Liquid Glass Screen Layout Component
- * 
+ *
  * Handles proper spacing for tab bar without breaking the glass effect.
  * Does NOT wrap in SafeAreaView at the root to avoid interfering with
  * the liquid glass background that should extend to screen edges.
- * 
+ *
  * Props:
  * - children: React elements to render
- * - scrollable: boolean (default: true) - whether content should be scrollable  
+ * - scrollable: boolean (default: true) - whether content should be scrollable
  * - keyboardAware: boolean (default: true) - whether to handle keyboard
  * - style: additional styles for the container
  * - contentContainerStyle: additional styles for scroll content
@@ -28,175 +29,161 @@ import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
  * - noBottomPadding: boolean (default: false) - disable bottom tab bar padding
  */
 export default function LiquidGlassScreenLayout({
-    children,
-    scrollable = true,
-    keyboardAware = true,
-    safeArea = true,
-    style,
-    contentContainerStyle,
-    header,
-    footer,
-    noPadding = false,
-    noBottomPadding = false,
-    ...props
+  children,
+  scrollable = true,
+  keyboardAware = true,
+  safeArea = true,
+  style,
+  contentContainerStyle,
+  header,
+  footer,
+  noPadding = false,
+  noBottomPadding = false,
+  ...props
 }) {
-    const theme = useLiquidGlassTheme();
-    const insets = useSafeAreaInsets();
+  const theme = useLiquidGlassTheme();
+  const insets = useSafeAreaInsets();
 
-    if (!theme) {
-        return null;
-    }
+  if (!theme) {
+    return null;
+  }
 
-    // Calculate proper spacing that won't interfere with tab bar
-    const getBottomPadding = () => {
-        if (noBottomPadding) return 0;
+  // Calculate proper spacing that won't interfere with tab bar
+  const getBottomPadding = () => {
+    if (noBottomPadding) return 0;
 
-        // Tab bar configuration from _layout.js
-        const tabBarHeight = Platform.OS === 'ios' ? 88 : 68;
-        // Add extra padding for visual comfort
-        const extraPadding = 16;
+    // Tab bar configuration from _layout.js
+    const tabBarHeight = Platform.OS === 'ios' ? 88 : 68;
+    // Add extra padding for visual comfort
+    const extraPadding = 16;
 
-        return tabBarHeight + extraPadding;
-    };
+    return tabBarHeight + extraPadding;
+  };
 
-    const styles = StyleSheet.create({
-        container: {
-            flex: 1,
-            backgroundColor: 'transparent', // Important: keep transparent for glass effect
-        },
-        scrollContent: {
-            flexGrow: 1,
-            paddingTop: noPadding ? 0 : theme.spacing.lg,
-            paddingHorizontal: noPadding ? 0 : theme.spacing.lg,
-            paddingBottom: getBottomPadding(),
-        },
-        nonScrollContent: {
-            flex: 1,
-            paddingTop: noPadding ? 0 : theme.spacing.lg,
-            paddingHorizontal: noPadding ? 0 : theme.spacing.lg,
-            paddingBottom: getBottomPadding(),
-        },
-        header: {
-            zIndex: 10,
-            backgroundColor: 'transparent',
-        },
-        footer: {
-            position: 'absolute',
-            bottom: insets.bottom,
-            left: 0,
-            right: 0,
-            zIndex: 10,
-            backgroundColor: 'transparent',
-        },
-    });
+  const styles = StyleSheet.create({
+    container: {
+      backgroundColor: 'transparent',
+      flex: 1, // Important: keep transparent for glass effect
+    },
+    footer: {
+      backgroundColor: 'transparent',
+      bottom: insets.bottom,
+      left: 0,
+      position: 'absolute',
+      right: 0,
+      zIndex: 10,
+    },
+    header: {
+      backgroundColor: 'transparent',
+      zIndex: 10,
+    },
+    nonScrollContent: {
+      flex: 1,
+      paddingBottom: getBottomPadding(),
+      paddingHorizontal: noPadding ? 0 : theme.spacing.lg,
+      paddingTop: noPadding ? 0 : theme.spacing.lg,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingBottom: getBottomPadding(),
+      paddingHorizontal: noPadding ? 0 : theme.spacing.lg,
+      paddingTop: noPadding ? 0 : theme.spacing.lg,
+    },
+  });
 
-    const renderContent = () => {
-        if (scrollable) {
-            return (
-                <ScrollView
-                    contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    style={{ backgroundColor: 'transparent' }}
-                    {...props}
-                >
-                    {children}
-                </ScrollView>
-            );
-        } else {
-            return (
-                <View style={[styles.nonScrollContent, contentContainerStyle]}>
-                    {children}
-                </View>
-            );
-        }
-    };
-
-    const content = (
-        <>
-            {header && <View style={styles.header}>{header}</View>}
-            {renderContent()}
-            {footer && <View style={styles.footer}>{footer}</View>}
-        </>
-    );
-
-    const containerContent = keyboardAware && Platform.OS === 'ios' ? (
-        <KeyboardAvoidingView 
-            style={[styles.container, style]} 
-            behavior="padding"
-            keyboardVerticalOffset={0}
+  const renderContent = () => {
+    if (scrollable) {
+      return (
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          style={{ backgroundColor: 'transparent' }}
+          {...props}
         >
-            {content}
-        </KeyboardAvoidingView>
+          {children}
+        </ScrollView>
+      );
+    } else {
+      return <View style={[styles.nonScrollContent, contentContainerStyle]}>{children}</View>;
+    }
+  };
+
+  const content = (
+    <>
+      {header && <View style={styles.header}>{header}</View>}
+      {renderContent()}
+      {footer && <View style={styles.footer}>{footer}</View>}
+    </>
+  );
+
+  const containerContent =
+    keyboardAware && Platform.OS === 'ios' ? (
+      <KeyboardAvoidingView
+        style={[styles.container, style]}
+        behavior="padding"
+        keyboardVerticalOffset={0}
+      >
+        {content}
+      </KeyboardAvoidingView>
     ) : (
-        <View style={[styles.container, style]}>
-            {content}
-        </View>
+      <View style={[styles.container, style]}>{content}</View>
     );
 
-    // Use LiquidGlassLayout as the base wrapper (which handles the glass background)
-    // Pass safeArea prop to control safe area handling
-    return (
-        <LiquidGlassLayout scrollable={scrollable} safeArea={safeArea}>
-            {containerContent}
-        </LiquidGlassLayout>
-    );
+  // Use LiquidGlassLayout as the base wrapper (which handles the glass background)
+  // Pass safeArea prop to control safe area handling
+  return (
+    <LiquidGlassLayout scrollable={scrollable} safeArea={safeArea}>
+      {containerContent}
+    </LiquidGlassLayout>
+  );
 }
 
 /**
  * Variant for full-screen content (like camera screens)
  */
 LiquidGlassScreenLayout.FullScreen = ({ children, ...props }) => {
-    return (
-        <LiquidGlassScreenLayout
-            scrollable={false}
-            noPadding={true}
-            noBottomPadding={true}
-            {...props}
-        >
-            {children}
-        </LiquidGlassScreenLayout>
-    );
+  return (
+    <LiquidGlassScreenLayout scrollable={false} noPadding={true} noBottomPadding={true} {...props}>
+      {children}
+    </LiquidGlassScreenLayout>
+  );
 };
 
 /**
  * Variant with GlassHeader
  */
-LiquidGlassScreenLayout.WithGlassHeader = ({ 
-    title, 
-    subtitle, 
-    onBack,
-    backDestination,
-    showBackButton = true,
-    showLogout = false,
-    rightIcon,
-    onRightPress,
-    footerContent,
-    children, 
-    ...props 
+LiquidGlassScreenLayout.WithGlassHeader = ({
+  title,
+  subtitle,
+  onBack,
+  backDestination,
+  showBackButton = true,
+  showLogout = false,
+  rightIcon,
+  onRightPress,
+  footerContent,
+  children,
+  ...props
 }) => {
-    const header = (
-        <GlassHeader
-            title={title}
-            subtitle={subtitle}
-            onBack={onBack}
-            backDestination={backDestination}
-            showBackButton={showBackButton}
-            showLogout={showLogout}
-            rightIcon={rightIcon}
-            onRightPress={onRightPress}
-        />
-    );
-    
-    return (
-        <LiquidGlassScreenLayout 
-            header={header}
-            footer={footerContent}
-            {...props}
-        >
-            {children}
-        </LiquidGlassScreenLayout>
-    );
+  const header = (
+    <GlassHeader
+      title={title}
+      subtitle={subtitle}
+      onBack={onBack}
+      backDestination={backDestination}
+      showBackButton={showBackButton}
+      showLogout={showLogout}
+      rightIcon={rightIcon}
+      onRightPress={onRightPress}
+    />
+  );
+
+  return (
+    <LiquidGlassScreenLayout header={header} footer={footerContent} {...props}>
+      {children}
+    </LiquidGlassScreenLayout>
+  );
 };
 
 /**

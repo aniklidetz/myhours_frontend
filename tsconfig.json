@@ -2,10 +2,10 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "allowJs": true, // Разрешить JS файлы
-    "checkJs": false, // Не проверять JS файлы с TypeScript
+    "allowJs": true, // Allow JS files
+    "checkJs": false, // Don't check JS files with TypeScript
     "paths": {
-      // Настройка alias-путей для согласования с babel.config.js
+      // Alias path configuration to match babel.config.js
       "@/*": ["./*"],
       "@/hooks/*": ["./hooks/*"],
       "@/components/*": ["./components/*"],
@@ -15,12 +15,5 @@
     "jsx": "react-native",
     "esModuleInterop": true
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.js",
-    "**/*.jsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-  ]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

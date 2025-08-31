@@ -1,145 +1,145 @@
 # Biometric Testing Guide
 
-## 🧪 Тестирование биометрической системы
+## Testing the Biometric System
 
-Эта документация описывает как протестировать биометрическую систему MyHours.
+This documentation describes how to test the MyHours biometric system.
 
-## 📋 Что уже реализовано
+## What's Already Implemented
 
-✅ **Frontend (React Native):**
-- Экран регистрации биометрических данных (`/biometric-registration`)
-- Экран биометрического входа/выхода (`/biometric-check`)
-- API сервис с поддержкой всех биометрических операций
-- Токен-авторизация и управление пользователями
-- Интеграция с камерой (Expo Camera)
-- Обработка геолокации (офис/удаленно)
+**Frontend (React Native):**
+- Biometric data registration screen (`/biometric-registration`)
+- Biometric check-in/check-out screen (`/biometric-check`)
+- API service with full biometric operations support
+- Token authorization and user management
+- Camera integration (Expo Camera)
+- Geolocation processing (office/remote)
 
-✅ **Backend (Django):**
-- Биометрические API endpoints
-- Система аутентификации с токенами
-- Модели для хранения биометрических данных
-- MongoDB интеграция для лиц
+**Backend (Django):**
+- Biometric API endpoints
+- Token authentication system
+- Models for storing biometric data
+- MongoDB integration for faces
 
-## 🚀 Быстрый старт тестирования
+## Quick Testing Start
 
-### 1. Тест Backend подключения
+### 1. Backend Connection Test
 
 ```bash
-# В директории React Native приложения
+# In the React Native application directory
 npm run test:biometric
 ```
 
-Этот скрипт проверит:
-- Подключение к Django API
-- Авторизацию пользователя
-- Регистрацию биометрических данных
-- Check-in/Check-out операции
+This script will check:
+- Connection to Django API
+- User authorization
+- Biometric data registration
+- Check-in/Check-out operations
 
-### 2. Тест UI в приложении
+### 2. UI Testing in the App
 
-1. Запустите React Native приложение:
+1. Start the React Native application:
 ```bash
 npm start
 ```
 
-2. На экране входа нажмите **"🧪 Test Biometric Flow"**
+2. On the login screen, click **"Test Biometric Flow""
 
-3. Тест проверит:
-   - Аутентификацию пользователя
-   - Подключение к API
-   - Mock-операции биометрии
-   - Конфигурацию офиса
+3. The test will verify:
+   - User authentication
+   - API connection
+   - Mock biometric operations
+   - Office configuration
 
-### 3. Тест реальных UI экранов
+### 3. Testing Real UI Screens
 
-Из тестового экрана можете перейти к:
-- **📋 Test Registration UI** - экран регистрации лица
-- **🔐 Test Check-In UI** - экран входа
-- **🔓 Test Check-Out UI** - экран выхода
+From the test screen you can navigate to:
+- **Test Registration UI** - face registration screen
+- **Test Check-In UI** - check-in screen
+- **Test Check-Out UI** - check-out screen
 
-## ⚙️ Конфигурация
+## Configuration
 
 ### API Configuration
 
-В файле `src/config.js` убедитесь что:
+In the `src/config.js` file, make sure that:
 
 ```javascript
-export const API_URL = 'http://192.168.1.100:8000';  // Ваш Django сервер
+export const API_URL = 'http://192.168.1.100:8000';  // Your Django server
 export const APP_CONFIG = {
-  ENABLE_MOCK_DATA: true,  // true для тестирования без backend
+  ENABLE_MOCK_DATA: true,  // true for testing without backend
   // ...
 };
 ```
 
 ### Django Backend
 
-1. Запустите Django сервер:
+1. Start the Django server:
 ```bash
 cd backend/myhours-backend
 python manage.py runserver 0.0.0.0:8000
 ```
 
-2. Создайте суперпользователя если нужно:
+2. Create a superuser if needed:
 ```bash
 python manage.py createsuperuser
 ```
 
-## 📱 Режимы тестирования
+## Testing Modes
 
 ### Mock Mode (ENABLE_MOCK_DATA: true)
-- Использует фиктивные данные
-- Не требует подключения к backend
-- Идеально для UI тестирования
+- Uses mock data
+- Doesn't require backend connection
+- Ideal for UI testing
 
 ### Real API Mode (ENABLE_MOCK_DATA: false)
-- Подключается к реальному Django backend
-- Требует рабочий Django сервер
-- Полное end-to-end тестирование
+- Connects to real Django backend
+- Requires running Django server
+- Full end-to-end testing
 
-## 🔧 Устранение неисправностей
+## Troubleshooting
 
-### Проблемы с подключением
+### Connection Issues
 
 1. **"Connection failed":**
-   - Проверьте что Django сервер запущен
-   - Убедитесь что IP адрес в config.js правильный
-   - Проверьте firewall настройки
+   - Check that Django server is running
+   - Ensure IP address in config.js is correct
+   - Check firewall settings
 
 2. **"Camera permission denied":**
-   - Разрешите доступ к камере в настройках устройства
-   - Перезапустите приложение
+   - Allow camera access in device settings
+   - Restart the application
 
 3. **"Authentication failed":**
-   - Проверьте учетные данные пользователя
-   - Создайте пользователя в Django admin
+   - Check user credentials
+   - Create user in Django admin
 
-### Mock данные не работают
+### Mock Data Not Working
 
-- Убедитесь что `ENABLE_MOCK_DATA: true` в config.js
-- Перезапустите приложение
+- Ensure `ENABLE_MOCK_DATA: true` in config.js
+- Restart the application
 
-## 📊 Статус тестирования
+## Testing Status
 
-| Компонент | Статус | Примечания |
-|-----------|--------|------------|
-| API Service | ✅ Готов | Полная поддержка биометрических операций |
-| Авторизация | ✅ Готов | Токен-система работает |
-| UI Registration | ✅ Готов | Экран регистрации лица |
-| UI Check-in/out | ✅ Готов | Экраны входа/выхода |
-| Камера | ✅ Готов | Expo Camera интеграция |
-| Геолокация | ✅ Готов | Определение офис/удаленно |
-| End-to-end | ✅ Готов | Полный workflow |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| API Service | Ready | Full biometric operations support |
+| Authorization | Ready | Token system works |
+| UI Registration | Ready | Face registration screen |
+| UI Check-in/out | Ready | Check-in/out screens |
+| Camera | Ready | Expo Camera integration |
+| Geolocation | Ready | Office/remote detection |
+| End-to-end | Ready | Complete workflow |
 
-## 🎯 Следующие шаги
+## Next Steps
 
-1. **Реальное тестирование:** Протестируйте с реальным Django backend
-2. **Production готовность:** Отключите mock режим для production
-3. **Дополнительные тесты:** Добавьте unit тесты при необходимости
+1. **Real testing:** Test with real Django backend
+2. **Production readiness:** Disable mock mode for production
+3. **Additional tests:** Add unit tests if necessary
 
-## 📞 Поддержка
+## Support
 
-Если возникли проблемы:
-1. Проверьте логи в консоли React Native
-2. Проверьте логи Django сервера
-3. Убедитесь что все зависимости установлены
-4. Попробуйте сначала mock режим, затем real API режим
+If you encounter issues:
+1. Check logs in React Native console
+2. Check Django server logs
+3. Ensure all dependencies are installed
+4. Try mock mode first, then real API mode

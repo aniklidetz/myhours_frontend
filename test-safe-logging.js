@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Простой тест-раннер для проверки утилит безопасного логирования
- * Можно запустить без Jest для быстрой проверки
+ * Simple test runner for checking safe logging utilities
+ * Can be run without Jest for quick verification
  */
 
-// Импортируем утилиты
+// Import utilities
 const {
   maskEmail,
   maskPhone,
@@ -15,177 +15,177 @@ const {
   safeLogUser,
   safeLogEmployee,
   safeLogLocation,
-  safeLogBiometric
+  safeLogBiometric,
 } = require('./src/utils/safeLogging');
 
-console.log('🧪 Запуск тестов безопасного логирования для React Native...');
+console.log('Running safe logging tests for React Native...');
 console.log('=' * 60);
 
-// Простая функция для тестирования
+// Simple testing function
 function test(description, testFn) {
   try {
     testFn();
-    console.log(`✅ ${description}`);
+    console.log(`PASS ${description}`);
   } catch (error) {
-    console.log(`❌ ${description}`);
-    console.log(`   Ошибка: ${error.message}`);
+    console.log(`FAIL ${description}`);
+    console.log(`   Error: ${error.message}`);
   }
 }
 
 function assertEqual(actual, expected, message) {
   if (actual !== expected) {
-    throw new Error(`${message}: ожидали '${expected}', получили '${actual}'`);
+    throw new Error(`${message}: expected '${expected}', got '${actual}'`);
   }
 }
 
-// Тесты маскирования email
-console.log('\n📧 Тестирование маскирования email:');
-test('Обычный email', () => {
-  assertEqual(maskEmail('admin@example.com'), 'a***@example.com', 'Email не замаскирован');
+// Email masking tests
+console.log('\nTesting email masking:');
+test('Regular email', () => {
+  assertEqual(maskEmail('admin@example.com'), 'a***@example.com', 'Email not masked');
 });
 
-test('Короткий email', () => {
-  assertEqual(maskEmail('a@test.com'), '*@test.com', 'Короткий email не замаскирован');
+test('Short email', () => {
+  assertEqual(maskEmail('a@test.com'), '*@test.com', 'Short email not masked');
 });
 
-test('Некорректный email', () => {
-  assertEqual(maskEmail('invalid'), '[invalid_email]', 'Некорректный email не обработан');
+test('Invalid email', () => {
+  assertEqual(maskEmail('invalid'), '[invalid_email]', 'Invalid email not handled');
 });
 
-// Тесты маскирования телефонов
-console.log('\n📞 Тестирование маскирования телефонов:');
-test('Международный номер', () => {
-  assertEqual(maskPhone('+972501234567'), '***4567', 'Телефон не замаскирован');
+// Phone masking tests
+console.log('\nTesting phone masking:');
+test('International number', () => {
+  assertEqual(maskPhone('+972501234567'), '***4567', 'Phone not masked');
 });
 
-test('Номер с разделителями', () => {
-  assertEqual(maskPhone('+1-234-567-8901'), '***8901', 'Номер с разделителями не обработан');
+test('Number with separators', () => {
+  assertEqual(maskPhone('+1-234-567-8901'), '***8901', 'Number with separators not handled');
 });
 
-// Тесты маскирования координат
-console.log('\n📍 Тестирование маскирования GPS координат:');
-test('Офисные координаты', () => {
-  assertEqual(maskCoordinates(32.05, 34.78), 'Office Area', 'Офисные координаты не определены');
+// Coordinate masking tests
+console.log('\nTesting GPS coordinate masking:');
+test('Office coordinates', () => {
+  assertEqual(maskCoordinates(32.05, 34.78), 'Office Area', 'Office coordinates not detected');
 });
 
-test('Удалённая локация', () => {
-  assertEqual(maskCoordinates(40.7, -74.0), 'Remote Location', 'Удалённая локация не определена');
+test('Remote location', () => {
+  assertEqual(maskCoordinates(40.7, -74.0), 'Remote Location', 'Remote location not detected');
 });
 
-// Тесты маскирования имён
-console.log('\n👤 Тестирование маскирования имён:');
-test('Полное имя', () => {
-  assertEqual(maskName('John Doe'), 'J.D.', 'Полное имя не замаскировано');
+// Name masking tests
+console.log('\nTesting name masking:');
+test('Full name', () => {
+  assertEqual(maskName('John Doe'), 'J.D.', 'Full name not masked');
 });
 
-test('Одиночное имя', () => {
-  assertEqual(maskName('Admin'), 'A.', 'Одиночное имя не замаскировано');
+test('Single name', () => {
+  assertEqual(maskName('Admin'), 'A.', 'Single name not masked');
 });
 
-// Тесты хэширования ID
-console.log('\n🔐 Тестирование хэширования ID:');
-test('Хэширование числового ID', () => {
+// ID hashing tests
+console.log('\nTesting ID hashing:');
+test('Numeric ID hashing', () => {
   const hash = hashUserId(123);
   if (!hash.startsWith('usr_') || hash.length !== 12) {
-    throw new Error('Неправильный формат хэша');
+    throw new Error('Invalid hash format');
   }
 });
 
-test('Постоянство хэшей', () => {
+test('Hash consistency', () => {
   const hash1 = hashUserId(456);
   const hash2 = hashUserId(456);
-  assertEqual(hash1, hash2, 'Хэши должны быть одинаковыми для одного ID');
+  assertEqual(hash1, hash2, 'Hashes should be identical for same ID');
 });
 
-// Тесты сложных объектов
-console.log('\n🧩 Тестирование сложных объектов:');
-test('Безопасное логирование пользователя', () => {
+// Complex object tests
+console.log('\nTesting complex objects:');
+test('Safe user logging', () => {
   const user = {
     id: 123,
     email: 'test@example.com',
     first_name: 'Test',
     last_name: 'User',
-    role: 'admin'
+    role: 'admin',
   };
-  
+
   const result = safeLogUser(user, 'test');
-  
+
   if (result.email_masked !== 't***@example.com') {
-    throw new Error('Email не замаскирован в объекте пользователя');
+    throw new Error('Email not masked in user object');
   }
-  
+
   if (result.name_initials !== 'T.U.') {
-    throw new Error('Имя не замаскировано в объекте пользователя');
+    throw new Error('Name not masked in user object');
   }
-  
+
   if (result.email || result.first_name || result.last_name) {
-    throw new Error('Оригинальные данные присутствуют в результате');
+    throw new Error('Original data present in result');
   }
 });
 
-test('Безопасное логирование биометрии', () => {
+test('Safe biometric logging', () => {
   const biometricData = {
     hasImage: true,
     confidence: 0.95,
     sessionId: 'secret_session',
-    base64Data: 'very_long_secret_data'
+    base64Data: 'very_long_secret_data',
   };
-  
+
   const result = safeLogBiometric(biometricData);
-  
+
   if (result.base64Data || result.sessionId) {
-    throw new Error('Секретные биометрические данные присутствуют в результате');
+    throw new Error('Secret biometric data present in result');
   }
-  
+
   if (result.confidence_level !== 'high') {
-    throw new Error('Уровень уверенности не определён правильно');
+    throw new Error('Confidence level not determined correctly');
   }
 });
 
-// Тесты защиты от реальных данных
-console.log('\n🛡️ Тестирование защиты от реальных утечек:');
-test('Защита от утечки mikhail.plotnik@gmail.com', () => {
+// Real data protection tests
+console.log('\nTesting protection against real data leaks:');
+test('Protection against mikhail.plotnik@gmail.com leak', () => {
   const userData = {
     email: 'mikhail.plotnik@gmail.com',
     first_name: 'Mikhail',
-    last_name: 'Plotnik'
+    last_name: 'Plotnik',
   };
-  
+
   const result = safeLogUser(userData, 'biometric_check');
   const serialized = JSON.stringify(result);
-  
+
   if (serialized.includes('mikhail.plotnik@gmail.com')) {
-    throw new Error('Email утёк в безопасном логировании');
+    throw new Error('Email leaked in safe logging');
   }
-  
+
   if (serialized.includes('Mikhail') || serialized.includes('Plotnik')) {
-    throw new Error('Полные имена утекли в безопасном логировании');
+    throw new Error('Full names leaked in safe logging');
   }
 });
 
-test('Защита от утечки точных GPS координат', () => {
+test('Protection against exact GPS coordinate leak', () => {
   const lat = 32.050936;
-  const lng = 34.781800;
-  
+  const lng = 34.7818;
+
   const result = safeLogLocation(lat, lng);
-  
+
   if (result.includes('32.050936') || result.includes('34.781800')) {
-    throw new Error('Точные GPS координаты утекли в безопасном логировании');
+    throw new Error('Exact GPS coordinates leaked in safe logging');
   }
-  
+
   if (result !== 'Office Area') {
-    throw new Error('GPS координаты не правильно обобщены');
+    throw new Error('GPS coordinates not properly generalized');
   }
 });
 
-console.log('\n🎉 Все тесты завершены!');
-console.log('\n📊 Статистика безопасности:');
-console.log('✅ Email маскирование работает');
-console.log('✅ GPS координаты защищены');
-console.log('✅ Имена маскированы');
-console.log('✅ Телефоны защищены');
-console.log('✅ Биометрические данные скрыты');
-console.log('✅ Пользовательские объекты безопасны');
+console.log('\nAll tests completed!');
+console.log('\nSecurity statistics:');
+console.log('PASS Email masking works');
+console.log('PASS GPS coordinates protected');
+console.log('PASS Names masked');
+console.log('PASS Phones protected');
+console.log('PASS Biometric data hidden');
+console.log('PASS User objects are safe');
 
-console.log('\n🚀 Готово к production deployment!');
-console.log('\nДля запуска полных Jest тестов используйте: npm run test:security');
+console.log('\nReady for production deployment!');
+console.log('\nTo run full Jest tests use: npm run test:security');

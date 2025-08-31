@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -15,7 +16,7 @@ export const DEFAULT_OFFICE_SETTINGS = {
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
-const toRad = (deg) => (deg * Math.PI) / 180;
+const toRad = deg => (deg * Math.PI) / 180;
 
 /**
  * Haversine distance between two lat/lng points (meters)
@@ -64,17 +65,17 @@ export function OfficeProvider({ children }) {
   }, []);
 
   // ─── Save Settings Helper ─────────────────────────────────────────────
-  const saveSettings = async (updates) => {
+  const saveSettings = async updates => {
     try {
       const updated = { ...officeSettings, ...updates };
       console.log('Saving office settings:', updated);
-      
+
       // Save to AsyncStorage
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      
+
       // Update local state
       setOfficeSettings(updated);
-      
+
       console.log('Office settings saved successfully');
       return true;
     } catch (e) {
@@ -84,45 +85,43 @@ export function OfficeProvider({ children }) {
   };
 
   // ─── Public Updater Functions ─────────────────────────────────────────
-/**
- * Update office GPS coordinates.
- *
- * Accepts two calling styles:
- *   1) updateOfficeLocation({ latitude, longitude })    // ← preferred
- *   2) updateOfficeLocation(lat, lon)                  // ← legacy
- */
-const updateOfficeLocation = async (locationOrLat, maybeLon) => {
-  let latitude, longitude;
+  /**
+   * Update office GPS coordinates.
+   *
+   * Accepts two calling styles:
+   *   1) updateOfficeLocation({ latitude, longitude })    // ← preferred
+   *   2) updateOfficeLocation(lat, lon)                  // ← legacy
+   */
+  const updateOfficeLocation = async (locationOrLat, maybeLon) => {
+    let latitude, longitude;
 
-  // Preferred: single object argument
-  if (typeof locationOrLat === 'object' && locationOrLat !== null) {
-    ({ latitude, longitude } = locationOrLat);
-  } else {
-    // Legacy: two numeric arguments
-    console.warn(
-      '⚠️  Deprecated: call updateOfficeLocation({ latitude, longitude }) instead.'
-    );
-    latitude  = locationOrLat;
-    longitude = maybeLon;
-  }
+    // Preferred: single object argument
+    if (typeof locationOrLat === 'object' && locationOrLat !== null) {
+      ({ latitude, longitude } = locationOrLat);
+    } else {
+      // Legacy: two numeric arguments
+      console.warn('Deprecated: call updateOfficeLocation({ latitude, longitude }) instead.');
+      latitude = locationOrLat;
+      longitude = maybeLon;
+    }
 
-  console.log(`Updating office location to: ${latitude}, ${longitude}`);
-  return await saveSettings({ location: { latitude, longitude } });
-};
+    console.log(`Updating office location to: ${latitude}, ${longitude}`);
+    return await saveSettings({ location: { latitude, longitude } });
+  };
 
-  const updateCheckRadius = async (checkRadius) => {
+  const updateCheckRadius = async checkRadius => {
     const radiusNum = typeof checkRadius === 'number' ? checkRadius : parseFloat(checkRadius);
     console.log(`Updating check radius to: ${radiusNum} meters`);
     return await saveSettings({ checkRadius: radiusNum });
   };
 
-  const updateRemotePolicy = async (remotePolicy) => {
+  const updateRemotePolicy = async remotePolicy => {
     console.log(`Updating remote policy to: ${remotePolicy}`);
     return await saveSettings({ remotePolicy });
   };
 
-  // ⚠️ ВАЖНО: Эта функция должна быть объявлена ДО contextValue
-  const updateAllSettings = async (newSettings) => {
+  // IMPORTANT: This function must be declared BEFORE contextValue
+  const updateAllSettings = async newSettings => {
     console.log('Updating all office settings:', newSettings);
     return await saveSettings(newSettings);
   };
@@ -151,17 +150,21 @@ const updateOfficeLocation = async (locationOrLat, maybeLon) => {
         }
         return false; // not configured
       }
-      
+
       // Ensure checkRadius is a number
       const defaultRadius = typeof checkRadius === 'number' ? checkRadius : 100;
       const radius = typeof customRadius === 'number' ? customRadius : defaultRadius;
-      
+
       // Ensure coordinates are numbers
       const lat = typeof latitude === 'number' ? latitude : parseFloat(latitude);
       const lon = typeof longitude === 'number' ? longitude : parseFloat(longitude);
-      const officeLat = typeof location.latitude === 'number' ? location.latitude : parseFloat(location.latitude);
-      const officeLon = typeof location.longitude === 'number' ? location.longitude : parseFloat(location.longitude);
-      
+      const officeLat =
+        typeof location.latitude === 'number' ? location.latitude : parseFloat(location.latitude);
+      const officeLon =
+        typeof location.longitude === 'number'
+          ? location.longitude
+          : parseFloat(location.longitude);
+
       const d = distanceMeters(lat, lon, officeLat, officeLon);
       // console.log(`Distance from office: ${d.toFixed(2)}m, radius: ${radius}m, inside: ${d <= radius}`);
       return d <= radius;
@@ -185,14 +188,14 @@ const updateOfficeLocation = async (locationOrLat, maybeLon) => {
   }, [officeSettings]);
 
   // ─── Context Value ─────────────────────────────────────────────────────
-  // ✅ ВСЕ ФУНКЦИИ УЖЕ ОБЪЯВЛЕНЫ ВЫШЕ - ТЕПЕРЬ МОЖНО ИХ ЭКСПОРТИРОВАТЬ
+  // ALL FUNCTIONS ARE ALREADY DECLARED ABOVE - NOW WE CAN EXPORT THEM
   const contextValue = {
     officeSettings,
     loading,
     updateOfficeLocation,
     updateCheckRadius,
     updateRemotePolicy,
-    updateAllSettings, // ✅ Функция уже существует
+    updateAllSettings, // Function already exists
     resetSettings,
     isInsideOffice,
     getDistanceFromOffice,
@@ -200,11 +203,7 @@ const updateOfficeLocation = async (locationOrLat, maybeLon) => {
     reloadSettings: loadSettings,
   };
 
-  return (
-    <OfficeContext.Provider value={contextValue}>
-      {children}
-    </OfficeContext.Provider>
-  );
+  return <OfficeContext.Provider value={contextValue}>{children}</OfficeContext.Provider>;
 }
 
 export function useOffice() {

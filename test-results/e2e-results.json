@@ -1,0 +1,1336 @@
+{
+  "config": {
+    "configFile": "/Users/aniklidetz/Documents/MyPythonProject/MyHours/frontend2/myhours-app/playwright.config.js",
+    "rootDir": "/Users/aniklidetz/Documents/MyPythonProject/MyHours/frontend2/myhours-app/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 4
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      ["html", null],
+      [
+        "junit",
+        {
+          "outputFile": "test-results/e2e-results.xml"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/e2e-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/Users/aniklidetz/Documents/MyPythonProject/MyHours/frontend2/myhours-app/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/aniklidetz/Documents/MyPythonProject/MyHours/frontend2/myhours-app/e2e",
+        "testIgnore": [],
+        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/aniklidetz/Documents/MyPythonProject/MyHours/frontend2/myhours-app/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "Mobile Chrome",
+        "name": "Mobile Chrome",
+        "testDir": "/Users/aniklidetz/Documents/MyPythonProject/MyHours/frontend2/myhours-app/e2e",
+        "testIgnore": [],
+        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.55.0",
+    "workers": 4,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "auth.spec.js",
+      "file": "auth.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "MyHours App - Authentication Flow",
+          "file": "auth.spec.js",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should display login screen on first visit",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 13298,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:24.052Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-25cda9bf2e0ccdefa02c",
+              "file": "auth.spec.js",
+              "line": 29,
+              "column": 3
+            },
+            {
+              "title": "should show validation errors for empty login form",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 12427,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Login button exists but is not clickable - likely due to app state\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:24.059Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-ea53614c6ef74d6bbcd9",
+              "file": "auth.spec.js",
+              "line": 50,
+              "column": 3
+            },
+            {
+              "title": "should attempt login with test credentials",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 11782,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Login button is not clickable - validating form fill instead\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:24.068Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-0d555e30b1bc343619e1",
+              "file": "auth.spec.js",
+              "line": 113,
+              "column": 3
+            },
+            {
+              "title": "should handle biometric authentication flow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 11203,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Biometric authentication not available in this build\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:24.068Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-0b2498aa8d35efdbf30f",
+              "file": "auth.spec.js",
+              "line": 186,
+              "column": 3
+            },
+            {
+              "title": "should have secure HTTPS configuration in production",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 9544,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Found 0 API requests in development mode\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:42.716Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-f7a1f806c82eafdd04b6",
+              "file": "auth.spec.js",
+              "line": 215,
+              "column": 3
+            },
+            {
+              "title": "should handle offline mode gracefully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 13006,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "App handled offline mode without crashing\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:43.202Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-80b238864ec0d8f68383",
+              "file": "auth.spec.js",
+              "line": 244,
+              "column": 3
+            },
+            {
+              "title": "should display login screen on first visit",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 15504,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:04.910Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-3e553af8a9472f9d89f8",
+              "file": "auth.spec.js",
+              "line": 29,
+              "column": 3
+            },
+            {
+              "title": "should show validation errors for empty login form",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 9509,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Login button exists but is not clickable - likely due to app state\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:08.436Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-5350fcdf40ab7f3f1f39",
+              "file": "auth.spec.js",
+              "line": 50,
+              "column": 3
+            },
+            {
+              "title": "should attempt login with test credentials",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6235,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Login button is not clickable - validating form fill instead\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:11.482Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-a4c5ae6a35aa0e2d5972",
+              "file": "auth.spec.js",
+              "line": 113,
+              "column": 3
+            },
+            {
+              "title": "should handle biometric authentication flow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 4879,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Biometric authentication not available in this build\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:18.645Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-af1f885e15effc238d00",
+              "file": "auth.spec.js",
+              "line": 186,
+              "column": 3
+            },
+            {
+              "title": "should have secure HTTPS configuration in production",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7848,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Found 0 API requests in development mode\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:18.713Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-3a8b6b94fadc6c09d087",
+              "file": "auth.spec.js",
+              "line": 215,
+              "column": 3
+            },
+            {
+              "title": "should handle offline mode gracefully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 12691,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "App handled offline mode without crashing\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:20.850Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d5ed79a6b333c2ba7209-f2c507a7c771938bb8fc",
+              "file": "auth.spec.js",
+              "line": 244,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "debug.spec.js",
+      "file": "debug.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Debug - What is on the page",
+          "file": "debug.spec.js",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "debug - show page content",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 13663,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "=== DEBUG INFO ===\n"
+                        },
+                        {
+                          "text": "Page title: \n"
+                        },
+                        {
+                          "text": "Network status (navigator.onLine): \u001b[33mtrue\u001b[39m\n"
+                        },
+                        {
+                          "text": "Found 0 connection error messages:\n"
+                        },
+                        {
+                          "text": "Found 0 buttons:\n"
+                        },
+                        {
+                          "text": "Found 2 div elements that look like buttons:\n"
+                        },
+                        {
+                          "text": "  - Div Button 0: \"Login\" (visible: true, clickable: false)\n"
+                        },
+                        {
+                          "text": "  - Div Button 1: \"Login\" (visible: true, clickable: false)\n"
+                        },
+                        {
+                          "text": "Found 2 inputs:\n"
+                        },
+                        {
+                          "text": "  - Input 0: type=\"email\", placeholder=\"Email\" (visible: true, disabled: false)\n"
+                        },
+                        {
+                          "text": "  - Input 1: type=\"password\", placeholder=\"Password\" (visible: true, disabled: false)\n"
+                        },
+                        {
+                          "text": "Login button exists: true\n"
+                        },
+                        {
+                          "text": "Attempting to click login button...\n"
+                        },
+                        {
+                          "text": "Found 0 validation errors after click\n"
+                        },
+                        {
+                          "text": "Found 0 loading indicators after click\n"
+                        },
+                        {
+                          "text": "Body text (first 500 chars): MyHoursTime Tracking SystemLogin\n\n"
+                        },
+                        {
+                          "text": "=== END DEBUG ===\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:43.859Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d0c4411d9520030c5a85-5cbdd6e10c04775dc169",
+              "file": "debug.spec.js",
+              "line": 19,
+              "column": 3
+            },
+            {
+              "title": "debug - show page content",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 14222,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "=== DEBUG INFO ===\n"
+                        },
+                        {
+                          "text": "Page title: \n"
+                        },
+                        {
+                          "text": "Network status (navigator.onLine): \u001b[33mtrue\u001b[39m\n"
+                        },
+                        {
+                          "text": "Found 0 connection error messages:\n"
+                        },
+                        {
+                          "text": "Found 0 buttons:\n"
+                        },
+                        {
+                          "text": "Found 2 div elements that look like buttons:\n"
+                        },
+                        {
+                          "text": "  - Div Button 0: \"Login\" (visible: true, clickable: false)\n"
+                        },
+                        {
+                          "text": "  - Div Button 1: \"Login\" (visible: true, clickable: false)\n"
+                        },
+                        {
+                          "text": "Found 2 inputs:\n"
+                        },
+                        {
+                          "text": "  - Input 0: type=\"email\", placeholder=\"Email\" (visible: true, disabled: false)\n"
+                        },
+                        {
+                          "text": "  - Input 1: type=\"password\", placeholder=\"Password\" (visible: true, disabled: false)\n"
+                        },
+                        {
+                          "text": "Login button exists: true\n"
+                        },
+                        {
+                          "text": "Attempting to click login button...\n"
+                        },
+                        {
+                          "text": "Found 0 validation errors after click\n"
+                        },
+                        {
+                          "text": "Found 0 loading indicators after click\n"
+                        },
+                        {
+                          "text": "Body text (first 500 chars): MyHoursTime Tracking SystemLogin\n\n"
+                        },
+                        {
+                          "text": "=== END DEBUG ===\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:22.717Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d0c4411d9520030c5a85-c58c6b65b745342d7351",
+              "file": "debug.spec.js",
+              "line": 19,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "security.spec.js",
+      "file": "security.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "MyHours App - Security Tests",
+          "file": "security.spec.js",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should not expose sensitive data in console logs",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7550,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:44.708Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-e7c1502ad8516e3bba47",
+              "file": "security.spec.js",
+              "line": 22,
+              "column": 3
+            },
+            {
+              "title": "should use secure storage for sensitive data",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 6175,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:52.295Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-098257e5a1db97434c83",
+              "file": "security.spec.js",
+              "line": 48,
+              "column": 3
+            },
+            {
+              "title": "should implement proper CSP headers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8526,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:52.311Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-5b0db16cbac3e7ed8620",
+              "file": "security.spec.js",
+              "line": 75,
+              "column": 3
+            },
+            {
+              "title": "should handle XSS protection",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 10085,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:56.295Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-965d0a7922e089f65db6",
+              "file": "security.spec.js",
+              "line": 87,
+              "column": 3
+            },
+            {
+              "title": "should enforce HTTPS in production",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/aniklidetz/Documents/MyPythonProject/MyHours/frontend2/myhours-app/e2e/security.spec.js",
+                        "line": 108,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 5168,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:57.544Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "location": {
+                            "file": "/Users/aniklidetz/Documents/MyPythonProject/MyHours/frontend2/myhours-app/e2e/security.spec.js",
+                            "line": 108,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-883a3fb8ff9b636bbb42",
+              "file": "security.spec.js",
+              "line": 106,
+              "column": 3
+            },
+            {
+              "title": "should not leak API endpoints in client code",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 4597,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:02:58.509Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-f7755e5c5599d4573b23",
+              "file": "security.spec.js",
+              "line": 124,
+              "column": 3
+            },
+            {
+              "title": "should have proper error handling without info disclosure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9583,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:00.873Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-c70681d4fbbf75410fc3",
+              "file": "security.spec.js",
+              "line": 141,
+              "column": 3
+            },
+            {
+              "title": "should implement secure biometric data handling",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 16522,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:02.746Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-cd70d44115eb4c615b57",
+              "file": "security.spec.js",
+              "line": 164,
+              "column": 3
+            },
+            {
+              "title": "should not expose sensitive data in console logs",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 7976,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:23.563Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-96d5ba7fa5cf06ebc193",
+              "file": "security.spec.js",
+              "line": 22,
+              "column": 3
+            },
+            {
+              "title": "should use secure storage for sensitive data",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5883,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:26.617Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-335bc9d0ffa76afb7774",
+              "file": "security.spec.js",
+              "line": 48,
+              "column": 3
+            },
+            {
+              "title": "should implement proper CSP headers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 13372,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:31.561Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-f9b8824f2b394c0e7428",
+              "file": "security.spec.js",
+              "line": 75,
+              "column": 3
+            },
+            {
+              "title": "should handle XSS protection",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10989,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:32.512Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-28fa9910e18a8f833978",
+              "file": "security.spec.js",
+              "line": 87,
+              "column": 3
+            },
+            {
+              "title": "should enforce HTTPS in production",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/aniklidetz/Documents/MyPythonProject/MyHours/frontend2/myhours-app/e2e/security.spec.js",
+                        "line": 108,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 4422,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:34.714Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "location": {
+                            "file": "/Users/aniklidetz/Documents/MyPythonProject/MyHours/frontend2/myhours-app/e2e/security.spec.js",
+                            "line": 108,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-b1685e3fb4dd8cfe1f96",
+              "file": "security.spec.js",
+              "line": 106,
+              "column": 3
+            },
+            {
+              "title": "should not leak API endpoints in client code",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 7983,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:36.962Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-426e529c853c65c769b8",
+              "file": "security.spec.js",
+              "line": 124,
+              "column": 3
+            },
+            {
+              "title": "should have proper error handling without info disclosure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 8893,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:39.171Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-63ae2ced84db4a0e5070",
+              "file": "security.spec.js",
+              "line": 141,
+              "column": 3
+            },
+            {
+              "title": "should implement secure biometric data handling",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Chrome",
+                  "projectName": "Mobile Chrome",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9842,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-27T16:03:43.638Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3efa7971ab9a8dd627a5-7470b9879e51eae9b5f2",
+              "file": "security.spec.js",
+              "line": 164,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2025-08-27T16:02:23.410Z",
+    "duration": 90627.50899999999,
+    "expected": 28,
+    "skipped": 2,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

@@ -1,19 +1,13 @@
+/* eslint-disable react/prop-types */
 import React from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import LiquidGlassCard from './LiquidGlassCard';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 import { COLORS, SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../constants/CommonStyles';
 
-export function EmployeeForm({ 
-  formData, 
+export function EmployeeForm({
+  formData,
   onFormChange,
   hourlyRateInput,
   onHourlyRateInputChange,
@@ -33,17 +27,12 @@ export function EmployeeForm({
     form: {
       marginBottom: SPACING.xl * 2, // Extra bottom margin to prevent footer overlap
     },
-    
+
     // Input Group with larger spacing for pickers
     inputGroup: {
       marginBottom: SPACING.lg,
     },
-    
-    // Input Group
-    inputGroup: {
-      marginBottom: SPACING.lg,
-    },
-    
+
     // Label Style
     label: {
       ...TYPOGRAPHY.body,
@@ -51,91 +40,91 @@ export function EmployeeForm({
       fontWeight: '600',
       marginBottom: SPACING.sm,
     },
-    
+
     // Input Styles - Liquid Glass Style
     input: {
       backgroundColor: COLORS.glassLight,
-      borderWidth: 1,
       borderColor: COLORS.glassBorder,
       borderRadius: BORDER_RADIUS.md,
+      borderWidth: 1,
+      color: COLORS.textPrimary,
+      fontSize: TYPOGRAPHY.body.fontSize,
+      minHeight: 44,
       paddingHorizontal: SPACING.md,
       paddingVertical: SPACING.sm,
-      fontSize: TYPOGRAPHY.body.fontSize,
-      color: COLORS.textPrimary,
-      minHeight: 44,
     },
-    
+
     // Picker Container
     pickerContainer: {
       backgroundColor: COLORS.glassLight,
-      borderWidth: 1,
       borderColor: COLORS.glassBorder,
       borderRadius: BORDER_RADIUS.md,
+      borderWidth: 1,
     },
-    
+
     // Picker Style
     picker: {
       color: COLORS.textPrimary, // White text
     },
-    
+
     // Input with Button Layout
     inputWithButton: {
-      flexDirection: 'row',
       alignItems: 'center',
+      flexDirection: 'row',
       gap: SPACING.sm,
     },
     inputWithButtonText: {
       flex: 1,
     },
-    
+
     // Confirm Button
     confirmButton: {
-      width: 44,
-      height: 44,
+      alignItems: 'center',
       backgroundColor: COLORS.primary,
       borderRadius: BORDER_RADIUS.full,
+      elevation: 3,
+      height: 44,
       justifyContent: 'center',
-      alignItems: 'center',
       shadowColor: '#000000',
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.2,
       shadowRadius: 4,
-      elevation: 3,
+      width: 44,
     },
     confirmButtonText: {
       color: '#FFFFFF',
       fontSize: 18,
       fontWeight: 'bold',
     },
-    
+
     // Confirmed Input Display
     confirmedInput: {
-      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: SPACING.md,
       backgroundColor: COLORS.glassLight,
-      borderWidth: 1,
       borderColor: COLORS.glassBorder,
       borderRadius: BORDER_RADIUS.md,
+      borderWidth: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
       minHeight: 44,
+      padding: SPACING.md,
     },
     confirmedText: {
       ...TYPOGRAPHY.body,
       color: COLORS.textPrimary,
-      fontWeight: '600',
       flex: 1,
+      fontWeight: '600',
     },
-    
+
     // Edit Button
     editButton: {
       backgroundColor: COLORS.glassMedium,
-      borderWidth: 1,
       borderColor: COLORS.glassBorder,
       borderRadius: BORDER_RADIUS.sm,
+      borderWidth: 1,
+      minWidth: 60,
       paddingHorizontal: SPACING.sm,
       paddingVertical: SPACING.xs,
-      minWidth: 60,
     },
     editButtonText: {
       color: COLORS.textPrimary,
@@ -143,7 +132,7 @@ export function EmployeeForm({
       fontWeight: '600',
       textAlign: 'center',
     },
-    
+
     // Safe bottom padding to prevent footer overlap
     safeBottomPadding: {
       paddingBottom: SPACING.xl,
@@ -163,7 +152,7 @@ export function EmployeeForm({
           <TextInput
             style={styles.input}
             value={formData.first_name}
-            onChangeText={(text) => onFormChange({ ...formData, first_name: text })}
+            onChangeText={text => onFormChange({ ...formData, first_name: text })}
             placeholder="John"
             placeholderTextColor={COLORS.textMuted}
             autoCapitalize="words"
@@ -176,7 +165,7 @@ export function EmployeeForm({
           <TextInput
             style={styles.input}
             value={formData.last_name}
-            onChangeText={(text) => onFormChange({ ...formData, last_name: text })}
+            onChangeText={text => onFormChange({ ...formData, last_name: text })}
             placeholder="Doe"
             placeholderTextColor={COLORS.textMuted}
             autoCapitalize="words"
@@ -189,7 +178,7 @@ export function EmployeeForm({
           <TextInput
             style={styles.input}
             value={formData.email}
-            onChangeText={(text) => onFormChange({ ...formData, email: text.toLowerCase() })}
+            onChangeText={text => onFormChange({ ...formData, email: text.toLowerCase() })}
             placeholder="john.doe@example.com"
             placeholderTextColor={COLORS.textMuted}
             keyboardType="email-address"
@@ -203,7 +192,7 @@ export function EmployeeForm({
           <TextInput
             style={styles.input}
             value={formData.phone}
-            onChangeText={(text) => onFormChange({ ...formData, phone: text })}
+            onChangeText={text => onFormChange({ ...formData, phone: text })}
             placeholder="+1234567890"
             placeholderTextColor={COLORS.textMuted}
             keyboardType="phone-pad"
@@ -239,20 +228,14 @@ export function EmployeeForm({
                   placeholderTextColor={COLORS.textMuted}
                   keyboardType="decimal-pad"
                 />
-                <TouchableOpacity
-                  style={styles.confirmButton}
-                  onPress={onHourlyRateConfirm}
-                >
+                <TouchableOpacity style={styles.confirmButton} onPress={onHourlyRateConfirm}>
                   <Text style={styles.confirmButtonText}>✓</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <View style={styles.confirmedInput}>
                 <Text style={styles.confirmedText}>₪{formData.hourly_rate}</Text>
-                <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={onHourlyRateEdit}
-                >
+                <TouchableOpacity style={styles.editButton} onPress={onHourlyRateEdit}>
                   <Text style={styles.editButtonText}>Edit</Text>
                 </TouchableOpacity>
               </View>
@@ -274,20 +257,14 @@ export function EmployeeForm({
                   placeholderTextColor={COLORS.textMuted}
                   keyboardType="decimal-pad"
                 />
-                <TouchableOpacity
-                  style={styles.confirmButton}
-                  onPress={onMonthlySalaryConfirm}
-                >
+                <TouchableOpacity style={styles.confirmButton} onPress={onMonthlySalaryConfirm}>
                   <Text style={styles.confirmButtonText}>✓</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <View style={styles.confirmedInput}>
                 <Text style={styles.confirmedText}>₪{formData.monthly_salary}</Text>
-                <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={onMonthlySalaryEdit}
-                >
+                <TouchableOpacity style={styles.editButton} onPress={onMonthlySalaryEdit}>
                   <Text style={styles.editButtonText}>Edit</Text>
                 </TouchableOpacity>
               </View>
@@ -301,7 +278,7 @@ export function EmployeeForm({
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={formData.role}
-              onValueChange={(value) => onFormChange({ ...formData, role: value })}
+              onValueChange={value => onFormChange({ ...formData, role: value })}
               style={styles.picker}
             >
               <Picker.Item label="Employee" value="employee" color={COLORS.textPrimary} />

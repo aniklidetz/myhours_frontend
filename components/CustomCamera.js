@@ -11,23 +11,23 @@ export default function CustomCamera({ children, style, type, onError, ...props 
   useEffect(() => {
     (async () => {
       try {
-        console.log('📷 CustomCamera: Requesting camera permission...');
+        console.log('CustomCamera: Requesting camera permission...');
         const { status } = await Camera.requestCameraPermissionsAsync();
-        console.log(`📷 CustomCamera: Permission status: ${status}`);
+        console.log(`CustomCamera: Permission status: ${status}`);
         setHasPermission(status === 'granted');
-        
+
         if (status !== 'granted') {
           const errorMsg = 'Camera permission denied';
-          console.warn(`⚠️ CustomCamera: ${errorMsg}`);
+          console.warn(`CustomCamera: ${errorMsg}`);
           setError(errorMsg);
           if (onError) onError(new Error(errorMsg));
         }
       } catch (error) {
-        console.error("❌ CustomCamera: Error requesting permission:", error);
+        console.error('CustomCamera: Error requesting permission:', error);
         console.error('Error details:', {
           message: error.message,
           stack: error.stack,
-          code: error.code
+          code: error.code,
         });
         setHasPermission(false);
         setError(error.message);
@@ -57,12 +57,12 @@ export default function CustomCamera({ children, style, type, onError, ...props 
   const facing = typeof type === 'number' ? (type === 1 ? 'front' : 'back') : type;
 
   const handleCameraReady = () => {
-    console.log('✅ CustomCamera: Camera ready');
+    console.log('CustomCamera: Camera ready');
     if (props.onCameraReady) props.onCameraReady();
   };
 
-  const handleMountError = (error) => {
-    console.error('❌ CustomCamera: Mount error:', error);
+  const handleMountError = error => {
+    console.error('CustomCamera: Mount error:', error);
     setError(`Camera mount error: ${error.message}`);
     if (onError) onError(error);
     if (props.onMountError) props.onMountError(error);
@@ -86,13 +86,10 @@ CustomCamera.propTypes = {
   children: PropTypes.node,
   style: PropTypes.oneOfType([PropTypes.object, PropTypes.array]),
   type: PropTypes.number,
-  innerRef: PropTypes.oneOfType([
-    PropTypes.func,
-    PropTypes.shape({ current: PropTypes.any })
-  ]),
+  innerRef: PropTypes.oneOfType([PropTypes.func, PropTypes.shape({ current: PropTypes.any })]),
   onError: PropTypes.func,
   onCameraReady: PropTypes.func,
-  onMountError: PropTypes.func
+  onMountError: PropTypes.func,
 };
 
 CustomCamera.defaultProps = {
@@ -102,10 +99,17 @@ CustomCamera.defaultProps = {
   innerRef: null,
   onError: null,
   onCameraReady: null,
-  onMountError: null
+  onMountError: null,
 };
 
 const styles = StyleSheet.create({
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 14,
+    marginTop: 10,
+    paddingHorizontal: 20,
+    textAlign: 'center',
+  },
   loading: {
     alignItems: 'center',
     backgroundColor: '#222',
@@ -115,12 +119,5 @@ const styles = StyleSheet.create({
   text: {
     color: 'white',
     fontSize: 16,
-  },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: 14,
-    marginTop: 10,
-    textAlign: 'center',
-    paddingHorizontal: 20,
   },
 });

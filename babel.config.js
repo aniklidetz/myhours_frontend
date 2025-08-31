@@ -3,13 +3,13 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // Добавляем плагин для алиасов путей
+      // Add plugin for path aliases
       [
         'module-resolver',
         {
           root: ['.'],
           alias: {
-            // Здесь указываем соответствие между путями "@/hooks/*" и реальными путями "hooks/*"
+            // Here we specify mapping between "@/hooks/*" paths and real "hooks/*" paths
             '@/hooks': './hooks',
             '@/components': './components',
             '@/constants': './constants',

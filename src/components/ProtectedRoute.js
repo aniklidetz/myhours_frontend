@@ -15,6 +15,13 @@ export default function ProtectedRoute({ requiredRole, children }) {
     }
   }, [user, loading]);
 
+  // Check access and redirect if needed
+  React.useEffect(() => {
+    if (!loading && user && !hasAccess(requiredRole)) {
+      router.replace('/');
+    }
+  }, [user, loading, hasAccess, requiredRole]);
+
   // Check if user data is still loading
   if (loading) {
     return (
@@ -29,13 +36,6 @@ export default function ProtectedRoute({ requiredRole, children }) {
     return null;
   }
 
-  // Check access and redirect if needed
-  React.useEffect(() => {
-    if (!loading && user && !hasAccess(requiredRole)) {
-      router.replace('/');
-    }
-  }, [user, loading, hasAccess, requiredRole]);
-
   // If the user doesn't have the required role, show nothing while redirecting
   if (!hasAccess(requiredRole)) {
     return null;
@@ -47,16 +47,16 @@ export default function ProtectedRoute({ requiredRole, children }) {
 
 ProtectedRoute.propTypes = {
   requiredRole: PropTypes.string.isRequired,
-  children: PropTypes.node.isRequired
+  children: PropTypes.node.isRequired,
 };
 
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
+    backgroundColor: Colors.background.secondary,
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: Colors.background.secondary,
   },
   errorText: {
     color: Colors.danger,

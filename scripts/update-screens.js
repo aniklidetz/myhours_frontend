@@ -4,7 +4,7 @@
 // List of screens that need to be updated
 const SCREENS_TO_UPDATE = [
   'biometric-check.js',
-  'biometric-registration.js', 
+  'biometric-registration.js',
   'biometric-verification.js',
   'edit-employee.js',
   'employees.js',
@@ -12,25 +12,26 @@ const SCREENS_TO_UPDATE = [
   'payroll.js',
   'team-management.js',
   'advanced-office-settings.js',
-  'admin.js'
+  'admin.js',
 ];
 
 // Common replacements for all screens
 const COMMON_REPLACEMENTS = {
   // Replace imports
-  'LiquidGlassLayout': 'ScreenLayout',
+  LiquidGlassLayout: 'ScreenLayout',
   'import LiquidGlassLayout': 'import ScreenLayout',
-  
+
   // Replace SafeAreaView usage patterns
   'SafeAreaView style={[': 'View style={[',
   'SafeAreaView style={{': 'View style={{',
-  ', { paddingBottom: Platform.OS === \'ios\' ? ': ', { // Removed padding - handled by ScreenLayout:',
-  
+  ", { paddingBottom: Platform.OS === 'ios' ? ":
+    ', { // Removed padding - handled by ScreenLayout:',
+
   // Common padding patterns to remove/update
-  'paddingBottom: Platform.OS === \'ios\' ? 100 : 80': '// Removed - handled by ScreenLayout',
-  'paddingBottom: Platform.OS === \'ios\' ? 120 : 100': '// Removed - handled by ScreenLayout',
+  "paddingBottom: Platform.OS === 'ios' ? 100 : 80": '// Removed - handled by ScreenLayout',
+  "paddingBottom: Platform.OS === 'ios' ? 120 : 100": '// Removed - handled by ScreenLayout',
   'paddingBottom: 80': '// Removed - handled by ScreenLayout',
-  'paddingBottom: 100': '// Removed - handled by ScreenLayout'
+  'paddingBottom: 100': '// Removed - handled by ScreenLayout',
 };
 
 // Screen-specific patterns
@@ -48,7 +49,7 @@ const SCREEN_PATTERNS = {
       </View>
     );
     `,
-    
+
     wrapWithFooter: `
     const footer = (
       <View style={styles.buttonContainer}>
@@ -60,7 +61,7 @@ const SCREEN_PATTERNS = {
       </View>
     );
     `,
-    
+
     returnStatement: `
     return (
       <ScreenLayout 
@@ -71,7 +72,7 @@ const SCREEN_PATTERNS = {
         {/* Your content here */}
       </ScreenLayout>
     );
-    `
+    `,
   },
 
   // For list screens (employees, worktime, etc.)
@@ -82,7 +83,7 @@ const SCREEN_PATTERNS = {
         {/* Your content here */}
       </ScreenLayout>
     );
-    `
+    `,
   },
 
   // For camera/full-screen screens
@@ -96,8 +97,8 @@ const SCREEN_PATTERNS = {
         {/* Your content here */}
       </ScreenLayout>
     );
-    `
-  }
+    `,
+  },
 };
 
 // Manual update instructions
@@ -147,5 +148,5 @@ For each screen in: ${SCREENS_TO_UPDATE.join(', ')}
 module.exports = {
   SCREENS_TO_UPDATE,
   COMMON_REPLACEMENTS,
-  SCREEN_PATTERNS
+  SCREEN_PATTERNS,
 };

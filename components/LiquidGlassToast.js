@@ -1,27 +1,20 @@
-import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  PanResponder,
-  Dimensions,
-  Platform,
-} from 'react-native';
+/* eslint-disable react/prop-types */
+import React, { useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, Animated, PanResponder, Dimensions, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: _screenWidth } = Dimensions.get('window');
 
-const LiquidGlassToast = ({ 
-  visible, 
-  message, 
+const LiquidGlassToast = ({
+  visible,
+  message,
   type = 'info', // 'success', 'error', 'warning', 'info'
   duration = 3000,
   position = 'top', // 'top', 'bottom'
-  onHide
+  onHide,
 }) => {
   const theme = useLiquidGlassTheme();
   const translateY = useRef(new Animated.Value(position === 'top' ? -100 : 100)).current;
@@ -55,7 +48,7 @@ const LiquidGlassToast = ({
     },
   });
 
-  const showToast = () => {
+  const showToast = useCallback(() => {
     Animated.parallel([
       Animated.spring(translateY, {
         toValue: 0,
@@ -88,9 +81,9 @@ const LiquidGlassToast = ({
         }),
       ]),
     ]).start();
-  };
+  }, [translateY, opacity, scale, rotateX]);
 
-  const hideToast = () => {
+  const hideToast = useCallback(() => {
     Animated.parallel([
       Animated.spring(translateY, {
         toValue: position === 'top' ? -100 : 100,
@@ -113,23 +106,23 @@ const LiquidGlassToast = ({
     ]).start(() => {
       onHide && onHide();
     });
-  };
+  }, [translateY, opacity, scale, position, onHide]);
 
   useEffect(() => {
     if (visible) {
       showToast();
-      
+
       if (duration > 0) {
         const timer = setTimeout(() => {
           hideToast();
         }, duration);
-        
+
         return () => clearTimeout(timer);
       }
     } else {
       hideToast();
     }
-  }, [visible, duration]);
+  }, [visible, duration, showToast, hideToast]);
 
   const getTypeConfig = () => {
     switch (type) {
@@ -179,72 +172,72 @@ const LiquidGlassToast = ({
   const typeConfig = getTypeConfig();
 
   const styles = StyleSheet.create({
-    container: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      top: position === 'top' ? Platform.OS === 'ios' ? 50 : 30 : undefined,
-      bottom: position === 'bottom' ? Platform.OS === 'ios' ? 50 : 30 : undefined,
-      zIndex: 9999,
-      paddingHorizontal: theme.spacing.lg,
-    },
-    toast: {
-      borderRadius: theme.borderRadius.xl,
-      overflow: 'hidden',
-      minHeight: 60,
-      shadowColor: theme.shadows.elevated.shadowColor,
-      shadowOffset: theme.shadows.elevated.shadowOffset,
-      shadowOpacity: theme.shadows.elevated.shadowOpacity,
-      shadowRadius: theme.shadows.elevated.shadowRadius,
-      elevation: theme.shadows.elevated.elevation,
-    },
     blurContainer: {
       borderRadius: theme.borderRadius.xl,
       overflow: 'hidden',
     },
-    gradient: {
-      position: 'absolute',
-      top: 0,
+    container: {
+      bottom: position === 'bottom' ? (Platform.OS === 'ios' ? 50 : 30) : undefined,
       left: 0,
+      paddingHorizontal: theme.spacing.lg,
+      position: 'absolute',
       right: 0,
-      bottom: 0,
+      top: position === 'top' ? (Platform.OS === 'ios' ? 50 : 30) : undefined,
+      zIndex: 9999,
     },
     content: {
-      flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.md,
+      backgroundColor: theme.colors.glass.light,
+      borderColor: theme.colors.glass.border,
       borderRadius: theme.borderRadius.xl,
       borderWidth: 1,
-      borderColor: theme.colors.glass.border,
-      backgroundColor: theme.colors.glass.light,
+      flexDirection: 'row',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+    },
+    dismissIndicator: {
+      alignSelf: 'center',
+      backgroundColor: theme.colors.glass.border,
+      borderRadius: 2,
+      height: 3,
+      marginTop: theme.spacing.xs,
+      opacity: 0.6,
+      width: 30,
+    },
+    gradient: {
+      bottom: 0,
+      left: 0,
+      position: 'absolute',
+      right: 0,
+      top: 0,
     },
     iconContainer: {
-      marginRight: theme.spacing.md,
-      width: 24,
+      alignItems: 'center',
       height: 24,
       justifyContent: 'center',
-      alignItems: 'center',
-    },
-    textContainer: {
-      flex: 1,
+      marginRight: theme.spacing.md,
+      width: 24,
     },
     message: {
+      color: theme.colors.text.primary,
       fontSize: theme.typography.body.fontSize,
       fontWeight: '600',
-      color: theme.colors.text.primary,
       textShadowColor: theme.shadows.text.color,
       textShadowOffset: theme.shadows.text.offset,
       textShadowRadius: theme.shadows.text.radius,
     },
-    dismissIndicator: {
-      width: 30,
-      height: 3,
-      backgroundColor: theme.colors.glass.border,
-      borderRadius: 2,
-      alignSelf: 'center',
-      marginTop: theme.spacing.xs,
-      opacity: 0.6,
+    textContainer: {
+      flex: 1,
+    },
+    toast: {
+      borderRadius: theme.borderRadius.xl,
+      elevation: theme.shadows.elevated.elevation,
+      minHeight: 60,
+      overflow: 'hidden',
+      shadowColor: theme.shadows.elevated.shadowColor,
+      shadowOffset: theme.shadows.elevated.shadowOffset,
+      shadowOpacity: theme.shadows.elevated.shadowOpacity,
+      shadowRadius: theme.shadows.elevated.shadowRadius,
     },
   });
 
@@ -286,11 +279,7 @@ const LiquidGlassToast = ({
           />
           <View style={styles.content}>
             <View style={styles.iconContainer}>
-              <Ionicons
-                name={typeConfig.icon}
-                size={24}
-                color={typeConfig.color}
-              />
+              <Ionicons name={typeConfig.icon} size={24} color={typeConfig.color} />
             </View>
             <View style={styles.textContainer}>
               <Text style={styles.message}>{message}</Text>

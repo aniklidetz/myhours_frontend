@@ -1,15 +1,16 @@
 // app/test-employees.js
-// Тестовый маршрут для обхода авторизации и прямого перехода на employees
+// Test route to bypass authorization and go directly to employees
 
 import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useUser } from '../src/contexts/UserContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import SecureStorageManager from '../src/utils/secureStorage';
 import { APP_CONFIG } from '../src/config';
 
 export default function TestEmployeesScreen() {
-  const { login } = useUser();
+  const { login: _login } = useUser();
 
   useEffect(() => {
     autoLogin();
@@ -18,8 +19,8 @@ export default function TestEmployeesScreen() {
   const autoLogin = async () => {
     try {
       // Automatic login with test data
-      console.log('🔐 Auto-login for testing...');
-      
+      console.log('Auto-login for testing...');
+
       // Create test user
       const mockUser = {
         id: 1,
@@ -28,25 +29,18 @@ export default function TestEmployeesScreen() {
         first_name: 'Test',
         last_name: 'User',
         role: 'employee',
-        is_superuser: false
+        is_superuser: false,
       };
-      
-      // Сохраняем в storage
-      await AsyncStorage.setItem(
-        APP_CONFIG.STORAGE_KEYS.USER_DATA,
-        JSON.stringify(mockUser)
-      );
-      await AsyncStorage.setItem(
-        APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
-        'mock-token-test'
-      );
-      
-      // Небольшая задержка для инициализации
+
+      // Save to storage
+      await AsyncStorage.setItem(APP_CONFIG.STORAGE_KEYS.USER_DATA, JSON.stringify(mockUser));
+      await SecureStorageManager.setItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN, 'mock-token-test');
+
+      // Small delay for initialization
       setTimeout(() => {
-        console.log('✅ Auto-login complete, navigating to employees');
+        console.log('Auto-login complete, navigating to employees');
         router.replace('/employees');
       }, 500);
-      
     } catch (error) {
       console.error('Auto-login failed:', error);
     }

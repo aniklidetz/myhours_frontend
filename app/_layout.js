@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
 import { UserProvider, useUser, ROLES } from '../src/contexts/UserContext';
 import { OfficeProvider } from '../src/contexts/OfficeContext';
@@ -9,7 +9,7 @@ import { WorkStatusProvider } from '../src/contexts/WorkStatusContext';
 import { ToastProvider } from '../contexts/ToastContext';
 import useColors from '../hooks/useColors';
 import useGlobalGlassModal from '../hooks/useGlobalGlassModal';
-// ✅ SAFE IMPORT: Add error handling for silentLogger
+// SAFE IMPORT: Add error handling for silentLogger
 // import { setupSilentLogging } from '../utils/silentLogger';
 
 // FIX: Use the dedicated component instead of duplicating code
@@ -18,7 +18,7 @@ import LogoutButton from '../components/LogoutButton';
 import { COLORS, SPACING } from '../constants/CommonStyles';
 
 // FIX: Adaptive distribution of navigation icons
-const getTabBarStyle = (visibleTabsCount) => ({
+const getTabBarStyle = visibleTabsCount => ({
   backgroundColor: COLORS.backgroundPrimary, // Semi-transparent black rgba(0, 0, 0, 0.6)
   backdropFilter: 'blur(20px)',
   borderTopWidth: 0,
@@ -48,7 +48,7 @@ const getVisibleTabsCount = (user, canManageTeam, canAdministrate) => {
 
   let count = 4; // Base tabs: Check In/Out, Dashboard, Time, Payroll
 
-  if (canManageTeam)   count += 1; // Team Management
+  if (canManageTeam) count += 1; // Team Management
   if (canAdministrate) count += 2; // Admin + Office
 
   return count;
@@ -59,10 +59,10 @@ function TabsNavigator() {
   const { palette } = useColors();
   const { modalState, GlassModal } = useGlobalGlassModal();
 
-  const isEmployee       = user?.role === ROLES.EMPLOYEE;
-  const canManagePayroll = hasAccess(ROLES.ACCOUNTANT);
-  const canAdministrate  = hasAccess(ROLES.ADMIN);
-  const canManageTeam    = hasAccess(ROLES.ACCOUNTANT) || hasAccess(ROLES.ADMIN);
+  const isEmployee = user?.role === ROLES.EMPLOYEE;
+  // const canManagePayroll = hasAccess(ROLES.ACCOUNTANT);
+  const canAdministrate = hasAccess(ROLES.ADMIN);
+  const canManageTeam = hasAccess(ROLES.ACCOUNTANT) || hasAccess(ROLES.ADMIN);
 
   // Calculate number of visible tabs
   const visibleTabsCount = getVisibleTabsCount(user, canManageTeam, canAdministrate);
@@ -72,45 +72,43 @@ function TabsNavigator() {
       <Tabs
         sceneContainerStyle={{ backgroundColor: 'transparent' }}
         screenOptions={{
-          tabBarActiveTintColor:   COLORS.textPrimary,   // Use constant
+          tabBarActiveTintColor: COLORS.textPrimary, // Use constant
           tabBarInactiveTintColor: COLORS.textSecondary, // Use constant
           headerShown: true,
           headerStyle: {
             backgroundColor: palette.background.primary,
           },
-          headerTintColor: COLORS.textPrimary,           // Use constant
+          headerTintColor: COLORS.textPrimary, // Use constant
           headerTitleStyle: {
-            color:      COLORS.textPrimary,              // Use constant
+            color: COLORS.textPrimary, // Use constant
             fontWeight: '600',
           },
-          headerBackVisible:           true,
-          headerBackTitleVisible:      false,
+          headerBackVisible: true,
+          headerBackTitleVisible: false,
           headerBackButtonMenuEnabled: false,
           // FIX: Use the LogoutButton component
           headerRight: user ? () => <LogoutButton.Header /> : undefined,
           // FIX: Adaptive navigation style
-          tabBarStyle: user
-            ? getTabBarStyle(visibleTabsCount)
-            : { display: 'none' },
+          tabBarStyle: user ? getTabBarStyle(visibleTabsCount) : { display: 'none' },
           tabBarLabelStyle: {
             fontSize: 12,
             fontWeight: '600',
             marginTop: 2,
-            textShadowColor:   'rgba(0, 0, 0, 0.3)',
-            textShadowOffset:  { width: 0, height: 1 },
-            textShadowRadius:  1,
+            textShadowColor: 'rgba(0, 0, 0, 0.3)',
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 1,
           },
           tabBarIconStyle: {
             marginBottom: 2,
-            shadowColor:   '#000000',
-            shadowOffset:  { width: 0, height: 1 },
+            shadowColor: '#000000',
+            shadowOffset: { width: 0, height: 1 },
             shadowOpacity: 0.3,
-            shadowRadius:  1,
+            shadowRadius: 1,
           },
           // FIX: Adaptive icon sizes
           tabBarItemStyle: {
             flex: 1,
-            maxWidth:        visibleTabsCount > 6 ? 60 : 80,
+            maxWidth: visibleTabsCount > 6 ? 60 : 80,
             paddingHorizontal: visibleTabsCount > 6 ? 2 : 4,
           },
         }}
@@ -131,10 +129,8 @@ function TabsNavigator() {
           options={{
             title: 'Check In/Out',
             tabBarLabel: 'Check In',
-            tabBarIcon: ({ color }) => (
-              <Ionicons name="finger-print" size={24} color={color} />
-            ),
-            tabBarButton: (!user && !isLoggingOut) ? () => null : undefined,
+            tabBarIcon: ({ color }) => <Ionicons name="finger-print" size={24} color={color} />,
+            tabBarButton: !user && !isLoggingOut ? () => null : undefined,
           }}
         />
 
@@ -142,16 +138,12 @@ function TabsNavigator() {
         <Tabs.Screen
           name="employees"
           options={{
-            title:      isEmployee ? 'My Workday' : 'Dashboard',
-            tabBarLabel: isEmployee ? 'My Day'   : 'Dashboard',
+            title: isEmployee ? 'My Workday' : 'Dashboard',
+            tabBarLabel: isEmployee ? 'My Day' : 'Dashboard',
             tabBarIcon: ({ color }) => (
-              <Ionicons
-                name={isEmployee ? 'person' : 'home'}
-                size={24}
-                color={color}
-              />
+              <Ionicons name={isEmployee ? 'person' : 'home'} size={24} color={color} />
             ),
-            tabBarButton: (!user && !isLoggingOut) ? () => null : undefined,
+            tabBarButton: !user && !isLoggingOut ? () => null : undefined,
           }}
         />
 
@@ -159,12 +151,10 @@ function TabsNavigator() {
         <Tabs.Screen
           name="worktime"
           options={{
-            title:      isEmployee ? 'My Work Hours' : 'Work Time',
-            tabBarLabel: isEmployee ? 'Hours'        : 'Time',
-            tabBarIcon: ({ color }) => (
-              <Ionicons name="time" size={24} color={color} />
-            ),
-            tabBarButton: (!user && !isLoggingOut) ? () => null : undefined,
+            title: isEmployee ? 'My Work Hours' : 'Work Time',
+            tabBarLabel: isEmployee ? 'Hours' : 'Time',
+            tabBarIcon: ({ color }) => <Ionicons name="time" size={24} color={color} />,
+            tabBarButton: !user && !isLoggingOut ? () => null : undefined,
           }}
         />
 
@@ -172,12 +162,10 @@ function TabsNavigator() {
         <Tabs.Screen
           name="payroll"
           options={{
-            title:      isEmployee ? 'My Salary' : 'Payroll',
-            tabBarLabel: isEmployee ? 'Salary'   : 'Payroll',
-            tabBarIcon: ({ color }) => (
-              <Ionicons name="cash" size={24} color={color} />
-            ),
-            tabBarButton: (!user && !isLoggingOut) ? () => null : undefined,
+            title: isEmployee ? 'My Salary' : 'Payroll',
+            tabBarLabel: isEmployee ? 'Salary' : 'Payroll',
+            tabBarIcon: ({ color }) => <Ionicons name="cash" size={24} color={color} />,
+            tabBarButton: !user && !isLoggingOut ? () => null : undefined,
           }}
         />
 
@@ -187,13 +175,10 @@ function TabsNavigator() {
           options={{
             title: 'Team Management',
             tabBarLabel: 'Team',
-            tabBarIcon: ({ color }) => (
-              <Ionicons name="people" size={24} color={color} />
-            ),
-            tabBarButton: (!user || !canManageTeam) ? () => null : undefined,
+            tabBarIcon: ({ color }) => <Ionicons name="people" size={24} color={color} />,
+            tabBarButton: !user || !canManageTeam ? () => null : undefined,
           }}
         />
-
 
         {/* Advanced Office Settings */}
         <Tabs.Screen
@@ -201,10 +186,8 @@ function TabsNavigator() {
           options={{
             title: 'Administration',
             tabBarLabel: 'Admin',
-            tabBarIcon: ({ color }) => (
-              <Ionicons name="settings" size={24} color={color} />
-            ),
-            tabBarButton: (!user || !canAdministrate) ? () => null : undefined,
+            tabBarIcon: ({ color }) => <Ionicons name="settings" size={24} color={color} />,
+            tabBarButton: !user || !canAdministrate ? () => null : undefined,
           }}
         />
 
@@ -228,7 +211,6 @@ function TabsNavigator() {
             headerBackVisible: true,
           }}
         />
-
 
         {/* Dev/Admin routes – completely hidden from tab bar */}
         <Tabs.Screen
@@ -293,23 +275,41 @@ function TabsNavigator() {
   );
 }
 
-// ✅ SAFE SILENT LOGGING SETUP
+// SAFE SILENT LOGGING SETUP
 const setupSafeSilentLogging = async () => {
   try {
     const { setupSilentLogging } = await import('../utils/silentLogger');
     setupSilentLogging();
-    console.log('✅ Silent logging setup completed');
+    console.log('Silent logging setup completed');
   } catch (error) {
-    console.warn('⚠️ Could not setup silent logging:', error.message);
+    console.warn('Could not setup silent logging:', error.message);
     // Continue without silent logging - not critical for app functionality
   }
 };
 
-// Main Layout component with safe silent logging
+// SAFE STORAGE MIGRATION
+const setupStorageMigration = async () => {
+  try {
+    const SecureStorageManager = (await import('../src/utils/secureStorage')).default;
+    console.log('Starting storage migration...');
+    await SecureStorageManager.migrateOldKeys();
+    console.log('Storage migration completed');
+  } catch (error) {
+    console.warn('Could not complete storage migration:', error.message);
+    // Continue without migration - not critical for app functionality
+  }
+};
+
+// Main Layout component with safe silent logging and storage migration
 export default function Layout() {
   useEffect(() => {
-    // ✅ SAFE SETUP: Use async import with error handling
-    setupSafeSilentLogging();
+    // SAFE SETUP: Use async import with error handling
+    const initializeApp = async () => {
+      await setupStorageMigration(); // Migration first to ensure proper key format
+      await setupSafeSilentLogging(); // Then logging setup
+    };
+
+    initializeApp();
   }, []);
 
   return (

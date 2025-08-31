@@ -14,23 +14,23 @@ export const COLORS = {
   warning: '#f59e0b',
   error: '#ef4444',
   info: '#06b6d4',
-  
+
   // Text
   textPrimary: '#FFFFFF',
   textSecondary: 'rgba(255, 255, 255, 0.8)',
   textMuted: 'rgba(255, 255, 255, 0.6)',
   textDisabled: 'rgba(255, 255, 255, 0.4)',
-  
+
   // Glass effects
   glassLight: 'rgba(255, 255, 255, 0.1)',
   glassMedium: 'rgba(255, 255, 255, 0.2)',
   glassHeavy: 'rgba(255, 255, 255, 0.3)',
   glassBorder: 'rgba(255, 255, 255, 0.2)',
-  
+
   // Shift statuses
   onShift: 'rgba(34, 197, 94, 0.8)',
   offShift: 'rgba(107, 114, 128, 0.8)',
-  
+
   // Backgrounds
   backgroundPrimary: 'rgba(0, 0, 0, 0.6)',
   backgroundSecondary: 'rgba(0, 0, 0, 0.4)',
@@ -39,16 +39,16 @@ export const COLORS = {
   gradients: {
     // Primary actions (like Team Members buttons)
     teamAction: ['#ec4899', '#f97316'], // Pink to orange gradient
-    primary: ['#3b82f6', '#6366f1'],    // Blue gradient
-    success: ['#22c55e', '#10b981'],    // Green gradient
-    warning: ['#f59e0b', '#f97316'],    // Orange gradient
-    danger: ['#ef4444', '#dc2626'],     // Red gradient
-    
+    primary: ['#3b82f6', '#6366f1'], // Blue gradient
+    success: ['#22c55e', '#10b981'], // Green gradient
+    warning: ['#f59e0b', '#f97316'], // Orange gradient
+    danger: ['#ef4444', '#dc2626'], // Red gradient
+
     // Liquid glass specific gradients
-    liquidWarm: ['#e94560', '#f27121'],    // Warm blob colors
-    liquidCool: ['#721b65', '#b80d57'],    // Cool blob colors
+    liquidWarm: ['#e94560', '#f27121'], // Warm blob colors
+    liquidCool: ['#721b65', '#b80d57'], // Cool blob colors
     liquidNeutral: ['#0f3460', '#533483'], // Neutral blob colors
-    
+
     // Glass overlays
     glassOverlay: ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)'],
     glassBorder: ['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.1)'],
@@ -148,7 +148,7 @@ export const commonStyles = StyleSheet.create({
   spaceBetween: {
     justifyContent: 'space-between',
   },
-  
+
   // Cards
   card: {
     backgroundColor: COLORS.glassLight,
@@ -174,7 +174,7 @@ export const commonStyles = StyleSheet.create({
     paddingBottom: SPACING.sm,
     marginBottom: SPACING.sm,
   },
-  
+
   // Headers
   header: {
     backgroundColor: 'transparent',
@@ -192,7 +192,7 @@ export const commonStyles = StyleSheet.create({
     textAlign: 'center',
     marginTop: SPACING.xs,
   },
-  
+
   // Buttons (Enhanced with gradient support)
   button: {
     paddingVertical: SPACING.md,
@@ -242,7 +242,7 @@ export const commonStyles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  
+
   // Text styles
   textTitle: {
     ...TYPOGRAPHY.title,
@@ -270,7 +270,7 @@ export const commonStyles = StyleSheet.create({
   textBold: {
     fontWeight: '600',
   },
-  
+
   // Status badges
   statusBadge: {
     paddingHorizontal: SPACING.md,
@@ -298,7 +298,7 @@ export const commonStyles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontWeight: '600',
   },
-  
+
   // Form elements (Enhanced for better consistency)
   input: {
     backgroundColor: COLORS.glassLight,
@@ -328,7 +328,7 @@ export const commonStyles = StyleSheet.create({
     marginBottom: SPACING.xs,
     fontWeight: '600',
   },
-  
+
   // NEW: Input with button styles (for office-settings.js)
   inputWithButton: {
     flexDirection: 'row',
@@ -375,7 +375,7 @@ export const commonStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
   },
-  
+
   // Loading state
   loader: {
     flex: 1,
@@ -389,7 +389,7 @@ export const commonStyles = StyleSheet.create({
     marginTop: SPACING.md,
     textAlign: 'center',
   },
-  
+
   // Empty state
   emptyState: {
     flex: 1,
@@ -409,7 +409,7 @@ export const commonStyles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
   },
-  
+
   // Navigation styles
   tabBar: {
     backgroundColor: COLORS.backgroundPrimary,
@@ -423,7 +423,7 @@ export const commonStyles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 2,
   },
-  
+
   // Selector styles (for filters)
   selectorContainer: {
     marginBottom: SPACING.md,
@@ -459,7 +459,7 @@ export const commonStyles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontWeight: '600',
   },
-  
+
   // List styles
   listContainer: {
     padding: SPACING.lg,
@@ -473,7 +473,7 @@ export const commonStyles = StyleSheet.create({
     padding: SPACING.md,
     marginBottom: SPACING.sm,
   },
-  
+
   // Modal styles
   modalOverlay: {
     flex: 1,

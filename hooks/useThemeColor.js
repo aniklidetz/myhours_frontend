@@ -2,38 +2,38 @@ import { useColorScheme } from 'react-native';
 import Colors from '../constants/Colors';
 
 /**
- * Хук для получения цвета в зависимости от текущей темы
+ * Hook to get color depending on current theme
  */
 export function useThemeColor(props, colorName) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const palette = isDark ? Colors.darkTheme : Colors;
-  
-  // Если в props указаны конкретные цвета для темной/светлой темы, используем их
+
+  // If specific colors for dark/light theme are specified in props, use them
   const colorFromProps = isDark ? props.dark : props.light;
   if (colorFromProps) {
     return colorFromProps;
   }
-  
-  // Для простых имен цветов
+
+  // For simple color names
   if (colorName && !colorName.includes('.')) {
     return palette[colorName] || (isDark ? '#000' : '#fff');
   }
-  
-  // Если указано имя цвета с точкой (например 'text.primary'), разберем его
+
+  // If color name with dot is specified (e.g. 'text.primary'), parse it
   if (colorName && colorName.includes('.')) {
     const parts = colorName.split('.');
     let color = palette;
     for (const part of parts) {
       if (color?.[part] === undefined) {
-        console.warn(`Цвет "${colorName}" не найден в палитре`);
+        console.warn(`Color "${colorName}" not found in palette`);
         return isDark ? '#000' : '#fff';
       }
       color = color[part];
     }
     return color;
   }
-  
+
   return isDark ? '#000' : '#fff';
 }
 

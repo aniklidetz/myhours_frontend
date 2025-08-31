@@ -30,25 +30,37 @@ export const ToastProvider = ({ children }) => {
     return id;
   }, []);
 
-  const hideToast = useCallback((id) => {
+  const hideToast = useCallback(id => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   }, []);
 
-  const showSuccess = useCallback((message, options = {}) => {
-    return showToast(message, 'success', options);
-  }, [showToast]);
+  const showSuccess = useCallback(
+    (message, options = {}) => {
+      return showToast(message, 'success', options);
+    },
+    [showToast]
+  );
 
-  const showError = useCallback((message, options = {}) => {
-    return showToast(message, 'error', options);
-  }, [showToast]);
+  const showError = useCallback(
+    (message, options = {}) => {
+      return showToast(message, 'error', options);
+    },
+    [showToast]
+  );
 
-  const showWarning = useCallback((message, options = {}) => {
-    return showToast(message, 'warning', options);
-  }, [showToast]);
+  const showWarning = useCallback(
+    (message, options = {}) => {
+      return showToast(message, 'warning', options);
+    },
+    [showToast]
+  );
 
-  const showInfo = useCallback((message, options = {}) => {
-    return showToast(message, 'info', options);
-  }, [showToast]);
+  const showInfo = useCallback(
+    (message, options = {}) => {
+      return showToast(message, 'info', options);
+    },
+    [showToast]
+  );
 
   const clearAll = useCallback(() => {
     setToasts([]);

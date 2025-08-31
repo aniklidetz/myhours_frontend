@@ -1,51 +1,65 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  ActivityIndicator,
-  Platform
-} from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { showGlassAlert, showGlassConfirm } from '../hooks/useGlobalGlassModal';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useUser } from '../src/contexts/UserContext';
 import { useOffice } from '../src/contexts/OfficeContext';
 import { useWorkStatus } from '../src/contexts/WorkStatusContext';
 import useColors from '../hooks/useColors';
-import HeaderBackButton from '../src/components/HeaderBackButton';
 import useLocation from '../hooks/useLocation';
-import { safeLog, safeLogUser, maskEmail, safeLogLocation } from '../src/utils/safeLogging';
+import { safeLog, safeLogUser, safeLogLocation } from '../src/utils/safeLogging';
 import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassCard from '../components/LiquidGlassCard';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
-import LogoutButton from '../src/components/LogoutButton';
-import { commonStyles, COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/CommonStyles';
+import {
+  commonStyles,
+  COLORS,
+  SPACING,
+  TYPOGRAPHY,
+  BORDER_RADIUS,
+} from '../constants/CommonStyles';
 
 export default function CheckInOutScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [manualOperation, setManualOperation] = useState(false);
   const lastFocusTime = useRef(0);
-  
+
   // Check for manual mode parameter
   const params = useLocalSearchParams();
   const isManualMode = params?.manual === 'true';
-  
+
   const { user } = useUser();
-  const { palette } = useColors();
+  const { palette: _palette } = useColors();
   const theme = useLiquidGlassTheme();
   const { officeSettings } = useOffice();
   const { location, isUserInRadius } = useLocation({ watchPosition: false });
-  const { 
-    workStatus, 
-    loading, 
-    loadWorkStatus, 
-    getCurrentDuration,
-    shiftStartTime 
-  } = useWorkStatus();
+  const { workStatus, loading, loadWorkStatus, getCurrentDuration, shiftStartTime } =
+    useWorkStatus();
+
+  // Reload when screen comes into focus with debounce - MOVED BEFORE EARLY RETURN
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
+      const timeSinceLastFocus = now - lastFocusTime.current;
+
+      // Prevent rapid refreshes - minimum 2 seconds between refreshes
+      if (user && user.id && !refreshing && timeSinceLastFocus > 2000) {
+        safeLog('Check-in/out screen focused, refreshing status');
+        lastFocusTime.current = now;
+        setRefreshing(true);
+        loadWorkStatus(true).finally(() => {
+          setRefreshing(false);
+        });
+      }
+
+      // Return cleanup function
+      return () => {
+        safeLog('Check-in/out screen unfocused');
+      };
+    }, [user, refreshing, loadWorkStatus]) // Include all dependencies
+  );
 
   // Ensure theme is loaded before using it
   if (!theme) {
@@ -72,31 +86,31 @@ export default function CheckInOutScreen() {
       // Padding handled by LiquidGlassScreenLayout
     },
     refreshIndicator: {
-      flexDirection: 'row',
       alignItems: 'center',
+      alignSelf: 'center',
       backgroundColor: COLORS.glassMedium,
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
+      borderColor: COLORS.glassBorder,
       borderRadius: BORDER_RADIUS.lg,
       borderWidth: 1,
-      borderColor: COLORS.glassBorder,
+      flexDirection: 'row',
       marginBottom: SPACING.md,
-      alignSelf: 'center',
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
     },
     refreshText: {
-      marginLeft: SPACING.sm,
       color: COLORS.textSecondary,
       fontSize: TYPOGRAPHY.caption.fontSize,
+      marginLeft: SPACING.sm,
     },
     manualModeIndicator: {
+      alignSelf: 'center',
       backgroundColor: COLORS.warning,
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
+      borderColor: 'rgba(251, 191, 36, 0.5)',
       borderRadius: BORDER_RADIUS.lg,
       borderWidth: 1,
-      borderColor: 'rgba(251, 191, 36, 0.5)',
       marginBottom: SPACING.md,
-      alignSelf: 'center',
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
     },
     manualModeText: {
       color: COLORS.textPrimary,
@@ -104,12 +118,12 @@ export default function CheckInOutScreen() {
       fontWeight: '600',
       textAlign: 'center',
     },
-    
+
     // Unified card styles with center alignment
     statusCard: {
-      marginBottom: SPACING.md,
       alignItems: 'center',
       justifyContent: 'center',
+      marginBottom: SPACING.md,
     },
     statusTitle: {
       ...TYPOGRAPHY.subtitle,
@@ -118,8 +132,8 @@ export default function CheckInOutScreen() {
       textAlign: 'center',
     },
     statusHeader: {
-      flexDirection: 'row',
       alignItems: 'center',
+      flexDirection: 'row',
       justifyContent: 'center',
       marginBottom: SPACING.md,
       width: '100%',
@@ -127,10 +141,10 @@ export default function CheckInOutScreen() {
     currentStatusBadge: {
       ...commonStyles.statusBadge,
       alignSelf: 'center',
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.sm,
       borderRadius: BORDER_RADIUS.full,
       marginBottom: SPACING.sm,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.sm,
     },
     onShiftBadge: {
       backgroundColor: COLORS.onShift,
@@ -140,9 +154,9 @@ export default function CheckInOutScreen() {
     },
     currentStatusText: {
       ...commonStyles.statusText,
+      color: COLORS.textPrimary,
       fontSize: 16,
       fontWeight: 'bold',
-      color: COLORS.textPrimary,
       textAlign: 'center',
     },
     shiftTimeText: {
@@ -152,8 +166,8 @@ export default function CheckInOutScreen() {
       textAlign: 'center',
     },
     shiftInfo: {
-      marginTop: SPACING.md,
       alignItems: 'center',
+      marginTop: SPACING.md,
       width: '100%',
     },
     shiftInfoText: {
@@ -162,30 +176,29 @@ export default function CheckInOutScreen() {
       marginVertical: SPACING.xs / 2,
       textAlign: 'center',
     },
-    
+
     // Location card styles with center alignment
     locationCard: {
-      marginBottom: SPACING.md,
       alignItems: 'center',
       justifyContent: 'center',
+      marginBottom: SPACING.md,
     },
     locationTitle: {
-      ...TYPOGRAPHY.body,
-      fontWeight: '600',
+      ...TYPOGRAPHY.subtitle,
       color: COLORS.textPrimary,
       marginBottom: SPACING.sm,
       textAlign: 'center',
     },
     locationText: {
-      fontSize: 18,
-      color: COLORS.textPrimary,
+      ...TYPOGRAPHY.caption,
+      color: COLORS.textSecondary,
       textAlign: 'center',
     },
     locationIcon: {
-      marginBottom: SPACING.xs,
       alignSelf: 'center',
+      marginBottom: SPACING.xs,
     },
-    
+
     infoText: {
       ...TYPOGRAPHY.caption,
       color: COLORS.textSecondary,
@@ -194,70 +207,42 @@ export default function CheckInOutScreen() {
     },
   });
 
-  // Reload when screen comes into focus with debounce
-  useFocusEffect(
-    useCallback(() => {
-      const now = Date.now();
-      const timeSinceLastFocus = now - lastFocusTime.current;
-      
-      // Prevent rapid refreshes - minimum 2 seconds between refreshes
-      if (user && user.id && !refreshing && timeSinceLastFocus > 2000) {
-        safeLog('Check-in/out screen focused, refreshing status');
-        lastFocusTime.current = now;
-        setRefreshing(true);
-        loadWorkStatus(true).finally(() => {
-          setRefreshing(false);
-        });
-      }
-      
-      // Return cleanup function
-      return () => {
-        safeLog('Check-in/out screen unfocused');
-      };
-    }, [user?.id, refreshing, loadWorkStatus]) // Include all dependencies
-  );
-
-
   const handleCheckIn = () => {
     safeLog('Navigating to check-in');
     router.push({
       pathname: '/biometric-check',
-      params: { mode: 'check-in' }
+      params: { mode: 'check-in' },
     });
   };
 
   const handleCheckOut = () => {
     // If manual mode is enabled for Mishka, show option
     if (isManualMode && user?.email === 'mikhail.plotnik@gmail.com') {
-      Alert.alert(
-        'Check-out Method',
-        'Choose your check-out method:',
-        [
-          {
-            text: 'Try Biometric Again',
-            onPress: () => {
-              safeLog('Navigating to biometric check-out');
-              router.push({
-                pathname: '/biometric-check',
-                params: { mode: 'check-out' }
-              });
-            }
+      Alert.alert('Check-out Method', 'Choose your check-out method:', [
+        {
+          text: 'Try Biometric Again',
+          onPress: () => {
+            safeLog('Navigating to biometric check-out');
+            router.push({
+              pathname: '/biometric-check',
+              params: { mode: 'check-out' },
+            });
           },
-          {
-            text: 'Manual Check-out',
-            onPress: handleManualCheckOut
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
-        ]
-      );
+        },
+        {
+          text: 'Manual Check-out',
+          onPress: handleManualCheckOut,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]);
     } else {
       safeLog('Navigating to check-out');
       router.push({
         pathname: '/biometric-check',
-        params: { mode: 'check-out' }
+        params: { mode: 'check-out' },
       });
     }
   };
@@ -266,7 +251,7 @@ export default function CheckInOutScreen() {
     try {
       setManualOperation(true);
       safeLog('Performing manual check-out', safeLogUser(user, 'manual_checkout'));
-      
+
       Alert.alert(
         'Manual Check-out',
         'This will check you out without biometric verification. Continue?',
@@ -276,11 +261,11 @@ export default function CheckInOutScreen() {
             onPress: async () => {
               try {
                 // Call manual check-out API endpoint
-                const ApiService = (await import('../src/api/apiService')).default;
-                const locationString = location ? 
-                  `Manual (${safeLogLocation(location.coords.latitude, location.coords.longitude)})` :
-                  'Manual (Location unavailable)';
-                
+                const _ApiService = (await import('../src/api/apiService')).default;
+                const _locationString = location
+                  ? `Manual (${safeLogLocation(location.coords.latitude, location.coords.longitude)})`
+                  : 'Manual (Location unavailable)';
+
                 // For now, we'll simulate manual check-out
                 safeLog('Simulating manual check-out');
                 Alert.alert(
@@ -288,7 +273,6 @@ export default function CheckInOutScreen() {
                   'You have been checked out manually. Please contact your administrator if you continue to have biometric issues.',
                   [{ text: 'OK', onPress: () => router.replace('/check-in-out') }]
                 );
-                
               } catch (error) {
                 safeLog('Manual check-out failed', { error: error.message });
                 Alert.alert(
@@ -297,12 +281,12 @@ export default function CheckInOutScreen() {
                   [{ text: 'OK' }]
                 );
               }
-            }
+            },
           },
           {
             text: 'Cancel',
-            style: 'cancel'
-          }
+            style: 'cancel',
+          },
         ]
       );
     } catch (error) {
@@ -312,13 +296,15 @@ export default function CheckInOutScreen() {
     }
   };
 
-  const isInOffice = location && officeSettings.location.latitude && 
+  const isInOffice =
+    location &&
+    officeSettings.location.latitude &&
     isUserInRadius(officeSettings.location, officeSettings.checkRadius);
 
   const getLocationStatus = () => {
     if (!location) return 'Location not available';
     if (!officeSettings.location.latitude) return 'Office location not configured';
-    return isInOffice ? '📍 In office' : '🏠 Remote';
+    return isInOffice ? 'In office' : 'Remote';
   };
 
   if (loading) {
@@ -369,23 +355,27 @@ export default function CheckInOutScreen() {
         {/* Current Status Card */}
         <LiquidGlassCard variant="elevated" padding="lg" style={styles.statusCard}>
           <Text style={styles.statusTitle}>Current Status</Text>
-          <View style={[
-            styles.currentStatusBadge,
-            workStatus === 'on-shift' ? styles.onShiftBadge : styles.offShiftBadge
-          ]}>
+          <View
+            style={[
+              styles.currentStatusBadge,
+              workStatus === 'on-shift' ? styles.onShiftBadge : styles.offShiftBadge,
+            ]}
+          >
             <Text style={styles.currentStatusText}>
               {workStatus === 'on-shift' ? 'On Shift' : 'Off Shift'}
             </Text>
           </View>
-          
+
           {workStatus === 'on-shift' && shiftStartTime && (
             <View style={styles.shiftInfo}>
               <Text style={styles.shiftInfoText}>
-                Started at: {new Date(shiftStartTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                Started at:{' '}
+                {new Date(shiftStartTime).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </Text>
-              <Text style={styles.shiftInfoText}>
-                Duration: {getCurrentDuration()}
-              </Text>
+              <Text style={styles.shiftInfoText}>Duration: {getCurrentDuration()}</Text>
             </View>
           )}
         </LiquidGlassCard>
@@ -393,10 +383,10 @@ export default function CheckInOutScreen() {
         {/* Location Status */}
         <LiquidGlassCard variant="bordered" padding="md" style={styles.locationCard}>
           <Text style={styles.locationTitle}>Location Status</Text>
-          <Ionicons 
-            name={isInOffice ? "business" : "home"} 
-            size={24} 
-            color={COLORS.textPrimary} 
+          <Ionicons
+            name={isInOffice ? 'business' : 'home'}
+            size={24}
+            color={COLORS.textPrimary}
             style={styles.locationIcon}
           />
           <Text style={styles.locationText}>{getLocationStatus()}</Text>
@@ -413,10 +403,9 @@ export default function CheckInOutScreen() {
 
         {/* Info Text */}
         <Text style={styles.infoText}>
-          {workStatus === 'on-shift' 
+          {workStatus === 'on-shift'
             ? 'Tap to end your work shift'
-            : 'Tap to start your work shift'
-          }
+            : 'Tap to start your work shift'}
         </Text>
 
         {/* Manual Refresh Button */}
@@ -435,3 +424,4 @@ export default function CheckInOutScreen() {
   );
 }
 
+// Force reload Wed Aug 27 22:15:23 IDT 2025

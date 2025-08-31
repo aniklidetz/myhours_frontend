@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { router } from 'expo-router';
 import ApiService from '../src/api/apiService';
 import { showGlassAlert } from '../hooks/useGlobalGlassModal';
@@ -13,13 +8,12 @@ import { EmployeeForm } from '../components/EmployeeForm';
 import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
-import HeaderBackButton from '../src/components/HeaderBackButton';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/CommonStyles';
 
 export default function AddEmployeeScreen() {
   const theme = useLiquidGlassTheme();
   const {
-    loading,
+    loading: _loading,
     saving,
     formData,
     setFormData,
@@ -53,51 +47,49 @@ export default function AddEmployeeScreen() {
     try {
       const employeeData = {
         ...formData,
-        hourly_rate: formData.employment_type === 'hourly' && formData.hourly_rate 
-          ? parseFloat(formData.hourly_rate) 
-          : null,
-        monthly_salary: formData.employment_type === 'full_time' && formData.monthly_salary 
-          ? parseFloat(formData.monthly_salary) 
-          : null,
+        hourly_rate:
+          formData.employment_type === 'hourly' && formData.hourly_rate
+            ? parseFloat(formData.hourly_rate)
+            : null,
+        monthly_salary:
+          formData.employment_type === 'full_time' && formData.monthly_salary
+            ? parseFloat(formData.monthly_salary)
+            : null,
       };
-      
+
       const employee = await ApiService.employees.create(employeeData);
-      
-      showGlassAlert(
-        'Employee Created',
-        'Would you like to send an invitation email now?',
-        [
-          {
-            text: 'Not Now',
-            style: 'cancel',
-            onPress: () => router.push('/team-management'),
+
+      showGlassAlert('Employee Created', 'Would you like to send an invitation email now?', [
+        {
+          text: 'Not Now',
+          style: 'cancel',
+          onPress: () => router.push('/team-management'),
+        },
+        {
+          text: 'Send Invitation',
+          onPress: async () => {
+            try {
+              await ApiService.employees.sendInvitation(employee.id);
+              showGlassAlert(
+                'Success',
+                `Invitation sent to ${employee.email}. They will receive an email with instructions to set up their account.`,
+                [{ text: 'OK', onPress: () => router.push('/team-management') }]
+              );
+            } catch (error) {
+              console.error('Error sending invitation:', error);
+              showGlassAlert(
+                'Invitation Failed',
+                'Employee created but invitation could not be sent. You can resend it later from the employee list.',
+                [{ text: 'OK', onPress: () => router.push('/team-management') }]
+              );
+            }
           },
-          {
-            text: 'Send Invitation',
-            onPress: async () => {
-              try {
-                await ApiService.employees.sendInvitation(employee.id);
-                showGlassAlert(
-                  'Success',
-                  `Invitation sent to ${employee.email}. They will receive an email with instructions to set up their account.`,
-                  [{ text: 'OK', onPress: () => router.push('/team-management') }]
-                );
-              } catch (error) {
-                console.error('Error sending invitation:', error);
-                showGlassAlert(
-                  'Invitation Failed',
-                  'Employee created but invitation could not be sent. You can resend it later from the employee list.',
-                  [{ text: 'OK', onPress: () => router.push('/team-management') }]
-                );
-              }
-            },
-          },
-        ]
-      );
+        },
+      ]);
     } catch (error) {
       console.error('Error creating employee:', error);
       let errorMessage = 'Failed to create employee. Please try again.';
-      
+
       if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
       } else if (error.response?.data?.email?.[0]) {
@@ -105,24 +97,20 @@ export default function AddEmployeeScreen() {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       showGlassAlert('Error', errorMessage);
     }
   };
 
   const handleCancel = () => {
-    showGlassAlert(
-      'Discard Employee',
-      'Are you sure you want to discard this new employee?',
-      [
-        { text: 'Keep Editing', style: 'cancel' },
-        { 
-          text: 'Discard', 
-          style: 'destructive',
-          onPress: () => router.push('/team-management')
-        }
-      ]
-    );
+    showGlassAlert('Discard Employee', 'Are you sure you want to discard this new employee?', [
+      { text: 'Keep Editing', style: 'cancel' },
+      {
+        text: 'Discard',
+        style: 'destructive',
+        onPress: () => router.push('/team-management'),
+      },
+    ]);
   };
 
   const styles = StyleSheet.create({
@@ -130,13 +118,13 @@ export default function AddEmployeeScreen() {
       backgroundColor: 'transparent',
       flex: 1,
     },
-    
+
     // Header Section
     header: {
       alignItems: 'center',
+      paddingBottom: SPACING.md,
       paddingHorizontal: SPACING.lg,
       paddingTop: SPACING.lg,
-      paddingBottom: SPACING.md,
     },
     title: {
       ...TYPOGRAPHY.title,
@@ -147,10 +135,10 @@ export default function AddEmployeeScreen() {
     subtitle: {
       ...TYPOGRAPHY.body,
       color: COLORS.textSecondary,
-      textAlign: 'center',
       lineHeight: 20,
+      textAlign: 'center',
     },
-    
+
     // Footer with better spacing and single Cancel button
     footer: {
       padding: SPACING.lg,
@@ -167,9 +155,7 @@ export default function AddEmployeeScreen() {
   const header = (
     <View style={styles.header}>
       <Text style={styles.title}>Add Team Member</Text>
-      <Text style={styles.subtitle}>
-        Create team member account and send invitation
-      </Text>
+      <Text style={styles.subtitle}>Create team member account and send invitation</Text>
     </View>
   );
 
@@ -178,20 +164,15 @@ export default function AddEmployeeScreen() {
     <View style={styles.footer}>
       {/* Primary Action Button */}
       <LiquidGlassButton
-        title={saving ? "Creating..." : "Create Team Member & Send Invitation"}
+        title={saving ? 'Creating...' : 'Create Team Member & Send Invitation'}
         onPress={handleSubmit}
         disabled={saving}
         variant="primary"
         loading={saving}
       />
-      
+
       {/* Single Cancel Button */}
-      <LiquidGlassButton
-        title="Cancel"
-        onPress={handleCancel}
-        disabled={saving}
-        variant="ghost"
-      />
+      <LiquidGlassButton title="Cancel" onPress={handleCancel} disabled={saving} variant="ghost" />
     </View>
   );
 

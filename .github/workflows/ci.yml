@@ -1,0 +1,506 @@
+# MyHours Frontend CI/CD Pipeline
+#
+# Security fixes applied:
+# 1. EXPO_PUBLIC_API_URL_* moved from secrets to vars (they're public URLs)
+# 2. Environment context added to jobs that require secrets
+# 3. Build/deploy jobs only run on push events (not PRs from forks)
+# 4. Conditional logic uses proper GitHub contexts (github, vars, needs)
+#
+name: MyHours Frontend CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'frontend2/myhours-app/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'frontend2/myhours-app/**'
+      - '.github/workflows/ci.yml'
+    types: [opened, synchronize, reopened]
+
+env:
+  NODE_VERSION: '18'
+  EXPO_SDK_VERSION: '53'
+  WORKING_DIR: './frontend2/myhours-app'
+
+jobs:
+  # ==================== Code Quality & Security Checks ====================
+  code-quality:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # for Sonar analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: ESLint Check
+        run: npm run lint
+        continue-on-error: false
+
+      - name: TypeScript Check  
+        run: npm run typecheck
+        continue-on-error: false
+
+      - name: Prettier Check
+        run: npx prettier --check "**/*.{js,jsx,ts,tsx,json,md}"
+        continue-on-error: false
+
+      - name: Security Audit
+        run: npm audit --audit-level high
+        continue-on-error: true
+
+      - name: Bundle Analysis
+        run: |
+          npx expo export --platform web --output-dir dist-analysis
+          du -sh dist-analysis
+          echo "Web bundle size: $(du -sh dist-analysis | cut -f1)"
+
+      - name: Upload ESLint Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eslint-results
+          path: ${{ env.WORKING_DIR }}/eslint-results.json
+          retention-days: 30
+
+  # ==================== Unit Tests ====================
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run Unit Tests
+        run: |
+          npm run test:security-ci
+          npm run test -- --coverage --watchAll=false --testResultsProcessor=jest-sonar-reporter
+        env:
+          CI: true
+
+      - name: Upload Coverage Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ${{ env.WORKING_DIR }}/coverage/
+          retention-days: 30
+
+      - name: Coverage Comment
+        uses: 5monkeys/cobertura-action@master
+        if: github.event_name == 'pull_request'
+        with:
+          path: ${{ env.WORKING_DIR }}/coverage/cobertura-coverage.xml
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          minimum_coverage: 70
+
+  # ==================== iOS Build & Test ====================
+  ios-build:
+    name: iOS Build & Test
+    runs-on: macos-14
+    needs: [code-quality]
+    # TEMPORARILY DISABLED: requires Expo account
+    if: false
+    # if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && github.event_name == 'push'
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.4'
+
+      - name: Setup Java (for React Native)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Install Expo CLI
+        run: npm install -g @expo/cli
+
+      - name: Authenticate with Expo
+        run: expo login --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install iOS Dependencies
+        run: cd ios && pod install
+
+      - name: Pre-build iOS
+        run: expo prebuild --platform ios --clear
+        env:
+          EXPO_PUBLIC_API_URL: ${{ github.ref == 'refs/heads/main' && vars.EXPO_PUBLIC_API_URL_PRODUCTION || vars.EXPO_PUBLIC_API_URL_STAGING }}
+
+      - name: Build iOS App
+        run: |
+          expo build:ios \
+            --type archive \
+            --release-channel staging-${{ github.sha }} \
+            --no-publish
+        env:
+          EXPO_APPLE_ID: ${{ secrets.EXPO_APPLE_ID }}
+          EXPO_APPLE_PASSWORD: ${{ secrets.EXPO_APPLE_PASSWORD }}
+
+      - name: Upload iOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app-${{ github.sha }}
+          path: ${{ env.WORKING_DIR }}/ios/build/
+          retention-days: 14
+
+  # ==================== Android Build & Test ====================
+  android-build:
+    name: Android Build & Test
+    runs-on: ubuntu-latest
+    needs: [code-quality]
+    # TEMPORARILY DISABLED: requires Expo account
+    if: false
+    # if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && github.event_name == 'push'
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Install Expo CLI
+        run: npm install -g @expo/cli
+
+      - name: Authenticate with Expo
+        run: expo login --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Pre-build Android
+        run: expo prebuild --platform android --clear
+        env:
+          EXPO_PUBLIC_API_URL: ${{ github.ref == 'refs/heads/main' && vars.EXPO_PUBLIC_API_URL_PRODUCTION || vars.EXPO_PUBLIC_API_URL_STAGING }}
+
+      - name: Build Android APK
+        run: |
+          expo build:android \
+            --type apk \
+            --release-channel staging-${{ github.sha }} \
+            --no-publish
+        env:
+          EXPO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.EXPO_ANDROID_KEYSTORE_PASSWORD }}
+          EXPO_ANDROID_KEY_PASSWORD: ${{ secrets.EXPO_ANDROID_KEY_PASSWORD }}
+
+      - name: Upload Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-app-${{ github.sha }}
+          path: ${{ env.WORKING_DIR }}/android/app/build/outputs/apk/
+          retention-days: 14
+
+  # ==================== Security Scan ====================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [test]
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run Security Tests
+        run: npm run test:security-ci
+
+      - name: CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          languages: javascript
+          source-root: ${{ env.WORKING_DIR }}
+
+      - name: Upload Security Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-results
+          path: |
+            ${{ env.WORKING_DIR }}/coverage/
+            ${{ env.WORKING_DIR }}/security-report.json
+          retention-days: 30
+
+  # ==================== Expo Staging Deploy ====================
+  staging-deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [test, security-scan]
+    # TEMPORARILY DISABLED: requires Expo account
+    if: false
+    # if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment: staging
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Install Expo CLI
+        run: npm install -g @expo/cli
+
+      - name: Authenticate with Expo
+        run: expo login --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Publish to Expo (Staging)
+        run: |
+          expo publish \
+            --release-channel staging-${{ github.sha }} \
+            --non-interactive
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
+
+      - name: Update Staging Channel
+        run: |
+          expo channel:set staging-latest \
+            --release-channel staging-${{ github.sha }}
+
+      - name: Notify Staging Deployment
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: |
+            Staging deployment completed
+            Release: staging-${{ github.sha }}
+            Test URL: https://expo.dev/@your-username/myhours-app?release-channel=staging-${{ github.sha }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ==================== Production Deploy ====================
+  production-deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [ios-build, android-build, security-scan]
+    # TEMPORARILY DISABLED: requires Expo account and production ready
+    if: false
+    # if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Install Expo CLI
+        run: npm install -g @expo/cli
+
+      - name: Authenticate with Expo
+        run: expo login --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Security Pre-check
+        run: |
+          echo "Verifying production HTTPS configuration..."
+          if [[ ! "$EXPO_PUBLIC_API_URL" =~ ^https:// ]]; then
+            echo "SECURITY ERROR: Production API URL must use HTTPS"
+            exit 1
+          fi
+          echo "HTTPS configuration verified"
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL_PRODUCTION }}
+
+      - name: Publish to Production
+        run: |
+          expo publish \
+            --release-channel production \
+            --non-interactive
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL_PRODUCTION }}
+
+      - name: Submit to App Stores (if enabled)
+        if: vars.AUTO_SUBMIT_TO_STORES == 'true'
+        run: |
+          # iOS App Store
+          expo submit:ios \
+            --path ./ios-app-${{ github.sha }}.ipa \
+            --apple-id ${{ secrets.EXPO_APPLE_ID }} \
+            --app-specific-password ${{ secrets.EXPO_APPLE_PASSWORD }}
+          
+          # Google Play Store
+          expo submit:android \
+            --path ./android-app-${{ github.sha }}.apk \
+            --service-account-key-path ./play-store-service-account.json
+
+      - name: Notify Production Deployment
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: |
+            Production deployment completed
+            Version: ${{ github.sha }}
+            Live URL: https://expo.dev/@your-username/myhours-app
+            [View Analytics](https://expo.dev/@your-username/myhours-app/analytics)
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ==================== Performance & E2E Tests ====================
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [staging-deploy]
+    # TEMPORARILY DISABLED: depends on staging-deploy
+    if: false
+    # if: github.ref == 'refs/heads/develop'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js  
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install E2E Dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          npm install -g @playwright/test
+          npx playwright install --with-deps
+
+      - name: Run E2E Tests
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          npx playwright test --config=playwright.config.js
+        env:
+          E2E_BASE_URL: https://expo.dev/@your-username/myhours-app?release-channel=staging-${{ github.sha }}
+
+      - name: Upload E2E Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-results
+          path: |
+            ${{ env.WORKING_DIR }}/test-results/
+            ${{ env.WORKING_DIR }}/playwright-report/
+          retention-days: 30
+
+  # ==================== Cleanup ====================
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [production-deploy, e2e-tests]
+    if: always()
+    
+    steps:
+      - name: Clean Old Release Channels
+        run: |
+          echo "Cleaning up old release channels..."
+          # Logic for cleaning up old release channels
+          # expo channel:list and delete old channels

@@ -1,7 +1,8 @@
+/* eslint-disable react/prop-types */
 import React from 'react';
 import { TouchableOpacity, Platform, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router as _router } from 'expo-router';
 import { useUser } from '../src/contexts/UserContext';
 import { useToast } from '../contexts/ToastContext';
 import { showGlassConfirm } from '../hooks/useGlobalGlassModal';
@@ -42,9 +43,12 @@ export default function LogoutButton({
   // Get icon size based on 'size'
   const getIconSize = () => {
     switch (size) {
-      case 'small': return 20;
-      case 'large': return 28;
-      default: return 24; // medium
+      case 'small':
+        return 20;
+      case 'large':
+        return 28;
+      default:
+        return 24; // medium
     }
   };
 
@@ -62,11 +66,11 @@ export default function LogoutButton({
 
   const handleLogout = async () => {
     if (isProcessing) {
-      console.log('🚪 Logout already processing, ignoring click');
+      console.log('Logout already processing, ignoring click');
       return;
     }
-    
-    console.log('🚪 Logout button clicked');
+
+    console.log('Logout button clicked');
     setIsProcessing(true);
 
     // Trigger callback before starting
@@ -76,9 +80,9 @@ export default function LogoutButton({
 
     const performLogout = async () => {
       try {
-        console.log('🚪 Starting logout process...');
+        console.log('Starting logout process...');
         await logout();
-        console.log('✅ Logout successful, letting tabs handle navigation...');
+        console.log('Logout successful, letting tabs handle navigation...');
 
         // Trigger success callback
         if (onLogoutSuccess) {
@@ -86,9 +90,9 @@ export default function LogoutButton({
         }
 
         // Let TabsNavigator handle navigation automatically when user state changes
-        console.log('🔄 User state cleared, TabsNavigator will handle navigation');
+        console.log('User state cleared, TabsNavigator will handle navigation');
       } catch (error) {
-        console.error('❌ Logout error:', error);
+        console.error('Logout error:', error);
         const errorMessage = error?.message || 'Failed to logout. You may need to restart the app.';
 
         // Trigger error callback
@@ -135,11 +139,7 @@ export default function LogoutButton({
       accessibilityHint="Double tap to logout from the application"
       {...props}
     >
-      <Ionicons
-        name="exit-outline"
-        size={getIconSize()}
-        color={color}
-      />
+      <Ionicons name="exit-outline" size={getIconSize()} color={color} />
     </TouchableOpacity>
   );
 }
@@ -147,40 +147,40 @@ export default function LogoutButton({
 const styles = StyleSheet.create({
   // Style for header variant (default)
   headerVariant: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginRight: 15,
-    justifyContent: 'center',
     alignItems: 'center',
-    minWidth: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    justifyContent: 'center',
+    marginRight: 15,
     minHeight: 40,
+    minWidth: 40,
+    padding: 8,
   },
 
   // Style for regular button
   buttonVariant: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(220, 53, 69, 0.8)',
-    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(220, 53, 69, 0.8)',
+    borderRadius: 12,
+    elevation: 3,
+    flexDirection: 'row',
     justifyContent: 'center',
     minHeight: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 3,
   },
 
   // Style for icon without background
   iconVariant: {
-    padding: 8,
-    justifyContent: 'center',
     alignItems: 'center',
-    minWidth: 40,
+    justifyContent: 'center',
     minHeight: 40,
+    minWidth: 40,
+    padding: 8,
   },
 });
 
@@ -189,26 +189,16 @@ const styles = StyleSheet.create({
  */
 
 // Logout button for header
-LogoutButton.Header = (props) => (
-  <LogoutButton variant="header" {...props} />
-);
+LogoutButton.Header = props => <LogoutButton variant="header" {...props} />;
 
 // Logout button as a regular button
-LogoutButton.Button = (props) => (
-  <LogoutButton variant="button" size="large" {...props} />
-);
+LogoutButton.Button = props => <LogoutButton variant="button" size="large" {...props} />;
 
 // Logout icon without background
-LogoutButton.Icon = (props) => (
-  <LogoutButton variant="icon" {...props} />
-);
+LogoutButton.Icon = props => <LogoutButton variant="icon" {...props} />;
 
 // Small logout button for compact places
-LogoutButton.Small = (props) => (
-  <LogoutButton variant="header" size="small" {...props} />
-);
+LogoutButton.Small = props => <LogoutButton variant="header" size="small" {...props} />;
 
 // Silent logout without confirmation (for admin operations)
-LogoutButton.Silent = (props) => (
-  <LogoutButton showConfirmation={false} {...props} />
-);
+LogoutButton.Silent = props => <LogoutButton showConfirmation={false} {...props} />;

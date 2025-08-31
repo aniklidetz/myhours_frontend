@@ -13,12 +13,12 @@ export default function AuthTest() {
     setIsLoading(true);
     try {
       await runAuthDiagnostics();
-      
+
       // Get storage data for display
       const token = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
       const userData = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.USER_DATA);
       const enhancedAuth = await AsyncStorage.getItem(APP_CONFIG.STORAGE_KEYS.ENHANCED_AUTH_DATA);
-      
+
       const result = `
 === AUTH DIAGNOSTICS ===
 
@@ -34,7 +34,7 @@ ${userData || 'NULL'}
 Enhanced Auth:
 ${enhancedAuth || 'NULL'}
       `;
-      
+
       setDiagnostics(result);
     } catch (error) {
       setDiagnostics('Error: ' + error.message);
@@ -49,13 +49,15 @@ ${enhancedAuth || 'NULL'}
       const response = await fetch('http://localhost:8000/api/v1/biometrics/status/', {
         method: 'GET',
         headers: {
-          'Authorization': `Token ${token}`,
+          Authorization: `Token ${token}`,
           'Content-Type': 'application/json',
         },
       });
-      
+
       const data = await response.text();
-      setDiagnostics(prev => prev + `\n\n=== API TEST ===\nStatus: ${response.status}\nResponse: ${data}`);
+      setDiagnostics(
+        prev => prev + `\n\n=== API TEST ===\nStatus: ${response.status}\nResponse: ${data}`
+      );
     } catch (error) {
       setDiagnostics(prev => prev + `\n\n=== API TEST ===\nError: ${error.message}`);
     }
@@ -74,21 +76,21 @@ ${enhancedAuth || 'NULL'}
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Authentication Diagnostics</Text>
-      
+
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button} onPress={runDiagnostics} disabled={isLoading}>
           <Text style={styles.buttonText}>Run Diagnostics</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.button} onPress={testAPICall} disabled={isLoading}>
           <Text style={styles.buttonText}>Test API Call</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={[styles.button, styles.dangerButton]} onPress={clearAuth}>
           <Text style={styles.buttonText}>Clear Auth</Text>
         </TouchableOpacity>
       </View>
-      
+
       <ScrollView style={styles.diagnosticsContainer}>
         <Text style={styles.diagnosticsText}>{diagnostics}</Text>
       </ScrollView>

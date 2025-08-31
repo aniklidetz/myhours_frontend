@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
@@ -14,8 +15,8 @@ export default function LogoutButton({ style }) {
     try {
       await logout();
       router.replace('/');
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch (_error) {
+      console.error('Logout error:', _error);
       showGlassAlert({ title: 'Error', message: 'Failed to logout' });
     }
   };
@@ -23,26 +24,24 @@ export default function LogoutButton({ style }) {
   if (!theme) return null;
 
   return (
-    <TouchableOpacity 
-      style={[styles(theme).logoutButton, style]}
-      onPress={handleLogout}
-    >
+    <TouchableOpacity style={[styles(theme).logoutButton, style]} onPress={handleLogout}>
       <Ionicons name="log-out-outline" size={20} color={theme.colors.text.primary} />
     </TouchableOpacity>
   );
 }
 
-const styles = (theme) => StyleSheet.create({
-  logoutButton: {
-    position: 'absolute',
-    top: theme.spacing.lg + 10,
-    right: theme.spacing.lg,
-    backgroundColor: theme.colors.glass.medium,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: theme.borderRadius.xl,
-    borderWidth: 1,
-    borderColor: theme.colors.glass.border,
-    zIndex: 10,
-  },
-});
+const styles = theme =>
+  StyleSheet.create({
+    logoutButton: {
+      backgroundColor: theme.colors.glass.medium,
+      borderColor: theme.colors.glass.border,
+      borderRadius: theme.borderRadius.xl,
+      borderWidth: 1,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      position: 'absolute',
+      right: theme.spacing.lg,
+      top: theme.spacing.lg + 10,
+      zIndex: 10,
+    },
+  });

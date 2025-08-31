@@ -1,0 +1,168 @@
+<testsuites id="" name="" tests="30" failures="0" skipped="2" errors="0" time="90.62750899999999">
+<testsuite name="auth.spec.js" timestamp="2025-08-27T16:02:23.433Z" hostname="chromium" tests="6" failures="0" skipped="0" time="71.26" errors="0">
+<testcase name="MyHours App - Authentication Flow › should display login screen on first visit" classname="auth.spec.js" time="13.298">
+</testcase>
+<testcase name="MyHours App - Authentication Flow › should show validation errors for empty login form" classname="auth.spec.js" time="12.427">
+<system-out>
+<![CDATA[Login button exists but is not clickable - likely due to app state
+]]>
+</system-out>
+</testcase>
+<testcase name="MyHours App - Authentication Flow › should attempt login with test credentials" classname="auth.spec.js" time="11.782">
+<system-out>
+<![CDATA[Login button is not clickable - validating form fill instead
+]]>
+</system-out>
+</testcase>
+<testcase name="MyHours App - Authentication Flow › should handle biometric authentication flow" classname="auth.spec.js" time="11.203">
+<system-out>
+<![CDATA[Biometric authentication not available in this build
+]]>
+</system-out>
+</testcase>
+<testcase name="MyHours App - Authentication Flow › should have secure HTTPS configuration in production" classname="auth.spec.js" time="9.544">
+<system-out>
+<![CDATA[Found 0 API requests in development mode
+]]>
+</system-out>
+</testcase>
+<testcase name="MyHours App - Authentication Flow › should handle offline mode gracefully" classname="auth.spec.js" time="13.006">
+<system-out>
+<![CDATA[App handled offline mode without crashing
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="debug.spec.js" timestamp="2025-08-27T16:02:23.433Z" hostname="chromium" tests="1" failures="0" skipped="0" time="13.663" errors="0">
+<testcase name="Debug - What is on the page › debug - show page content" classname="debug.spec.js" time="13.663">
+<system-out>
+<![CDATA[=== DEBUG INFO ===
+Page title: 
+Network status (navigator.onLine): [33mtrue[39m
+Found 0 connection error messages:
+Found 0 buttons:
+Found 2 div elements that look like buttons:
+  - Div Button 0: "Login" (visible: true, clickable: false)
+  - Div Button 1: "Login" (visible: true, clickable: false)
+Found 2 inputs:
+  - Input 0: type="email", placeholder="Email" (visible: true, disabled: false)
+  - Input 1: type="password", placeholder="Password" (visible: true, disabled: false)
+Login button exists: true
+Attempting to click login button...
+Found 0 validation errors after click
+Found 0 loading indicators after click
+Body text (first 500 chars): MyHoursTime Tracking SystemLogin
+
+=== END DEBUG ===
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="security.spec.js" timestamp="2025-08-27T16:02:23.433Z" hostname="chromium" tests="8" failures="0" skipped="1" time="68.206" errors="0">
+<testcase name="MyHours App - Security Tests › should not expose sensitive data in console logs" classname="security.spec.js" time="7.55">
+</testcase>
+<testcase name="MyHours App - Security Tests › should use secure storage for sensitive data" classname="security.spec.js" time="6.175">
+</testcase>
+<testcase name="MyHours App - Security Tests › should implement proper CSP headers" classname="security.spec.js" time="8.526">
+</testcase>
+<testcase name="MyHours App - Security Tests › should handle XSS protection" classname="security.spec.js" time="10.085">
+</testcase>
+<testcase name="MyHours App - Security Tests › should enforce HTTPS in production" classname="security.spec.js" time="5.168">
+<properties>
+<property name="skip" value="">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="MyHours App - Security Tests › should not leak API endpoints in client code" classname="security.spec.js" time="4.597">
+</testcase>
+<testcase name="MyHours App - Security Tests › should have proper error handling without info disclosure" classname="security.spec.js" time="9.583">
+</testcase>
+<testcase name="MyHours App - Security Tests › should implement secure biometric data handling" classname="security.spec.js" time="16.522">
+</testcase>
+</testsuite>
+<testsuite name="auth.spec.js" timestamp="2025-08-27T16:02:23.433Z" hostname="Mobile Chrome" tests="6" failures="0" skipped="0" time="56.666" errors="0">
+<testcase name="MyHours App - Authentication Flow › should display login screen on first visit" classname="auth.spec.js" time="15.504">
+</testcase>
+<testcase name="MyHours App - Authentication Flow › should show validation errors for empty login form" classname="auth.spec.js" time="9.509">
+<system-out>
+<![CDATA[Login button exists but is not clickable - likely due to app state
+]]>
+</system-out>
+</testcase>
+<testcase name="MyHours App - Authentication Flow › should attempt login with test credentials" classname="auth.spec.js" time="6.235">
+<system-out>
+<![CDATA[Login button is not clickable - validating form fill instead
+]]>
+</system-out>
+</testcase>
+<testcase name="MyHours App - Authentication Flow › should handle biometric authentication flow" classname="auth.spec.js" time="4.879">
+<system-out>
+<![CDATA[Biometric authentication not available in this build
+]]>
+</system-out>
+</testcase>
+<testcase name="MyHours App - Authentication Flow › should have secure HTTPS configuration in production" classname="auth.spec.js" time="7.848">
+<system-out>
+<![CDATA[Found 0 API requests in development mode
+]]>
+</system-out>
+</testcase>
+<testcase name="MyHours App - Authentication Flow › should handle offline mode gracefully" classname="auth.spec.js" time="12.691">
+<system-out>
+<![CDATA[App handled offline mode without crashing
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="debug.spec.js" timestamp="2025-08-27T16:02:23.433Z" hostname="Mobile Chrome" tests="1" failures="0" skipped="0" time="14.222" errors="0">
+<testcase name="Debug - What is on the page › debug - show page content" classname="debug.spec.js" time="14.222">
+<system-out>
+<![CDATA[=== DEBUG INFO ===
+Page title: 
+Network status (navigator.onLine): [33mtrue[39m
+Found 0 connection error messages:
+Found 0 buttons:
+Found 2 div elements that look like buttons:
+  - Div Button 0: "Login" (visible: true, clickable: false)
+  - Div Button 1: "Login" (visible: true, clickable: false)
+Found 2 inputs:
+  - Input 0: type="email", placeholder="Email" (visible: true, disabled: false)
+  - Input 1: type="password", placeholder="Password" (visible: true, disabled: false)
+Login button exists: true
+Attempting to click login button...
+Found 0 validation errors after click
+Found 0 loading indicators after click
+Body text (first 500 chars): MyHoursTime Tracking SystemLogin
+
+=== END DEBUG ===
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="security.spec.js" timestamp="2025-08-27T16:02:23.433Z" hostname="Mobile Chrome" tests="8" failures="0" skipped="1" time="69.36" errors="0">
+<testcase name="MyHours App - Security Tests › should not expose sensitive data in console logs" classname="security.spec.js" time="7.976">
+</testcase>
+<testcase name="MyHours App - Security Tests › should use secure storage for sensitive data" classname="security.spec.js" time="5.883">
+</testcase>
+<testcase name="MyHours App - Security Tests › should implement proper CSP headers" classname="security.spec.js" time="13.372">
+</testcase>
+<testcase name="MyHours App - Security Tests › should handle XSS protection" classname="security.spec.js" time="10.989">
+</testcase>
+<testcase name="MyHours App - Security Tests › should enforce HTTPS in production" classname="security.spec.js" time="4.422">
+<properties>
+<property name="skip" value="">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="MyHours App - Security Tests › should not leak API endpoints in client code" classname="security.spec.js" time="7.983">
+</testcase>
+<testcase name="MyHours App - Security Tests › should have proper error handling without info disclosure" classname="security.spec.js" time="8.893">
+</testcase>
+<testcase name="MyHours App - Security Tests › should implement secure biometric data handling" classname="security.spec.js" time="9.842">
+</testcase>
+</testsuite>
+</testsuites>
