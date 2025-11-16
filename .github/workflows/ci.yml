@@ -22,7 +22,7 @@ on:
     types: [opened, synchronize, reopened]
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   EXPO_SDK_VERSION: '53'
   WORKING_DIR: './frontend2/myhours-app'
 

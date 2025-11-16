@@ -65,18 +65,22 @@ export default function BiometricCheckScreen() {
       setLoading(true);
       console.log(`Starting ${isCheckIn ? 'check-in' : 'check-out'} photo capture...`);
 
+      // Declare variables outside try-catch so they're accessible in catch block
+      let imageData;
+      let locationString;
+
       try {
         // Create new AbortController for this request
         abortControllerRef.current = new AbortController();
 
-        const imageData = `data:image/jpeg;base64,${photo.base64}`;
+        imageData = `data:image/jpeg;base64,${photo.base64}`;
         const getLocationString = () => {
           if (location && location.coords) {
             return `${location.coords.latitude}, ${location.coords.longitude}`;
           }
           return 'Location not available';
         };
-        const locationString = getLocationString();
+        locationString = getLocationString();
 
         // Call the appropriate API endpoint
         console.log(

@@ -15,5 +15,6 @@
     "jsx": "react-native",
     "esModuleInterop": true
   },
-  "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "dist", "build", ".expo", "coverage", "e2e", "__tests__", "scripts"]
 }
