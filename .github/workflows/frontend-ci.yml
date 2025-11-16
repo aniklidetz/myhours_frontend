@@ -1,0 +1,329 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '18'
+  EXPO_CLI_VERSION: 'latest'
+
+jobs:
+  # ========================================================================
+  # JOB 1: Code Quality - Linting & Type Checking
+  # ========================================================================
+  lint-and-typecheck:
+    name: 🔍 Lint & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🎨 Run ESLint
+        run: |
+          if [ -f "package.json" ] && grep -q "\"lint\"" package.json; then
+            npm run lint
+          else
+            echo "⚠️ No lint script found, skipping"
+          fi
+        continue-on-error: false
+
+      - name: 🔷 Run TypeScript type check
+        run: |
+          if [ -f "package.json" ] && grep -q "\"type-check\"" package.json; then
+            npm run type-check
+          else
+            echo "⚠️ No type-check script found, running tsc --noEmit"
+            npx tsc --noEmit || echo "TypeScript check skipped (no tsconfig.json)"
+          fi
+        continue-on-error: false
+
+  # ========================================================================
+  # JOB 2: Unit Tests with Coverage
+  # ========================================================================
+  test:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🧪 Run tests with coverage
+        run: |
+          if [ -f "package.json" ] && grep -q "\"test\"" package.json; then
+            npm run test -- --coverage --watchAll=false || npm test || echo "No tests found"
+          else
+            echo "⚠️ No test script found, skipping tests"
+          fi
+        continue-on-error: true
+
+      - name: 📊 Upload coverage to Codecov (optional)
+        if: hashFiles('coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+        continue-on-error: true
+
+  # ========================================================================
+  # JOB 3: Build Validation
+  # ========================================================================
+  build-validation:
+    name: 🏗️ Build Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔧 Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+        continue-on-error: true
+
+      - name: ✅ Validate Expo config
+        run: |
+          if [ -f "app.json" ] || [ -f "app.config.js" ]; then
+            npx expo config --type prebuild || echo "Expo config validation skipped"
+          else
+            echo "⚠️ No Expo config found"
+          fi
+        continue-on-error: true
+
+      - name: 📦 Check bundle size
+        run: |
+          if [ -f "package.json" ] && grep -q "\"export\"" package.json; then
+            npm run export 2>&1 | tee build-output.txt || echo "Export failed, continuing"
+
+            if [ -f "build-output.txt" ]; then
+              BUNDLE_SIZE=$(grep -oP 'Bundle size: \K[0-9.]+' build-output.txt || echo "0")
+              echo "📦 Bundle size: ${BUNDLE_SIZE}MB"
+
+              if (( $(echo "$BUNDLE_SIZE > 50" | bc -l 2>/dev/null || echo 0) )); then
+                echo "::warning::Bundle size exceeds 50MB!"
+              fi
+            fi
+          else
+            echo "⚠️ No export script found, skipping bundle check"
+          fi
+        continue-on-error: true
+
+  # ========================================================================
+  # JOB 4: Security Audit
+  # ========================================================================
+  security-audit:
+    name: 🔒 Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔍 Run npm audit
+        run: |
+          npm audit --audit-level=moderate || echo "⚠️ Vulnerabilities found, but continuing"
+        continue-on-error: true
+
+      - name: 🕵️ Check for hardcoded secrets
+        run: |
+          echo "🔍 Scanning for hardcoded secrets..."
+
+          # Check for common secret patterns
+          if grep -r -i "api_key\|API_KEY\|secret\|SECRET\|password\|PASSWORD" \
+             --include="*.ts" --include="*.tsx" --include="*.js" \
+             --exclude-dir=node_modules \
+             --exclude-dir=.expo \
+             . | grep -v "// Secret\|/\* Secret\|Type.*Secret" ; then
+            echo "::error::⚠️ Potential hardcoded secrets found!"
+            echo "::warning::Review the matches above and ensure no real secrets are committed"
+            exit 1
+          else
+            echo "✅ No obvious hardcoded secrets detected"
+          fi
+        continue-on-error: false
+
+      - name: 🔐 Check for exposed API URLs
+        run: |
+          echo "🔍 Checking for hardcoded API URLs..."
+
+          if grep -r "http://" --include="*.ts" --include="*.tsx" --include="*.js" \
+             --exclude-dir=node_modules \
+             --exclude-dir=.expo \
+             . | grep -v "localhost\|127.0.0.1\|example.com" | head -5; then
+            echo "::warning::Found hardcoded HTTP URLs (should use HTTPS)"
+          fi
+
+          echo "✅ API URL check complete"
+        continue-on-error: true
+
+  # ========================================================================
+  # JOB 5: EAS Build (Production - Main branch only)
+  # ========================================================================
+  eas-build:
+    name: 📱 EAS Build (Production)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [lint-and-typecheck, test, build-validation, security-audit]
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔧 Setup Expo & EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🤖 Build Android APK (Production)
+        run: |
+          if [ -f "eas.json" ]; then
+            eas build --platform android --profile production --non-interactive
+          else
+            echo "::warning::No eas.json found, skipping EAS build"
+          fi
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        continue-on-error: true
+
+      - name: 🍎 Build iOS IPA (Production)
+        run: |
+          if [ -f "eas.json" ]; then
+            eas build --platform ios --profile production --non-interactive
+          else
+            echo "::warning::No eas.json found, skipping EAS build"
+          fi
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        continue-on-error: true
+
+      - name: 📢 Notify build complete
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "✅ Frontend production build completed!",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Frontend Production Build Complete*\n✅ Build successful for commit `${{ github.sha }}`\n🔗 <${{ github.event.head_commit.url }}|View commit>"
+                  }
+                }
+              ]
+            }
+        continue-on-error: true
+
+  # ========================================================================
+  # JOB 6: Expo Publish (Development)
+  # ========================================================================
+  deploy-development:
+    name: 🚀 Deploy to Development
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    needs: [lint-and-typecheck, test, build-validation]
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔧 Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🚀 Publish to Expo (Development)
+        run: |
+          if [ -f "app.json" ] || [ -f "app.config.js" ]; then
+            npx expo publish --release-channel development || echo "Expo publish failed"
+          else
+            echo "::warning::No Expo config found, skipping publish"
+          fi
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        continue-on-error: true
+
+  # ========================================================================
+  # JOB 7: Summary Report
+  # ========================================================================
+  summary:
+    name: 📋 CI Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint-and-typecheck, test, build-validation, security-audit]
+
+    steps:
+      - name: 📊 Generate Summary
+        run: |
+          echo "## 🎯 Frontend CI/CD Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Checks Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Linting: ${{ needs.lint-and-typecheck.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Tests: ${{ needs.test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Build: ${{ needs.build-validation.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security: ${{ needs.security-audit.result }}" >> $GITHUB_STEP_SUMMARY

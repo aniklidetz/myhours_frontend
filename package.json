@@ -9,6 +9,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "jest --watchAll",
+    "test:ci": "jest --ci --coverage --maxWorkers=2 --testPathIgnorePatterns=/e2e/",
+    "test:unit": "jest --watchAll=false --testPathIgnorePatterns=/e2e/",
     "test:security": "jest src/utils/__tests__/safeLogging.test.js --verbose",
     "test:security-ci": "jest src/utils/__tests__/safeLogging.test.js --ci --coverage --collectCoverageFrom='src/utils/safeLogging.js'",
     "test:e2e": "playwright test",
@@ -19,24 +21,38 @@
     "lint": "expo lint",
     "lint:fix": "expo lint --fix && prettier --write \"**/*.{js,jsx,ts,tsx,json}\"",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json}\"",
-    "typecheck": "tsc --noEmit"
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json}\"",
+    "typecheck": "tsc --noEmit",
+    "type-check": "tsc --noEmit"
   },
   "jest": {
     "preset": "jest-expo",
+    "setupFiles": [
+      "<rootDir>/__tests__/jest.setup.js"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.(test|spec).js",
+      "**/?(*.)+(test|spec).js"
+    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/e2e/"
+      "/e2e/",
+      "jest.setup.js"
     ],
     "collectCoverageFrom": [
       "src/**/*.{js,jsx}",
       "!src/**/*.test.{js,jsx}",
       "!src/**/__tests__/**"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
     ]
   },
   "dependencies": {
     "@expo/config-plugins": "^10.0.0",
     "@expo/vector-icons": "^14.1.0",
     "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-native-community/netinfo": "^11.4.1",
     "@react-native-picker/picker": "2.11.1",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/native": "^7.1.1",
