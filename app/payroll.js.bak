@@ -81,9 +81,8 @@ export default function PayrollScreen() {
       try {
         console.log(' Fetching employees list for payroll...', {});
 
-        // Only clear cache if it's been more than 5 minutes (not on every fetch)
-        // This prevents repeated API calls when switching between filters
-        // await ApiService.employees.clearCache();
+        // Clear cache to ensure we get all employees with new page_size
+        await ApiService.employees.clearCache();
 
         const response = await ApiService.employees.getAll({ page_size: 100 });
 
@@ -287,17 +286,14 @@ export default function PayrollScreen() {
       }
     };
 
-    // Fetch employees ONLY if we don't have them yet
-    if (canViewAllEmployees && employees.length === 0) {
-      setTimeout(() => {
-        fetchEmployees();
-      }, 200);
-    }
-    
-    // Always fetch payroll data when filters change
-    const debounceTimer = setTimeout(fetchData, 500);
+    // Fetch employees first, then fetch payroll data
+    // Add delay to ensure authentication is fully established
+    setTimeout(() => {
+      fetchEmployees();
+    }, 200);
+    const debounceTimer = setTimeout(fetchData, 500); // Increased delay to account for employee fetch
     return () => clearTimeout(debounceTimer);
-  }, [selectedEmployee, selectedPeriod, canViewAllEmployees, user, theme, currentPage, searchTerm, employees]);
+  }, [selectedEmployee, selectedPeriod, canViewAllEmployees, user, theme, currentPage, searchTerm]);
 
   // Show loading during logout transition to prevent hook violations
   if (loading || userLoading || !user || !theme) {

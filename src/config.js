@@ -148,7 +148,7 @@ export const API_ENDPOINTS = {
     SALARIES: '/api/v1/payroll/salaries/',
     CALCULATE: id => `/api/v1/payroll/salaries/${id}/calculate/`,
     EARNINGS: '/api/v1/payroll/earnings/',
-    EARNINGS_ENHANCED: '/api/v1/payroll/earnings/',
+    EARNINGS_ENHANCED: '/api/v1/payroll/enhanced-earnings/',
     EARNINGS_DEMO: '/api/v1/payroll/earnings/demo/',
     COMPENSATORY_DAYS: '/api/v1/payroll/compensatory-days/',
   },

@@ -28,6 +28,7 @@ import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
 import useBiometricCamera from '../hooks/useBiometricCamera';
+import OfflineQueueService from '../src/services/OfflineQueueService';
 
 export default function BiometricCheckScreen() {
   // Get `mode` safely: string | undefined | string[]  →  string | undefined
@@ -125,6 +126,40 @@ export default function BiometricCheckScreen() {
         // Don't show error UI for cancelled requests
         if (_error.name === 'CanceledError' || _error.message === 'canceled') {
           return;
+        }
+
+        // Check if this is a network error - queue it for later
+        const isNetworkError =
+          _error.message === 'Network Error' ||
+          _error.message?.includes('timeout') ||
+          _error.code === 'ECONNABORTED' ||
+          _error.code === 'ERR_NETWORK' ||
+          !_error.response; // No response = network issue
+
+        if (isNetworkError) {
+          try {
+            // Store operation in offline queue
+            const queueId = await OfflineQueueService.enqueue({
+              type: isCheckIn ? 'check-in' : 'check-out',
+              payload: {
+                image: imageData,
+                location: locationString,
+              }
+            });
+
+            console.log(`✅ Operation queued for offline processing: ${queueId}`);
+
+            // Navigate back - user already got alert from OfflineQueueService
+            setTimeout(() => {
+              router.replace('/check-in-out');
+            }, 2000);
+
+            return;
+          } catch (queueError) {
+            console.error('❌ Failed to queue operation:', queueError);
+            showError('Failed to save operation for later. Please try again.');
+            return;
+          }
         }
 
         // Use enhanced error handling with user-friendly messages

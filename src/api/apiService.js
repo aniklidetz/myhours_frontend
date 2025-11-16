@@ -161,8 +161,8 @@ const addAuthInterceptors = client => {
                   authData.token
                 );
               }
-              // Use DeviceToken for all API calls when we have enhanced auth
-              config.headers.Authorization = `DeviceToken ${authData.token || token}`;
+              // Use Token format - backend expects "Token" not "DeviceToken"
+              config.headers.Authorization = `Token ${authData.token || token}`;
             } catch (parseError) {
               safeLog('Error parsing enhanced auth data', { error: parseError.message });
               // Fallback to basic token
@@ -372,7 +372,8 @@ const apiService = {
         }
 
         // Save enhanced auth data
-        if (response.data.success && response.data.token) {
+        // Backend returns {token, user} without success field
+        if (response.data.token) {
           const authData = {
             token: response.data.token,
             expires_at: response.data.expires_at,
@@ -401,7 +402,11 @@ const apiService = {
           safeLog('Enhanced login successful:', safeLogUser(response.data.user, 'enhanced_login'));
         }
 
-        return response.data;
+        // Add success field for compatibility
+        return {
+          ...response.data,
+          success: !!response.data.token
+        };
       } catch (error) {
         safeLog('Enhanced login failed:', {
           hasEmail: !!email,
@@ -428,7 +433,11 @@ const apiService = {
         );
       }
 
-      return response.data;
+      // Add success field for compatibility
+      return {
+        ...response.data,
+        success: !!response.data.token
+      };
     },
 
     // Biometric verification for 2FA

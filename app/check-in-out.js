@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { StyleSheet, View, Text, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useUser } from '../src/contexts/UserContext';
@@ -13,6 +13,7 @@ import LiquidGlassScreenLayout from '../components/LiquidGlassScreenLayout';
 import LiquidGlassCard from '../components/LiquidGlassCard';
 import LiquidGlassButton from '../components/LiquidGlassButton';
 import useLiquidGlassTheme from '../hooks/useLiquidGlassTheme';
+import OfflineQueueService from '../src/services/OfflineQueueService';
 import {
   commonStyles,
   COLORS,
@@ -24,6 +25,7 @@ import {
 export default function CheckInOutScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [manualOperation, setManualOperation] = useState(false);
+  const [queueStatus, setQueueStatus] = useState({ pending: 0, processing: false, failed: 0 });
   const lastFocusTime = useRef(0);
 
   // Check for manual mode parameter
@@ -38,6 +40,16 @@ export default function CheckInOutScreen() {
   const { workStatus, loading, loadWorkStatus, getCurrentDuration, shiftStartTime } =
     useWorkStatus();
 
+  // Load queue status
+  const loadQueueStatus = useCallback(async () => {
+    try {
+      const status = await OfflineQueueService.getQueueStatus();
+      setQueueStatus(status);
+    } catch (error) {
+      console.error('Failed to load queue status:', error);
+    }
+  }, []);
+
   // Reload when screen comes into focus with debounce - MOVED BEFORE EARLY RETURN
   useFocusEffect(
     useCallback(() => {
@@ -49,7 +61,10 @@ export default function CheckInOutScreen() {
         safeLog('Check-in/out screen focused, refreshing status');
         lastFocusTime.current = now;
         setRefreshing(true);
-        loadWorkStatus(true).finally(() => {
+        Promise.all([
+          loadWorkStatus(true),
+          loadQueueStatus() // Also load queue status
+        ]).finally(() => {
           setRefreshing(false);
         });
       }
@@ -58,7 +73,7 @@ export default function CheckInOutScreen() {
       return () => {
         safeLog('Check-in/out screen unfocused');
       };
-    }, [user, refreshing, loadWorkStatus]) // Include all dependencies
+    }, [user, refreshing, loadWorkStatus, loadQueueStatus]) // Include all dependencies
   );
 
   // Ensure theme is loaded before using it
@@ -205,6 +220,32 @@ export default function CheckInOutScreen() {
       marginTop: SPACING.md,
       textAlign: 'center',
     },
+    // Queue Status Indicator styles - Liquid Glass style
+    queueStatusIndicator: {
+      alignItems: 'center',
+      alignSelf: 'center',
+      backgroundColor: COLORS.glassMedium, // Liquid Glass background
+      borderColor: COLORS.glassBorder,
+      borderRadius: BORDER_RADIUS.lg,
+      borderWidth: 1,
+      flexDirection: 'row',
+      marginBottom: SPACING.md,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+    },
+    queueStatusError: {
+      backgroundColor: 'rgba(239, 68, 68, 0.2)', // Liquid Glass with red tint
+      borderColor: 'rgba(239, 68, 68, 0.4)',
+    },
+    queueStatusText: {
+      color: COLORS.textSecondary,
+      fontSize: TYPOGRAPHY.caption.fontSize,
+      marginLeft: SPACING.sm,
+    },
+    queueStatusTextError: {
+      color: '#ef4444', // Red text for errors
+      fontWeight: '600',
+    },
   });
 
   const handleCheckIn = () => {
@@ -350,6 +391,54 @@ export default function CheckInOutScreen() {
             <ActivityIndicator size="small" color="rgba(251, 191, 36, 1)" />
             <Text style={styles.refreshText}>Processing manual check-out...</Text>
           </View>
+        )}
+
+        {/* Queue Status Indicator */}
+        {(queueStatus.pending > 0 || queueStatus.failed > 0) && (
+          <TouchableOpacity
+            style={[
+              styles.queueStatusIndicator,
+              queueStatus.failed > 0 && styles.queueStatusError
+            ]}
+            onPress={async () => {
+              if (queueStatus.failed > 0) {
+                const failedQueue = await OfflineQueueService.getFailedQueue();
+                if (failedQueue.length > 0) {
+                  Alert.alert(
+                    'Failed Operations',
+                    `${failedQueue.length} operations failed to sync.\n\nWould you like to retry them now?`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Retry All',
+                        onPress: async () => {
+                          for (const item of failedQueue) {
+                            await OfflineQueueService.retryFailedItem(item.id);
+                          }
+                          await loadQueueStatus();
+                        }
+                      }
+                    ]
+                  );
+                }
+              }
+            }}
+          >
+            <Ionicons
+              name={queueStatus.processing ? "sync" : queueStatus.failed > 0 ? "alert-circle" : "cloud-upload"}
+              size={16}
+              color={queueStatus.failed > 0 ? "#ef4444" : "#FFFFFF"}
+            />
+            <Text style={[
+              styles.queueStatusText,
+              queueStatus.failed > 0 && styles.queueStatusTextError
+            ]}>
+              {queueStatus.processing && 'Syncing... '}
+              {queueStatus.pending > 0 && `${queueStatus.pending} pending`}
+              {queueStatus.pending > 0 && queueStatus.failed > 0 && ', '}
+              {queueStatus.failed > 0 && `${queueStatus.failed} failed`}
+            </Text>
+          </TouchableOpacity>
         )}
 
         {/* Current Status Card */}
