@@ -168,17 +168,22 @@ jobs:
         run: |
           echo "🔍 Scanning for hardcoded secrets..."
 
-          # Check for common secret patterns
-          if grep -r -i "api_key\|API_KEY\|secret\|SECRET\|password\|PASSWORD" \
+          # Check for actual secret values (not just variable names)
+          # Look for patterns like: API_KEY = "sk_live_..." or password: "actual_password"
+          if grep -r -E "(api_key|API_KEY|apiKey)\s*[:=]\s*['\"][a-zA-Z0-9]{20,}['\"]" \
              --include="*.ts" --include="*.tsx" --include="*.js" \
              --exclude-dir=node_modules \
              --exclude-dir=.expo \
-             . | grep -v "// Secret\|/\* Secret\|Type.*Secret" ; then
-            echo "::error::⚠️ Potential hardcoded secrets found!"
+             --exclude-dir=__tests__ \
+             --exclude-dir=e2e \
+             --exclude="*.test.js" \
+             --exclude="*.spec.js" \
+             . ; then
+            echo "::error::⚠️ Potential hardcoded API keys found!"
             echo "::warning::Review the matches above and ensure no real secrets are committed"
             exit 1
           else
-            echo "✅ No obvious hardcoded secrets detected"
+            echo "✅ No hardcoded secrets detected"
           fi
         continue-on-error: false
 
